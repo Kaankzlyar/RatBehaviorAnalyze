@@ -18,31 +18,47 @@ End-to-end pipeline for rat behavioral analysis using DeepLabCut pose estimation
 
 ## Pipeline
 
+```mermaid
+flowchart TD
+    A["Raw Videos<br/>Part0 Rectangle<br/>Part1 T-Maze MA1,MA3<br/>Part2 T-Maze MA5,MA7<br/>24 × .avi files"] --> B["DeepLabCut<br/>Pose Estimation<br/>Single Model Both Arenas"]
+
+    B --> C{"Arena Type"}
+
+    C -->|Rectangle<br/>Open Field| D["OFT Analysis<br/>dlc_setup.py<br/>dlc_train.py<br/>dlc_inference.py"]
+    C -->|T-Maze| E["T-Maze Analysis<br/>dlc_setup.py<br/>dlc_train.py<br/>dlc_inference.py"]
+
+    D --> F["Metrics: Thigmotaxis<br/>Center Time, Velocity<br/>Exploration Rate"]
+    E --> G["Metrics: Turn Bias<br/>Decision Latency<br/>Path Efficiency<br/>Zone Dwell Time"]
+
+    F --> H["Feature Engineering<br/>features.py"]
+    G --> H
+
+    H --> I["ML Classification<br/>Psychological States<br/>model.py"]
+
+    I --> J["Analysis & Report<br/>Behavioral Profiles<br/>Statistical Comparison"]
 ```
-Raw Videos (Part0 / Part1 / Part2)
-        |
-        v
-DeepLabCut — Pose Estimation (single model, both arenas)
-        |
-        v
-    /-------\
-   /         \
-Rectangle   T-Maze
-(OFT)      Analysis
-Analysis       |
-   |        Heatmaps, Path Metrics,
-Thigmo-    Turn Bias, Zone Dwell
-taxis,         |
-Center         \-------\
-Time               v
-                Feature Engineering
-                        |
-                        v
-                ML Classification
-                (Psychological States)
-                        |
-                        v
-                Analysis & Report
+
+### Execution Stages
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Setup as dlc_setup.py
+    participant Train as dlc_train.py
+    participant Infer as dlc_inference.py
+    participant Analysis as Notebooks
+
+    User->>Setup: 1. Create DLC project<br/>Extract & label frames
+    Setup-->>User: config.yaml + labeled frames
+
+    User->>Train: 2. Create training dataset<br/>Train model, evaluate
+    Train-->>User: Trained weights + metrics
+
+    User->>Infer: 3. Run inference on all videos<br/>Export tracking CSVs
+    Infer-->>User: Clean CSVs per arena
+
+    User->>Analysis: 4. Heatmaps, path analysis,<br/>feature engineering, modeling
+    Analysis-->>User: Behavioral profiles & plots
 ```
 
 ---
