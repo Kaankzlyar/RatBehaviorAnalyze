@@ -1,48 +1,54 @@
-# Rat T-Maze Behavioral Analysis System
+# Rat Behavioral Analysis System
 ## Project Documentation & Roadmap
 
 ---
 
 ## Project Overview
 
-This project builds an end-to-end pipeline for rat T-maze behavioral analysis using computer vision, pose estimation, and machine learning. The goal is to extract meaningful psychological and behavioral indicators from raw video footage through automated analysis.
+This project builds an end-to-end pipeline for rat behavioral analysis using computer vision, pose estimation, and machine learning. Two arena types are used, each targeting different behavioral and psychological dimensions:
+
+| Arena | Folder | Rats | Purpose |
+|-------|--------|------|---------|
+| Rectangle (Open Field) | Part0 | MA1, MA3, MA5, MA7 | Anxiety, locomotion, exploration |
+| T-Maze | Part1 + Part2 | MA1, MA3, MA5, MA7 | Spatial memory, decision-making |
+
+A **single DeepLabCut model** is trained on frames from all arenas. Downstream analysis diverges by arena type.
 
 ---
 
 ## Pipeline Architecture
 
-```
-Raw Video
-    |
-    v
-DeepLabCut (Pose Estimation & Tracking)
-    |
-    v
-Heatmap Generation + Path Line Extraction
-    |
-    v
-Feature Engineering (Behavioral Metrics)
-    |
-    v
-ML Model Training (Psychological State Classification)
-    |
-    v
-Psychological Analysis & Reporting
+```mermaid
+flowchart TD
+    A["Raw Videos<br/>Part0 Rectangle · Part1+2 T-Maze<br/>24 × .avi"] --> B["DeepLabCut<br/>Pose Estimation<br/>Single Model Both Arenas"]
+    B --> C{"Arena Type"}
+    C -->|Part0| D["Rectangle / Open Field<br/>Analysis"]
+    C -->|Part1 + Part2| E["T-Maze<br/>Analysis"]
+    D --> F["Occupancy · Velocity<br/>Thigmotaxis · Exploration"]
+    E --> G["Heatmaps · Path Lines<br/>Turn Bias · Zone Dwell"]
+    F --> H["Feature Engineering"]
+    G --> H
+    H --> I["ML Classification<br/>Psychological States"]
+    I --> J["Reporting & Visualization"]
 ```
 
 ---
 
 ## Stage 1 — Video Collection & Preprocessing
 
-### Input
-- T-maze experiment videos (top-down camera view recommended)
-- Multiple sessions per rat, multiple rats per experimental group
+### Dataset
+
+| Part | Arena | Rats | Sessions | Videos |
+|------|-------|------|----------|--------|
+| Part0 | Rectangle (Open Field) | MA1, MA3, MA5, MA7 | 3 each | 12 |
+| Part1 | T-Maze | MA1, MA3 | 3 each | 6 |
+| Part2 | T-Maze | MA5, MA7 | 3 each | 6 |
 
 ### Tasks
-- [ ] Standardize video resolution, frame rate, and lighting conditions
-- [ ] Define experimental groups (e.g., control, stressed, drug-treated)
+- [ ] Standardize video resolution and frame rate across sessions
 - [ ] Label videos with metadata: rat ID, session number, date, condition
 - [ ] Trim videos to trial start/end markers
+- [ ] Build metadata CSV linking rat IDs, conditions, and arena type
 
 ### Deliverables
 - Organized video dataset with metadata CSV
@@ -53,26 +59,67 @@ Psychological Analysis & Reporting
 ## Stage 2 — DeepLabCut Analysis
 
 ### Purpose
-Track body part positions of each rat across all video frames.
+Track body part positions of each rat across all video frames, in both arenas.
 
-### Setup
-- Train DeepLabCut model on labeled rat T-maze frames
-- Body parts to label: nose, head, neck, body-center, tail-base, left/right limbs
+### Strategy
+- Train a **single DLC model** on frames sampled from all parts (Part0 + Part1 + Part2)
+- Diverse training data improves generalization across arenas and lighting
+- Body parts: `nose`, `head`, `neck`, `body_center`, `tail_base`
 
 ### Tasks
-- [ ] Label 200-400 frames per condition for training
-- [ ] Train DLC model, evaluate test error (target: < 5px RMSE)
-- [ ] Run inference on all experiment videos
-- [ ] Export tracking data as CSV/H5 files (x, y coordinates per body part per frame)
+- [ ] Run `dlc_setup.py` — create project, extract frames, label 200–400 total frames
+- [ ] Run `dlc_train.py` — train model (target: Test RMSE < 8px)
+- [ ] Run `dlc_inference.py` — inference on all videos, export per-arena CSVs
 
-### Output Format
+### Output Layout
 ```
-frame | nose_x | nose_y | head_x | head_y | body_x | body_y | tail_x | tail_y | likelihood
+data/dlc_output/
+├── rectangle/     # Tracking H5/CSV for Part0 videos
+├── tmaze/         # Tracking H5/CSV for Part1 + Part2 videos
+├── clean/
+│   ├── rectangle/ # Flat clean CSVs ready for OFT analysis
+│   └── tmaze/     # Flat clean CSVs ready for T-maze analysis
+└── labeled_videos/
+```
+
+### Output Format (clean CSV)
+```
+frame | nose_x | nose_y | head_x | head_y | body_center_x | body_center_y | tail_base_x | tail_base_y
 ```
 
 ---
 
-## Stage 3 — Heatmap Generation
+## Stage 3A — Open Field Test (Rectangle) Analysis
+
+### Purpose
+Quantify anxiety, locomotion, and exploratory behavior from the rectangle arena sessions.
+
+### Heatmap Types
+| Heatmap | Description | Psychological Relevance |
+|---------|-------------|------------------------|
+| Occupancy Heatmap | Time spent per spatial bin | Anxiety (thigmotaxis) |
+| Velocity Heatmap | Speed at each location | Arousal / inhibition |
+| Trajectory Map | Overlaid movement paths | Exploration patterns |
+
+### OFT Metrics
+| Metric | Definition | Behavioral Indicator |
+|--------|-----------|---------------------|
+| Center time | % time in central zone | Low anxiety = more center time |
+| Peripheral time | % time near walls (thigmotaxis) | High anxiety = wall-hugging |
+| Total distance | Cumulative path length | Locomotion / activity level |
+| Mean velocity | Average movement speed | Arousal / sedation |
+| Exploration rate | Novel zone entries per minute | Exploratory drive |
+| Immobility bouts | Periods of near-zero velocity | Fear / freezing |
+
+### Tasks
+- [ ] Define center vs peripheral zones from arena coordinates
+- [ ] Calculate all OFT metrics per session per rat
+- [ ] Generate per-session and group-average heatmaps
+- [ ] Export OFT feature table
+
+---
+
+## Stage 3B — Heatmap Generation (T-Maze)
 
 ### Purpose
 Visualize spatial occupancy and movement density across the T-maze.
@@ -94,26 +141,25 @@ Visualize spatial occupancy and movement density across the T-maze.
 
 ---
 
-## Stage 4 — Path Line Analysis
+## Stage 4 — Path Line Analysis (T-Maze)
 
 ### Purpose
-Extract geometric and kinematic features from movement trajectories.
+Extract geometric and kinematic features from movement trajectories within the T-maze.
 
 ### Reference Lines
-Define anatomical reference lines in the T-maze:
 - **Stem line**: Entry point to decision point
 - **Left arm line**: Decision point to left goal zone
 - **Right arm line**: Decision point to right goal zone
 - **Center reference**: Maze midline axis
 
-### Path Metrics to Extract
+### Path Metrics
 | Metric | Definition | Behavioral Indicator |
-|---|---|---|
+|--------|-----------|---------------------|
 | Turn bias (L/R ratio) | % of left vs right arm choices | Lateralization, perseveration |
-| Path efficiency | Actual path length / optimal path length | Cognitive load, confusion |
-| Decision latency | Time spent at choice point | Anxiety, deliberation |
+| Path efficiency | Actual path / optimal path length | Cognitive load, confusion |
+| Decision latency | Time at choice point | Anxiety, deliberation |
 | Velocity profile | Speed over time per zone | Exploration drive, fear |
-| Heading angle | Body orientation relative to maze axis | Spatial attention |
+| Heading angle | Body orientation vs maze axis | Spatial attention |
 | Backtrack rate | Frequency of direction reversals | Uncertainty, memory deficit |
 | Zone dwell time | Time in stem / arms / goal zones | Preference, avoidance |
 | Trajectory smoothness | Curvature variance of path | Motor control, anxiety |
@@ -129,80 +175,81 @@ Define anatomical reference lines in the T-maze:
 ## Stage 5 — Feature Engineering
 
 ### Feature Dataset Structure
-Each row = one trial. Columns = behavioral metrics + labels.
+Each row = one session. Columns = behavioral metrics from both arenas + labels.
 
 ```
-rat_id | session | condition | trial | turn_choice | latency | path_efficiency |
-velocity_stem | velocity_arm | dwell_stem | dwell_arm | backtrack_rate |
-heading_variance | occupancy_left | occupancy_right | ... | label
+rat_id | session | condition | arena |
+# OFT features
+oft_center_time | oft_peripheral_time | oft_total_distance | oft_velocity |
+oft_exploration_rate | oft_immobility_bouts |
+# T-Maze features
+tmaze_turn_choice | tmaze_latency | tmaze_path_efficiency |
+tmaze_velocity_stem | tmaze_velocity_arm | tmaze_dwell_stem |
+tmaze_dwell_arm | tmaze_backtrack_rate | tmaze_heading_variance |
+# Target
+label
 ```
 
-### Derived Features
-- Rolling averages across trials (learning curves)
-- Within-session variability metrics
-- Inter-session difference scores (baseline vs treatment)
-- Symmetry indices (left/right zone balance)
+### Cross-Arena Features
+- OFT anxiety score correlated with T-maze decision latency
+- OFT locomotion vs T-maze path efficiency
+- Within-session variability across arenas
 
 ### Labels / Targets
-Define psychological states as classification or regression targets:
 | Label | Description |
-|---|---|
-| Anxiety level | High / Low based on open-arm avoidance, freezing |
-| Cognitive flexibility | Reversal learning speed |
-| Spatial memory | Correct arm choice rate |
+|-------|-------------|
+| Anxiety level | High / Low — OFT thigmotaxis + T-maze latency |
+| Cognitive flexibility | Reversal learning speed (T-maze) |
+| Spatial memory | Correct arm choice rate (T-maze) |
 | Stress response | Behavioral change from baseline |
-| Exploratory drive | Novel zone investigation rate |
+| Exploratory drive | Novel zone investigation (OFT) |
 
 ---
 
 ## Stage 6 — Model Training
 
-### Approach
-Train supervised ML / deep learning models to classify psychological states from behavioral features.
-
 ### Models to Evaluate
 | Model | Use Case |
-|---|---|
+|-------|----------|
 | Random Forest | Baseline classifier, feature importance |
 | Gradient Boosting (XGBoost) | High-accuracy tabular classification |
 | SVM | Small dataset, binary classification |
 | LSTM / GRU | Sequential trial-level temporal patterns |
-| Transformer (behavioral) | Long-session behavioral sequences |
 | CNN on heatmaps | Direct image-based spatial classification |
 
 ### Training Strategy
-- [ ] Split data: train/validation/test by rat (not by trial) to prevent leakage
+- [ ] Split by rat (not by trial) to prevent data leakage
 - [ ] Cross-validate across experimental groups
 - [ ] Handle class imbalance with SMOTE or weighted loss
-- [ ] Hyperparameter tuning with Optuna or GridSearch
+- [ ] Hyperparameter tuning with Optuna
 
 ### Evaluation Metrics
 - Accuracy, F1-score, AUC-ROC
 - Confusion matrix per psychological state
-- Feature importance plots (SHAP values)
-- Behavioral pattern visualization per predicted class
+- SHAP feature importance across both arena metrics
 
 ---
 
 ## Stage 7 — Psychological Analysis & Reporting
 
 ### Analysis Outputs
-- Per-rat behavioral profiles across sessions
-- Group comparison statistics (ANOVA, t-test, Mann-Whitney U)
-- Correlation matrices: behavioral features vs psychological labels
+- Per-rat behavioral profiles across sessions and arenas
+- OFT vs T-maze correlation matrix
+- Group comparison statistics (ANOVA, Mann-Whitney U)
 - Learning curve plots per condition
 - Decision bias maps (L/R preference over time)
 
 ### Report Structure
 ```
 1. Experiment Summary
-2. Group Demographics & Conditions
-3. Heatmap Gallery (per group, per session)
-4. Path Analysis Results
-5. Feature Distributions & Statistics
-6. Model Performance Report
-7. Psychological State Classifications
-8. Conclusions & Behavioral Interpretation
+2. Dataset: Rats, Sessions, Arena Conditions
+3. OFT Heatmap Gallery (per group, per session)
+4. T-Maze Heatmap & Path Analysis Gallery
+5. Cross-Arena Feature Correlations
+6. Feature Distributions & Statistics
+7. Model Performance Report
+8. Psychological State Classifications
+9. Conclusions & Behavioral Interpretation
 ```
 
 ---
@@ -210,46 +257,14 @@ Train supervised ML / deep learning models to classify psychological states from
 ## Technology Stack
 
 | Component | Tool |
-|---|---|
-| Pose Estimation | DeepLabCut |
-| Video Processing | OpenCV, FFmpeg |
+|-----------|------|
+| Pose Estimation | DeepLabCut (PyTorch backend) |
+| Video Processing | OpenCV |
 | Data Processing | Python, Pandas, NumPy |
 | Heatmaps & Visualization | Matplotlib, Seaborn, Plotly |
 | Path Analysis | SciPy, Shapely |
 | ML Models | Scikit-learn, XGBoost, PyTorch |
-| Experiment Tracking | MLflow or Weights & Biases |
 | Notebooks | Jupyter Lab |
-
----
-
-## Project Roadmap
-
-```
-Phase 1 — Data Foundation         [Weeks 1-3]
-  - Video collection & organization
-  - DeepLabCut model training
-  - Tracking data export
-
-Phase 2 — Analysis Pipeline       [Weeks 4-6]
-  - Heatmap generation module
-  - Path line extraction module
-  - Feature dataset construction
-
-Phase 3 — Model Development       [Weeks 7-10]
-  - Baseline model (Random Forest)
-  - Deep learning models (LSTM, CNN)
-  - Evaluation & comparison
-
-Phase 4 — Psychological Mapping   [Weeks 11-13]
-  - Label refinement with domain experts
-  - Model calibration
-  - Behavioral profile generation
-
-Phase 5 — Reporting & Iteration   [Weeks 14-16]
-  - Analysis reports
-  - Visualization dashboard
-  - Paper/thesis writing support
-```
 
 ---
 
@@ -258,12 +273,21 @@ Phase 5 — Reporting & Iteration   [Weeks 14-16]
 ```
 ThesisWork/
 ├── data/
-│   ├── raw_videos/          # Original experiment videos
-│   ├── dlc_output/          # DeepLabCut tracking CSVs/H5
-│   ├── heatmaps/            # Generated heatmap images & arrays
-│   └── features/            # Extracted behavioral feature datasets
+│   ├── raw_videos/
+│   │   ├── Part0/           # Rectangle arena (MA1, MA3, MA5, MA7 × 3)
+│   │   ├── Part1/           # T-maze (MA1, MA3 × 3)
+│   │   └── Part2/           # T-maze (MA5, MA7 × 3)
+│   ├── dlc_output/
+│   │   ├── rectangle/       # Raw DLC output for open field videos
+│   │   ├── tmaze/           # Raw DLC output for T-maze videos
+│   │   ├── clean/
+│   │   │   ├── rectangle/   # Cleaned flat CSVs for OFT analysis
+│   │   │   └── tmaze/       # Cleaned flat CSVs for T-maze analysis
+│   │   └── labeled_videos/  # QC annotated videos
+│   ├── heatmaps/
+│   └── features/
 ├── models/
-│   ├── dlc_model/           # Trained DeepLabCut model
+│   ├── dlc_model/           # Trained DeepLabCut project
 │   └── classifier/          # Trained psychological state models
 ├── notebooks/
 │   ├── 01_dlc_analysis.ipynb
@@ -272,30 +296,34 @@ ThesisWork/
 │   ├── 04_feature_engineering.ipynb
 │   └── 05_model_training.ipynb
 ├── src/
+│   ├── dlc_setup.py
+│   ├── dlc_train.py
+│   ├── dlc_inference.py
 │   ├── heatmap.py
 │   ├── path_analysis.py
 │   ├── features.py
 │   └── model.py
-├── reports/
-│   └── figures/
-└── RAT_TMAZE_PROJECT.md     # This file
+└── documents/
+    ├── DEEPLABCUT_PIPELINE.md
+    └── RAT_TMAZE_PROJECT.md
 ```
 
 ---
 
 ## Key Research Questions
 
-1. Can spatial heatmap patterns reliably distinguish between anxiety levels in rats?
-2. Do path efficiency metrics correlate with cognitive impairment?
-3. Can a model trained on one experimental group generalize to another condition?
-4. What behavioral features are most predictive of psychological state?
-5. How do learning curves in path analysis reflect memory formation?
+1. Does open-field anxiety (thigmotaxis) predict T-maze decision latency in the same rat?
+2. Can spatial heatmap patterns reliably distinguish between anxiety levels in rats?
+3. Do path efficiency metrics correlate with cognitive impairment?
+4. Can a model trained on one experimental group generalize to another condition?
+5. What behavioral features (OFT vs T-maze) are most predictive of psychological state?
+6. How do learning curves in path analysis reflect memory formation across sessions?
 
 ---
 
 ## Notes
 
-- All analysis should be blinded to condition labels during feature extraction to avoid bias
-- Validate behavioral metrics against established manual scoring (e.g., ethogram comparison)
-- Consider ethically approved stress protocols and document all experimental conditions
+- All analysis should be blinded to condition labels during feature extraction
+- Validate behavioral metrics against established manual scoring (ethogram comparison)
 - Model predictions are behavioral proxies — final psychological interpretation requires expert validation
+- Cross-arena features (OFT × T-maze) may reveal richer psychological signatures than either arena alone

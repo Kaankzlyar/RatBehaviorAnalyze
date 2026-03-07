@@ -1,11 +1,17 @@
 # DeepLabCut Training Pipeline
-## Rat T-Maze Pose Estimation Setup
+## Dual-Arena Rat Behavioral Analysis
 
 ---
 
 ## Overview
 
-This document covers the full DeepLabCut (DLC) workflow: from serving your rat T-maze videos to training a pose estimation model and exporting tracking data for downstream analysis.
+This document covers the full DeepLabCut (DLC) workflow for the rat behavioral project. Videos span two arena types (**rectangle open field** and **T-maze**) stored across three subfolders. A **single DLC model** is trained on frames from all arenas — the rat body parts are the same regardless of the arena, and diverse training data improves generalization.
+
+| Part | Arena | Rats | Videos |
+|------|-------|------|--------|
+| Part0 | Rectangle (Open Field) | MA1, MA3, MA5, MA7 | 12 × .avi |
+| Part1 | T-Maze | MA1, MA3 | 6 × .avi |
+| Part2 | T-Maze | MA5, MA7 | 6 × .avi |
 
 ---
 
@@ -14,25 +20,18 @@ This document covers the full DeepLabCut (DLC) workflow: from serving your rat T
 ### Install DeepLabCut
 
 ```bash
-# Create a dedicated conda environment (recommended)
 conda create -n dlc python=3.10 -y
 conda activate dlc
 
-# Install DeepLabCut with GPU support
-pip install deeplabcut[tf]
-
-# Or for PyTorch backend (DLC 3.x+)
+# PyTorch backend (DLC 3.x+, recommended for RTX 3060)
 pip install deeplabcut[torch]
 
-# Verify installation
 python -c "import deeplabcut; print(deeplabcut.__version__)"
 ```
 
-### GPU Setup (recommended for training)
+### GPU Setup
 ```bash
-# Check CUDA availability
-python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
-# or for PyTorch backend:
+# PyTorch backend
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
@@ -41,51 +40,44 @@ python -c "import torch; print(torch.cuda.is_available())"
 ## Stage 1 — Project Creation
 
 ```python
-import deeplabcut
+import deeplabcut, glob, os
 
-# Define your project
-project_name = "rat_tmaze"
-experimenter  = "your_name"
+project_name = "rat_behavior"
+experimenter = "kaank"
 
-# List of video paths to include in the project
-video_paths = [
-    "D:/ProjectsD/ThesisWork/data/raw_videos/rat01_session01.mp4",
-    "D:/ProjectsD/ThesisWork/data/raw_videos/rat02_session01.mp4",
-    # Add more videos...
-]
+# Collect all .avi videos recursively from Part0/, Part1/, Part2/
+video_dir  = "D:/ProjectsD/ThesisWork/data/raw_videos"
+video_paths = glob.glob(os.path.join(video_dir, "**", "*.avi"), recursive=True)
+print(f"Found {len(video_paths)} videos")  # expected: 24
 
-# Create project — generates config.yaml in the project folder
 config_path = deeplabcut.create_new_project(
     project_name,
     experimenter,
     video_paths,
     working_directory="D:/ProjectsD/ThesisWork/models/dlc_model",
-    copy_videos=False,   # Set True to copy videos into project folder
-    videotype="mp4"
+    copy_videos=False,
+    videotype="avi"
 )
 
 print(f"Config path: {config_path}")
 ```
 
-This creates the directory structure:
+This creates:
 ```
-dlc_model/
-└── rat_tmaze-your_name-YYYY-MM-DD/
-    ├── config.yaml          # Main config — edit this
-    ├── videos/              # Symlinks or copies of your videos
-    ├── labeled-data/        # Where your labeled frames will go
-    ├── training-datasets/   # Generated training data
-    └── dlc-models/          # Trained model weights
+models/dlc_model/
+└── rat_behavior-kaank-YYYY-MM-DD/
+    ├── config.yaml
+    ├── videos/
+    ├── labeled-data/
+    ├── training-datasets/
+    └── dlc-models/
 ```
 
 ---
 
 ## Stage 2 — Configure config.yaml
 
-Open `config.yaml` and edit the following key fields:
-
 ```yaml
-# Body parts to track on the rat
 bodyparts:
   - nose
   - head
@@ -93,66 +85,56 @@ bodyparts:
   - body_center
   - tail_base
 
-# Skeleton connections (for visualization)
 skeleton:
   - [nose, head]
   - [head, neck]
   - [neck, body_center]
   - [body_center, tail_base]
 
-# Number of frames to extract per video for labeling
-numframes2pick: 20   # 20 per video — adjust based on video count
+numframes2pick: 20   # 20 per video × 24 videos = up to 480 frames
 
-# Cropping (optional — useful if maze occupies only part of frame)
-cropleftwidth: 0
-cropright: 1920
-croptop: 0
-cropbottom: 1080
+dotsize: 6
+alphavalue: 0.9
 ```
 
 ---
 
 ## Stage 3 — Frame Extraction
 
-Extract representative frames from your videos for manual labeling.
-
 ```python
-# Extract frames using kmeans clustering (diverse frames)
 deeplabcut.extract_frames(
     config_path,
-    mode="automatic",       # "automatic" or "manual"
-    algo="kmeans",          # "kmeans" or "uniform"
+    mode="automatic",
+    algo="kmeans",        # diverse frame selection
     userfeedback=False,
     crop=False
 )
 ```
 
-### Extraction Strategy for T-maze
-- Use `kmeans` to get diverse postures
-- Target: **200-400 total frames** across all videos
+### Extraction Strategy
+- `kmeans` captures diverse postures across both arena types
+- Target: **200–400 total labeled frames**
 - Include frames from: straight running, turning, stopping, rearing
+- Make sure frames from **both rectangle and T-maze sessions** are represented
 
 ---
 
 ## Stage 4 — Labeling Frames
 
-Launch the labeling GUI to annotate body parts on extracted frames.
-
 ```python
 deeplabcut.label_frames(config_path)
 ```
 
-### Labeling GUI Tips
+### Labeling GUI Shortcuts
 | Action | Shortcut |
-|---|---|
+|--------|----------|
 | Next frame | `D` |
 | Previous frame | `A` |
 | Save labels | `Ctrl+S` |
-| Zoom in | Scroll wheel |
 | Place label | Left click |
 | Remove label | Right click |
 
-### Labeling Guidelines for Rats
+### Body Part Guidelines
 - **nose**: tip of the snout
 - **head**: between the ears, top of skull
 - **neck**: base of skull / top of shoulders
@@ -164,7 +146,6 @@ deeplabcut.label_frames(config_path)
 ### Verify Labels
 ```python
 deeplabcut.check_labels(config_path, visualizeindividuals=True)
-# Outputs labeled images to labeled-data/ for visual inspection
 ```
 
 ---
@@ -174,12 +155,10 @@ deeplabcut.check_labels(config_path, visualizeindividuals=True)
 ```python
 deeplabcut.create_training_dataset(
     config_path,
-    num_shuffles=1,          # Number of train/test splits
-    augmenter_type="imgaug"  # Data augmentation backend
+    num_shuffles=1,
+    augmenter_type="imgaug"
 )
 ```
-
-This generates the TFRecords / numpy arrays used during training.
 
 ---
 
@@ -190,12 +169,12 @@ deeplabcut.train_network(
     config_path,
     shuffle=1,
     trainingsetindex=0,
-    gputouse=0,              # GPU index (0 for first GPU, None for CPU)
+    gputouse=0,              # RTX 3060
     max_snapshots_to_keep=5,
     autotune=False,
-    displayiters=100,        # Print loss every N iterations
-    saveiters=1000,          # Save checkpoint every N iterations
-    maxiters=50000           # Total training iterations
+    displayiters=500,
+    saveiters=5000,
+    maxiters=50000
 )
 ```
 
@@ -203,10 +182,10 @@ deeplabcut.train_network(
 | Dataset Size | Recommended maxiters |
 |---|---|
 | < 200 frames | 30,000 |
-| 200-400 frames | 50,000 |
+| 200–400 frames | 50,000 |
 | 400+ frames | 100,000 |
 
-Monitor the loss in the terminal — it should decrease and plateau. Stop training when loss stabilizes.
+**RTX 3060 (6GB VRAM):** set `batch_size=8` in `pose_cfg.yaml` via `dlc_train.py`.
 
 ---
 
@@ -216,59 +195,58 @@ Monitor the loss in the terminal — it should decrease and plateau. Stop traini
 deeplabcut.evaluate_network(
     config_path,
     shuffle=[1],
-    plotting=True            # Saves evaluation plots
+    plotting=True
 )
 ```
 
 ### Target Metrics
 | Metric | Acceptable | Good |
-|---|---|---|
+|--------|-----------|------|
 | Train RMSE | < 5 px | < 3 px |
 | Test RMSE | < 8 px | < 5 px |
 | p-cutoff ratio | > 0.85 | > 0.95 |
 
-If test error is high:
-- Add more labeled frames (especially failure cases)
-- Run more training iterations
-- Check label consistency
+If test error is high on one arena type, extract outlier frames from those videos and refine.
 
 ---
 
 ## Stage 8 — Run Inference on All Videos
 
+Outputs are **separated by arena** into `rectangle/` and `tmaze/` subfolders.
+
 ```python
-# Analyze a single video
-deeplabcut.analyze_videos(
-    config_path,
-    ["D:/ProjectsD/ThesisWork/data/raw_videos/rat01_session01.mp4"],
-    videotype="mp4",
-    shuffle=1,
-    save_as_csv=True,        # Export as CSV in addition to H5
-    destfolder="D:/ProjectsD/ThesisWork/data/dlc_output/"
-)
+import glob, os
+import deeplabcut
 
-# Analyze all videos in a folder
-import os
-video_folder = "D:/ProjectsD/ThesisWork/data/raw_videos/"
-videos = [os.path.join(video_folder, f) for f in os.listdir(video_folder) if f.endswith(".mp4")]
+config_path = "D:/ProjectsD/ThesisWork/models/dlc_model/rat_behavior-kaank-YYYY-MM-DD/config.yaml"
 
-deeplabcut.analyze_videos(
-    config_path,
-    videos,
-    videotype="mp4",
-    shuffle=1,
-    save_as_csv=True,
-    destfolder="D:/ProjectsD/ThesisWork/data/dlc_output/"
-)
+ARENA_MAP = {"Part0": "rectangle", "Part1": "tmaze", "Part2": "tmaze"}
+
+for part, arena in ARENA_MAP.items():
+    videos = glob.glob(
+        f"D:/ProjectsD/ThesisWork/data/raw_videos/{part}/*.avi"
+    )
+    out_dir = f"D:/ProjectsD/ThesisWork/data/dlc_output/{arena}"
+    os.makedirs(out_dir, exist_ok=True)
+
+    deeplabcut.analyze_videos(
+        config_path,
+        videos,
+        videotype="avi",
+        shuffle=1,
+        save_as_csv=True,
+        destfolder=out_dir
+    )
 ```
 
 ### Output Files
-For each video, DLC generates:
 ```
 data/dlc_output/
-├── rat01_session01DLC_resnet50_rat_tmazeJan01shuffle1_50000.h5   # Full data
-├── rat01_session01DLC_resnet50_rat_tmazeJan01shuffle1_50000.csv  # Human-readable
-└── rat01_session01DLC_resnet50_rat_tmazeJan01shuffle1_50000_meta.pickle
+├── rectangle/
+│   └── MA1-1_res_DLC_resnet50_rat_behaviorMMDDshuffle1_50000.csv
+├── tmaze/
+│   └── MA1-1_res_DLC_resnet50_rat_behaviorMMDDshuffle1_50000.csv
+└── labeled_videos/
 ```
 
 ### CSV Column Structure
@@ -278,7 +256,6 @@ bodyparts      | nose  nose  nose  head  head  head  ...
 coords         | x     y     likelihood  x  y  likelihood ...
 frame_index
 0              | 312.4  210.1  0.998  ...
-1              | 313.1  210.5  0.997  ...
 ```
 
 ---
@@ -286,21 +263,22 @@ frame_index
 ## Stage 9 — Filter & Create Labeled Videos
 
 ```python
-# Filter predictions (smooth tracking, remove low-confidence frames)
+# Filter predictions (smooth tracking)
 deeplabcut.filterpredictions(
     config_path,
-    ["D:/ProjectsD/ThesisWork/data/raw_videos/rat01_session01.mp4"],
-    videotype="mp4",
+    videos,
+    videotype="avi",
     shuffle=1,
     filtertype="median",
-    windowlength=5
+    windowlength=5,
+    destfolder=out_dir
 )
 
 # Create labeled video for visual QC
 deeplabcut.create_labeled_video(
     config_path,
-    ["D:/ProjectsD/ThesisWork/data/raw_videos/rat01_session01.mp4"],
-    videotype="mp4",
+    videos,
+    videotype="avi",
     shuffle=1,
     filtered=True,
     draw_skeleton=True,
@@ -319,16 +297,14 @@ import numpy as np
 def load_dlc_csv(csv_path, likelihood_threshold=0.6):
     """Load DLC CSV and filter low-confidence predictions."""
     df = pd.read_csv(csv_path, header=[1, 2], index_col=0)
-
     bodyparts = df.columns.get_level_values(0).unique()
     cleaned = {}
 
     for bp in bodyparts:
-        x = df[bp]["x"].values.astype(float)
-        y = df[bp]["y"].values.astype(float)
+        x          = df[bp]["x"].values.astype(float)
+        y          = df[bp]["y"].values.astype(float)
         likelihood = df[bp]["likelihood"].values.astype(float)
 
-        # Mask low-confidence frames
         x[likelihood < likelihood_threshold] = np.nan
         y[likelihood < likelihood_threshold] = np.nan
 
@@ -336,12 +312,11 @@ def load_dlc_csv(csv_path, likelihood_threshold=0.6):
 
     return cleaned
 
-# Example usage
-tracking = load_dlc_csv(
-    "D:/ProjectsD/ThesisWork/data/dlc_output/rat01_session01...csv"
-)
-nose_x = tracking["nose"]["x"]
-nose_y = tracking["nose"]["y"]
+# Rectangle arena session
+oft_tracking = load_dlc_csv("D:/ProjectsD/ThesisWork/data/dlc_output/clean/rectangle/MA1-1_res_..._clean.csv")
+
+# T-maze session
+tmaze_tracking = load_dlc_csv("D:/ProjectsD/ThesisWork/data/dlc_output/clean/tmaze/MA1-1_res_..._clean.csv")
 ```
 
 ---
@@ -354,50 +329,42 @@ If tracking quality is poor on certain videos:
 # Extract frames where DLC was uncertain
 deeplabcut.extract_outlier_frames(
     config_path,
-    ["path/to/problem_video.mp4"],
-    outlieralgorithm="uncertain",  # Flags low-likelihood frames
-    epsilon=20,                    # Pixel threshold for outlier detection
+    ["path/to/problem_video.avi"],
+    outlieralgorithm="uncertain",
+    epsilon=20,
     automatic=True
 )
 
-# Re-label the outlier frames
 deeplabcut.refine_labels(config_path)
-
-# Merge new labels with existing dataset
 deeplabcut.merge_datasets(config_path)
-
-# Retrain from existing checkpoint
 deeplabcut.train_network(config_path, shuffle=1, maxiters=75000)
 ```
 
 ---
 
-## Video Serving Notes
+## Video Format Notes
 
-When serving videos for DLC analysis:
-
-- **Format**: MP4 (H.264) recommended
-- **Resolution**: Consistent across all sessions (e.g., 1920x1080 or 1280x720)
-- **Frame rate**: 25-30 fps standard; 60+ fps for fast movements
-- **Camera angle**: Top-down (bird's eye) for T-maze — minimizes occlusion
-- **Lighting**: Uniform, no flickering; rat should contrast with maze floor
-- **Compression**: Avoid heavy compression — artefacts degrade DLC accuracy
+- **Format**: `.avi` (H.264 or MJPEG)
+- **Camera angle**: Top-down (bird's eye) for both arenas
+- **Lighting**: Uniform, no flickering; rat should contrast with floor
+- **Resolution**: Consistent across all sessions
 
 ---
 
 ## Troubleshooting
 
 | Problem | Likely Cause | Fix |
-|---|---|---|
-| High test RMSE | Too few labels or inconsistent labeling | Add 50-100 more frames, re-check labels |
-| Body parts jumping | Low video quality or fast motion | Add more frames from fast-motion segments |
-| GPU out of memory | Batch size too large | Reduce `batch_size` in pose_cfg.yaml |
+|---------|-------------|-----|
+| High test RMSE on one arena | Underrepresented in training frames | Add more frames from that arena, re-label |
+| Body parts jumping | Low video quality or fast motion | Add frames from fast-motion segments |
+| GPU out of memory | batch_size too large | Reduce `batch_size` in pose_cfg.yaml (try 4) |
 | Tracking drifts | Model undertrained | Increase `maxiters` |
-| Low likelihood everywhere | Wrong video resolution in config | Check `x1,x2,y1,y2` crop settings |
+| Low likelihood everywhere | Wrong video type or resolution | Check `videotype="avi"` and crop settings |
+| No videos found | Script searching for .mp4 | Confirm `VIDEO_EXT = "avi"` in all scripts |
 
 ---
 
 ## Next Step
 
 Once DLC tracking CSVs are ready, proceed to:
-**`RAT_TMAZE_PROJECT.md` → Stage 3: Heatmap Generation**
+**`RAT_TMAZE_PROJECT.md` → Stage 3A (OFT Analysis) and Stage 3B (T-Maze Heatmaps)**
