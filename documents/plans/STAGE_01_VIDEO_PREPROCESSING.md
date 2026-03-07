@@ -11,7 +11,8 @@ Organize raw experiment videos into a clean, structured dataset with consistent 
 
 ## Status
 
-- [ ] In progress
+- [x] Implementation complete — `src/video_preprocessing.py`
+- [ ] Run against actual videos and verify outputs
 
 ---
 
@@ -27,12 +28,23 @@ Organize raw experiment videos into a clean, structured dataset with consistent 
 
 ---
 
+## Implementation
+
+**Script:** `src/video_preprocessing.py`
+
+Run with:
+```bash
+python src/video_preprocessing.py
+```
+
+---
+
 ## Tasks
 
 ### 1.1 — Video Inventory
-- [ ] List all 24 videos and confirm file sizes are non-zero
-- [ ] Verify all videos open correctly (no corruption)
-- [ ] Record duration, resolution, and frame rate for each video
+- [x] List all 24 videos and confirm file sizes are non-zero
+- [x] Verify all videos open correctly (no corruption) — `get_video_properties()`
+- [x] Record duration, resolution, and frame rate for each video
 
 ```python
 import cv2, os, glob
@@ -52,7 +64,7 @@ for v in videos:
 ```
 
 ### 1.2 — Metadata CSV
-- [ ] Create `data/metadata.csv` with one row per video
+- [x] Create `data/metadata.csv` with one row per video — `build_inventory()` + `save_outputs()`
 
 | Column | Description |
 |--------|-------------|
@@ -68,20 +80,21 @@ for v in videos:
 | `file_path` | Full path |
 
 ### 1.3 — Video Quality Check
-- [ ] Confirm consistent resolution across all sessions
-- [ ] Check for lighting inconsistencies (histogram per video)
-- [ ] Flag any videos with motion blur or dropped frames
-- [ ] Confirm top-down camera angle is consistent
+- [x] Confirm consistent resolution across all sessions — `check_consistency()`
+- [x] Check for lighting inconsistencies — `check_brightness()` + histogram plots in `data/quality_plots/`
+- [x] Flag dropped frames — `check_dropped_frames()` (flags if > 1% missing)
+- [x] Flag blurry frames — `check_blur()` via Laplacian variance (threshold=80)
+- [ ] Manually confirm top-down camera angle is consistent
 
 ### 1.4 — Trim Trial Windows (Optional)
-- [ ] Identify trial start and end markers in each video
-- [ ] If manual markers are available, trim videos to trial only
-- [ ] Export trimmed copies to `data/raw_videos_trimmed/` (keep originals)
+- [x] `batch_trim()` implemented — reads `data/trial_markers.csv` (filename, start_frame, end_frame)
+- [ ] Create `data/trial_markers.csv` with manual start/end frame numbers
+- [ ] Uncomment `batch_trim()` call in `__main__` and re-run
 
 ### 1.5 — Define Experimental Groups
-- [ ] Assign `condition` labels (control, stressed, drug-treated, etc.)
-- [ ] Document group assignment rationale
-- [ ] Ensure group labels are stored in `metadata.csv`
+- [x] `CONDITION_MAP` dict at top of script — edit with actual group labels
+- [ ] Fill in `CONDITION_MAP` with condition labels (control / stressed / drug-treated)
+- [ ] Re-run script to propagate labels into `metadata.csv`
 
 ---
 
