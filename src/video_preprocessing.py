@@ -5,7 +5,7 @@ Stage 01: Video Collection & Preprocessing
 
 Tasks:
     1.1  Video inventory — scan all .avi files, verify they open, record properties
-    1.2  Metadata CSV — parse filenames, map arena type, export data/metadata.csv
+    1.2  Metadata — parse filenames, map arena type, export data/metadata.xlsx
     1.3  Quality checks — resolution/fps consistency, brightness, blur, dropped frames
     1.4  Trim trial windows — optional, requires manual start/end frame markers
     1.5  Condition labels — assign experimental group via CONDITION_MAP
@@ -14,8 +14,8 @@ Usage:
     python src/video_preprocessing.py
 
 Outputs:
-    data/metadata.csv         — full video inventory with properties
-    data/quality_report.csv   — per-video quality flags
+    data/metadata.xlsx        — full video inventory with properties (formatted table)
+    data/quality_report.xlsx  — per-video quality flags (formatted table)
     data/quality_plots/       — brightness histograms per video
 """
 
@@ -30,6 +30,9 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")   # headless rendering — no display needed
 import matplotlib.pyplot as plt
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
@@ -353,6 +356,9 @@ def build_inventory() -> tuple[pd.DataFrame, pd.DataFrame]:
             "duration_s":   props["duration_s"],
             "fps":          props["fps"],
             "resolution":   resolution_str,
+            "width":        props["width"],
+            "height":       props["height"],
+            "readable":     props["readable"],
             "frame_count":  props["frame_count"],
             "file_size_mb": props["file_size_mb"],
             "file_path":    filepath.replace("\\", "/"),
@@ -448,18 +454,116 @@ def print_summary(metadata_df: pd.DataFrame, quality_df: pd.DataFrame) -> None:
             print(w)
 
 
+def _format_excel_sheet(ws, df: pd.DataFrame) -> None:
+    """Apply formatting to a worksheet: borders, headers, alignment, column widths."""
+    # Header formatting
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    cell_alignment = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    # Format all cells
+    for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=len(df) + 1, min_col=1, max_col=len(df.columns)), 1):
+        for col_idx, cell in enumerate(row, 1):
+            cell.border = thin_border
+            if row_idx == 1:  # Header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_alignment
+            else:
+                cell.alignment = cell_alignment
+
+    # Auto-adjust column widths
+    for col_idx, col_name in enumerate(df.columns, 1):
+        max_length = max(
+            len(str(col_name)),
+            df.iloc[:, col_idx - 1].astype(str).str.len().max() if len(df) > 0 else 0
+        )
+        adjusted_width = min(max_length + 2, 30)
+        ws.column_dimensions[get_column_letter(col_idx)].width = adjusted_width
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+
 def save_outputs(metadata_df: pd.DataFrame, quality_df: pd.DataFrame) -> None:
-    """Write metadata.csv and quality_report.csv to data/."""
+    """Write metadata.xlsx and quality_report.xlsx to data/ with proper formatting."""
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    meta_path    = os.path.join(DATA_DIR, "metadata.csv")
-    quality_path = os.path.join(DATA_DIR, "quality_report.csv")
+    meta_xlsx    = os.path.join(DATA_DIR, "metadata.xlsx")
+    quality_xlsx = os.path.join(DATA_DIR, "quality_report.xlsx")
 
-    metadata_df.to_csv(meta_path,    index=False)
-    quality_df.to_csv(quality_path,  index=False)
+    # Metadata: Group by identifiers, then experimental, then technical specs
+    meta_out = metadata_df[[
+        "rat_id", "session", "part", "filename",
+        "arena", "condition",
+        "fps", "resolution", "frame_count", "duration_s", "file_size_mb",
+    ]].copy()
+    meta_out["rat_id"]   = meta_out["rat_id"].str.replace("MA", "", regex=False).astype(int)
+    meta_out["part"]     = meta_out["part"].str.replace("Part", "", regex=False).astype(int)
+    meta_out["filename"] = meta_out["filename"].str.replace("_res.avi", "", regex=False)
+    meta_out = meta_out.rename(columns={
+        "rat_id":       "rat_id",
+        "filename":     "video_name",
+        "frame_count":  "frames",
+        "duration_s":   "duration_sec",
+        "file_size_mb": "size_mb",
+    })
 
-    print(f"\n  Metadata saved   : {meta_path}")
-    print(f"  Quality report   : {quality_path}")
+    # Write metadata to Excel
+    wb_meta = openpyxl.Workbook()
+    ws_meta = wb_meta.active
+    ws_meta.title = "Metadata"
+    for r_idx, row in enumerate(meta_out.values, 2):
+        for c_idx, value in enumerate(row, 1):
+            ws_meta.cell(row=r_idx, column=c_idx, value=value)
+    for c_idx, col_name in enumerate(meta_out.columns, 1):
+        ws_meta.cell(row=1, column=c_idx, value=col_name)
+    _format_excel_sheet(ws_meta, meta_out)
+    wb_meta.save(meta_xlsx)
+
+    # Quality: Group by identifiers, blur metrics, brightness metrics, performance, flags
+    quality_out = quality_df[[
+        "filename", "rat_id", "part",
+        "blur_score", "flag_blur",
+        "mean_brightness", "std_brightness",
+        "drop_rate",
+        "any_flag",
+    ]].copy()
+    quality_out["rat_id"]   = quality_out["rat_id"].str.replace("MA", "", regex=False).astype(int)
+    quality_out["part"]     = quality_out["part"].str.replace("Part", "", regex=False).astype(int)
+    quality_out["filename"] = quality_out["filename"].str.replace("_res.avi", "", regex=False)
+    quality_out = quality_out.rename(columns={
+        "filename":         "video_name",
+        "rat_id":           "rat_id",
+        "blur_score":       "blur_score",
+        "flag_blur":        "blur_detected",
+        "mean_brightness":  "brightness_mean",
+        "std_brightness":   "brightness_std",
+        "drop_rate":        "dropped_frames",
+        "any_flag":         "has_issues",
+    })
+
+    # Write quality to Excel
+    wb_qual = openpyxl.Workbook()
+    ws_qual = wb_qual.active
+    ws_qual.title = "Quality"
+    for r_idx, row in enumerate(quality_out.values, 2):
+        for c_idx, value in enumerate(row, 1):
+            ws_qual.cell(row=r_idx, column=c_idx, value=value)
+    for c_idx, col_name in enumerate(quality_out.columns, 1):
+        ws_qual.cell(row=1, column=c_idx, value=col_name)
+    _format_excel_sheet(ws_qual, quality_out)
+    wb_qual.save(quality_xlsx)
+
+    print(f"\n  Metadata saved   : {meta_xlsx}")
+    print(f"  Quality report   : {quality_xlsx}")
     print(f"  Brightness plots : {PLOTS_DIR}/")
 
 
