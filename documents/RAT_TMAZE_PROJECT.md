@@ -321,6 +321,25 @@ ThesisWork/
 
 ---
 
+## Detailed Stage Plans
+
+Each stage has a dedicated plan file with tasks, code sketches, acceptance criteria, and output definitions.
+
+| Stage | Plan File |
+|-------|-----------|
+| 01 — Video Preprocessing | [plans/STAGE_01_VIDEO_PREPROCESSING.md](plans/STAGE_01_VIDEO_PREPROCESSING.md) |
+| 02 — DeepLabCut | [plans/STAGE_02_DEEPLABCUT.md](plans/STAGE_02_DEEPLABCUT.md) |
+| 03A — OFT Analysis | [plans/STAGE_03A_OFT_ANALYSIS.md](plans/STAGE_03A_OFT_ANALYSIS.md) |
+| 03B — T-Maze Heatmaps | [plans/STAGE_03B_TMAZE_HEATMAPS.md](plans/STAGE_03B_TMAZE_HEATMAPS.md) |
+| 04 — Path Analysis | [plans/STAGE_04_PATH_ANALYSIS.md](plans/STAGE_04_PATH_ANALYSIS.md) |
+| 05 — Feature Engineering | [plans/STAGE_05_FEATURE_ENGINEERING.md](plans/STAGE_05_FEATURE_ENGINEERING.md) |
+| 06 — Model Training | [plans/STAGE_06_MODEL_TRAINING.md](plans/STAGE_06_MODEL_TRAINING.md) |
+| 07 — Reporting | [plans/STAGE_07_REPORTING.md](plans/STAGE_07_REPORTING.md) |
+
+→ See [plans/README.md](plans/README.md) for the full index with status tracking.
+
+---
+
 ## Notes
 
 - All analysis should be blinded to condition labels during feature extraction
