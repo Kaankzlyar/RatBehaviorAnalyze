@@ -2,6 +2,7 @@
 dlc_setup.py
 ------------
 Step 1 & 2: Create DeepLabCut project and extract frames for labeling.
+Uses 11-point body part set: nose, head, neck, ears, forepaws, hindpaws, body_center, tail_base.
 Run this once at the start of your project.
 
 Requirements:
@@ -77,11 +78,25 @@ def patch_config(config_path: str) -> None:
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    cfg["bodyparts"] = ["nose", "head", "body_center", "tail_base"]
+    cfg["bodyparts"] = [
+        "nose", "head", "neck",
+        "left_ear", "right_ear",
+        "body_center",
+        "left_forepaw", "right_forepaw",
+        "left_hindpaw", "right_hindpaw",
+        "tail_base"
+    ]
 
     cfg["skeleton"] = [
         ["nose", "head"],
-        ["head", "body_center"],
+        ["head", "neck"],
+        ["head", "left_ear"],
+        ["head", "right_ear"],
+        ["neck", "body_center"],
+        ["neck", "left_forepaw"],
+        ["neck", "right_forepaw"],
+        ["body_center", "left_hindpaw"],
+        ["body_center", "right_hindpaw"],
         ["body_center", "tail_base"],
     ]
 

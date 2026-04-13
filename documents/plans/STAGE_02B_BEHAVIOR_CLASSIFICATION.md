@@ -33,7 +33,7 @@ kapsar. Gruplar: **ASP**, **Greyfurt**, **ASP & Greyfurt**, **Kontrol**
 Mevcut 5 noktalı set (`nose, head, neck, body_center, tail_base`) rearing ve grooming
 tespiti için **yetersizdir**. Aşağıdaki genişletilmiş set önerilir.
 
-### Önerilen Body Parts (10 nokta)
+### Önerilen Body Parts (11 nokta)
 
 ```yaml
 bodyparts:
