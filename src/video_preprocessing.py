@@ -36,9 +36,9 @@ from openpyxl.utils import get_column_letter
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-VIDEO_DIR   = "D:/ProjectsD/ThesisWork/data/raw_videos"
-DATA_DIR    = "D:/ProjectsD/ThesisWork/data"
-PLOTS_DIR   = "D:/ProjectsD/ThesisWork/data/quality_plots"
+VIDEO_DIR   = "data/raw_videos"
+DATA_DIR    = "data"
+PLOTS_DIR   = "data/quality_plots"
 VIDEO_EXT   = "avi"
 
 # Arena type by subfolder
@@ -52,16 +52,16 @@ ARENA_MAP = {
 # Key: rat_id (e.g. "MA1"), Value: condition label
 # Update this once your experimental groups are defined.
 CONDITION_MAP = {
-    "MA1": "unknown",
-    "MA3": "unknown",
-    "MA5": "unknown",
-    "MA7": "unknown",
+    "MA1": "rat",
+    "MA3": "rat",
+    "MA5": "rat",
+    "MA7": "rat",
 }
 
 # Expected video properties (used for consistency checks)
 EXPECTED_FPS         = None   # set to e.g. 25 to flag deviations; None = auto-detect from first video
 EXPECTED_RESOLUTION  = None   # set to e.g. (1280, 720); None = auto-detect
-BLUR_THRESHOLD       = 80.0   # Laplacian variance below this → flagged as blurry
+BLUR_THRESHOLD       = 10.0   # Laplacian variance below this → flagged as blurry
 BRIGHTNESS_LOW       = 30     # Mean pixel value below this → flagged as too dark
 BRIGHTNESS_HIGH      = 220    # Mean pixel value above this → flagged as overexposed
 SAMPLE_FRAMES        = 10     # Number of evenly spaced frames sampled per video for QC
@@ -69,7 +69,7 @@ SAMPLE_FRAMES        = 10     # Number of evenly spaced frames sampled per video
 # ─── FILENAME PARSING ─────────────────────────────────────────────────────────
 
 # Expects: MA{rat_id}-{session}_res.avi   e.g. MA1-2_res.avi
-_FILENAME_RE = re.compile(r"MA(\d+)-(\d+)_res\.avi", re.IGNORECASE)
+_FILENAME_RE = re.compile(r"(?:Part\d+_)?MA(\d+)-(\d+)_res\.avi", re.IGNORECASE)
 
 def parse_filename(filename: str) -> tuple[str, int] | tuple[None, None]:
     """Return (rat_id, session) parsed from filename, or (None, None) if unrecognised."""

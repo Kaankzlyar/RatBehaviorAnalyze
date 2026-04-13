@@ -17,8 +17,8 @@ import deeplabcut
 
 PROJECT_NAME   = "rat_behavior"
 EXPERIMENTER   = "kaank"
-VIDEO_DIR      = "D:/ProjectsD/ThesisWork/data/raw_videos"
-WORKING_DIR    = "D:/ProjectsD/ThesisWork/models/dlc_model"
+VIDEO_DIR      = "data/raw_videos"
+WORKING_DIR    = "models/dlc_model"
 VIDEO_EXT      = "avi"
 FRAMES_PER_VID = 20   # frames to extract per video for labeling
 
@@ -43,6 +43,7 @@ def get_videos(video_dir: str, ext: str = "avi") -> list[str]:
     videos = glob.glob(os.path.join(video_dir, "**", f"*.{ext}"), recursive=True)
     if not videos:
         raise FileNotFoundError(f"No .{ext} files found recursively under {video_dir}")
+    videos = [os.path.abspath(v) for v in videos]
     # Group by arena for informational output
     for part, arena in ARENA_MAP.items():
         part_vids = [v for v in videos if part in v.replace("\\", "/")]
@@ -76,12 +77,11 @@ def patch_config(config_path: str) -> None:
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    cfg["bodyparts"] = ["nose", "head", "neck", "body_center", "tail_base"]
+    cfg["bodyparts"] = ["nose", "head", "body_center", "tail_base"]
 
     cfg["skeleton"] = [
         ["nose", "head"],
-        ["head", "neck"],
-        ["neck", "body_center"],
+        ["head", "body_center"],
         ["body_center", "tail_base"],
     ]
 
@@ -126,11 +126,30 @@ def check_labels(config_path: str) -> None:
 if __name__ == "__main__":
     videos = get_videos(VIDEO_DIR, VIDEO_EXT)
 
-    config_path = create_project(videos)
-    patch_config(config_path)
-    extract_frames(config_path)
+    # ── Step 1: Create project (skip if already exists) ───────────────────────
+    config_path = os.path.join(
+        os.path.abspath(WORKING_DIR),
+        f"{PROJECT_NAME}-{EXPERIMENTER}-2026-04-01",
+        "config.yaml",
+    )
+    if os.path.exists(config_path):
+        print(f"Project already exists, using: {config_path}")
+    else:
+        config_path = create_project(videos)
+        patch_config(config_path)
 
-    # After extraction — open GUI to manually label frames
+    # ── Step 2: Extract frames (skip if already done) ─────────────────────────
+    labeled_data_dir = os.path.join(os.path.dirname(config_path), "labeled-data")
+    existing_frames = glob.glob(os.path.join(labeled_data_dir, "**", "*.png"), recursive=True)
+    if existing_frames:
+        print(f"Frames already extracted ({len(existing_frames)} found). Skipping extraction.")
+    else:
+        extract_frames(config_path)
+
+    # ── Step 3: Launch labeling GUI ───────────────────────────────────────────
+    print(f"\nFrames are in: {labeled_data_dir}")
+    print("To label frames, run in a new terminal:")
+    print(f'  python -c "import deeplabcut; deeplabcut.label_frames(r\'{config_path}\')"')
     label_frames(config_path)
 
     # After labeling — verify visually

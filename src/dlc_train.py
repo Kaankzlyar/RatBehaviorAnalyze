@@ -12,11 +12,12 @@ import deeplabcut
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 # Paste your config path from dlc_setup.py output here
-CONFIG_PATH = "D:/ProjectsD/ThesisWork/models/dlc_model/rat_tmaze-kaank-YYYY-MM-DD/config.yaml"
+CONFIG_PATH = "C:/RatWork/models/dlc_model/rat_behavior-kaank-2026-04-01/config.yaml"
 
 GPU_ID      = 0       # GPU index — 0 for your RTX 3060
 SHUFFLE     = 1       # Training shuffle index
 MAX_ITERS   = 50000   # Start with 50k; increase if test RMSE > 8px
+EPOCHS      = 300     # 300 epochs optimal for ~240 labeled frames
 
 # ─── CREATE TRAINING DATASET ──────────────────────────────────────────────────
 
@@ -32,35 +33,34 @@ def create_dataset(config_path: str) -> None:
 
 def patch_pose_config(config_path: str, shuffle: int = 1) -> None:
     """
-    Tune batch_size and other params for RTX 3060 6GB VRAM.
-    pose_cfg.yaml lives inside the dlc-models/ training folder.
+    Patch pytorch_config.yaml for DLC 3.0 (PyTorch backend).
+    Sets epochs and batch_size for RTX 3060 6GB VRAM.
     """
     import os, glob, yaml
 
-    # Find pose_cfg.yaml for this shuffle
     project_dir = os.path.dirname(config_path)
+
+    # DLC 3.0 PyTorch config
     pattern = os.path.join(
-        project_dir, "dlc-models", "**", f"*shuffle{shuffle}*", "train", "pose_cfg.yaml"
+        project_dir, "dlc-models-pytorch", "**", "train", "pytorch_config.yaml"
     )
     matches = glob.glob(pattern, recursive=True)
 
     if not matches:
-        print("pose_cfg.yaml not found — skipping patch (run create_dataset first).")
+        print("pytorch_config.yaml not found — skipping patch.")
         return
 
-    pose_cfg_path = matches[0]
-    with open(pose_cfg_path, "r") as f:
-        pose_cfg = yaml.safe_load(f)
+    pytorch_cfg_path = matches[0]
+    with open(pytorch_cfg_path, "r") as f:
+        cfg = yaml.safe_load(f)
 
-    pose_cfg["batch_size"]              = 8      # Safe for 6GB VRAM
-    pose_cfg["save_iters"]              = 5000
-    pose_cfg["display_iters"]          = 500
-    pose_cfg["multi_step"]             = [[0.005, 10000], [0.02, 430000], [0.002, 730000], [0.001, 1030000]]
+    cfg["train_settings"]["epochs"]     = EPOCHS
+    cfg["train_settings"]["batch_size"] = 8
 
-    with open(pose_cfg_path, "w") as f:
-        yaml.dump(pose_cfg, f, default_flow_style=False)
+    with open(pytorch_cfg_path, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False)
 
-    print(f"pose_cfg.yaml patched: batch_size=8 for RTX 3060\n  → {pose_cfg_path}")
+    print(f"pytorch_config.yaml patched: epochs={EPOCHS}, batch_size=8\n  → {pytorch_cfg_path}")
 
 # ─── TRAIN ────────────────────────────────────────────────────────────────────
 
@@ -86,7 +86,6 @@ def train(config_path: str, shuffle: int = SHUFFLE, max_iters: int = MAX_ITERS) 
 def evaluate(config_path: str, shuffle: int = SHUFFLE) -> None:
     deeplabcut.evaluate_network(
         config_path,
-        shuffle=[shuffle],
         plotting=True,        # saves prediction vs ground truth plots
     )
     # Target: Train RMSE < 5px, Test RMSE < 8px
