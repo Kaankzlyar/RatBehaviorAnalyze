@@ -1,164 +1,252 @@
-# Stage 07 — Psychological Analysis & Reporting
+# Stage 07 — Psikolojik Analiz & Raporlama
 ## Plan & Roadmap
 
 ---
 
 ## Objective
 
-Synthesize all pipeline outputs into a structured analysis report: behavioral profiles per rat, group comparisons, model performance, and psychological state interpretations ready for thesis writing.
+Tüm pipeline çıktılarını yapılandırılmış bir analiz raporu olarak sentezle: hayvan başına davranışsal profiller, grup karşılaştırmaları (Kontrol / ASP / Greyfurt / ASP & Greyfurt), davranış sınıflandırma (rearing / grooming) bulguları, model performansı ve tez yazımı için hazır psikolojik durum yorumları.
 
 ---
 
 ## Status
 
-- [ ] Not started — requires Stages 03–06 outputs
+- [ ] Başlanmadı — Stage 02B, 03A, 03B, 04, 05, 06 çıktıları gerektirir
 
 ---
 
-## Tasks
+## Görevler
 
-### 7.1 — Per-Rat Behavioral Profiles
+### 7.1 — Hayvan Başına Davranışsal Profiller
 
-For each rat (MA1, MA3, MA5, MA7), produce a one-page summary:
+Her hayvan (MA1, MA3, MA5, MA7) için tek sayfalık özet:
 
-- [ ] OFT occupancy heatmap (3 sessions side-by-side)
-- [ ] OFT metric trends across sessions (line plots)
-- [ ] T-maze turn bias over sessions
-- [ ] T-maze path efficiency over sessions
-- [ ] Predicted psychological state labels from Stage 06
+- [ ] OFT occupancy heatmap (3 seans yan yana)
+- [ ] OFT rearing + grooming heatmap (3 seans yan yana)
+- [ ] OFT metrik eğilimleri seans boyunca (çizgi grafikleri)
+- [ ] T-maze dönüş yanlılığı ve rota verimliliği seans boyunca
+- [ ] T-maze seçim zonu rearing % seans boyunca
+- [ ] Stage 06 tahminlenen psikolojik durum etiketleri
 
 ```
-reports/profiles/MA1_profile.pdf
-reports/profiles/MA3_profile.pdf
-...
+reports/profiles/MA1_profile.pdf   (Kontrol)
+reports/profiles/MA3_profile.pdf   (ASP)
+reports/profiles/MA5_profile.pdf   (Greyfurt)
+reports/profiles/MA7_profile.pdf   (ASP & Greyfurt)
 ```
 
-### 7.2 — Group Comparison Statistics
+### 7.2 — Grup Karşılaştırma İstatistikleri
 
-- [ ] Mann-Whitney U test for each feature between condition groups
-- [ ] Bonferroni correction for multiple comparisons
-- [ ] Report effect sizes (Cohen's d or rank-biserial r)
-- [ ] Produce table: feature × p-value × effect size × direction
+- [ ] Her özellik için Kruskal-Wallis testi (4 grup, n=3/grup)
+- [ ] Bonferroni düzeltmeli Dunn post-hoc testi
+- [ ] Etki büyüklüklerini raporla (eta-kare veya rank-biserial r)
+- [ ] Tablo üret: özellik × p-değeri × etki büyüklüğü × yön
 
 ```python
-from scipy.stats import mannwhitneyu
+from scipy.stats import kruskal
+from scikit_posthocs import posthoc_dunn
 
+groups_map = {
+    'Kontrol': 'MA1', 'ASP': 'MA3',
+    'Greyfurt': 'MA5', 'ASP_Greyfurt': 'MA7'
+}
+
+results = []
 for col in feature_cols:
-    group_a = features[features["condition"] == "control"][col]
-    group_b = features[features["condition"] == "stressed"][col]
-    stat, p = mannwhitneyu(group_a, group_b, alternative="two-sided")
-    ...
+    vals = [features[features['group'] == g][col].values for g in groups_map]
+    stat, p = kruskal(*vals)
+    dunn = posthoc_dunn(vals, p_adjust='bonferroni')
+    results.append({'feature': col, 'kruskal_p': p, 'dunn': dunn.values.tolist()})
 ```
 
-### 7.3 — Cross-Arena Correlation Matrix
+**Öncelikli test edilecek hipotezler:**
 
-- [ ] Compute Pearson / Spearman correlations between all OFT and T-maze features
-- [ ] Generate annotated heatmap (seaborn `clustermap`)
-- [ ] Highlight significant correlations (p < 0.05 after correction)
-- [ ] Key hypothesis check: `oft_peripheral_time ↔ tmaze_decision_latency`
+| Hipotez | İlgili Özellikler |
+|---------|-------------------|
+| ASP grubu daha yüksek anksiyete | `peripheral_time_ratio`, `decision_latency_mean`, `davranis_kaygisi` |
+| Greyfurt grubu farklı rearing profili | `rearing_pct`, `rearing_in_secim_pct`, `rearing_context_ratio` |
+| ASP & Greyfurt additif etki | Tüm özellikler: ASP + Greyfurt arasında mı, dışında mı? |
+| Grooming anksiyetenin alternatif göstergesi | `grooming_pct`, `grooming_in_peripheral_pct` |
+
+### 7.3 — Çapraz Arena Korelasyon Matrisi
+
+- [ ] Tüm OFT ve T-maze özellikleri arasında Spearman korelasyonları hesapla
+- [ ] Açıklamalı seaborn clustermap üret
+- [ ] Önemli korelasyonları vurgula (düzeltme sonrası p < 0.05)
+- [ ] Temel hipotez kontrolü: `oft_peripheral_time ↔ tmaze_decision_latency`
+- [ ] Davranış köprüsü: `oft_rearing_pct ↔ tmaze_rearing_in_secim_pct`
 
 ```python
 import seaborn as sns
 corr = features[feature_cols].corr(method="spearman")
-sns.clustermap(corr, annot=True, fmt=".2f", cmap="coolwarm", center=0)
+g = sns.clustermap(corr, annot=True, fmt=".2f", cmap="coolwarm",
+                   center=0, figsize=(16, 16))
+g.savefig("reports/figures/statistics/correlation_matrix.png", dpi=300)
 ```
 
-### 7.4 — Heatmap Gallery
+### 7.4 — Heatmap Galerisi
 
-- [ ] Per-session occupancy heatmaps for all rats (OFT + T-maze)
-- [ ] Group-average heatmaps per condition
-- [ ] Side-by-side comparison: session 1 vs session 3 (learning effect)
-- [ ] Export gallery to `reports/figures/heatmaps/`
+**OFT heatmap'leri:**
+- [ ] 4 grup × 3 seans için occupancy heatmap'leri (12 görsel)
+- [ ] 4 grup × rearing heatmap'leri (grup ortalamaları)
+- [ ] 4 grup × grooming heatmap'leri (grup ortalamaları)
 
-### 7.5 — Learning Curve Analysis
+**T-maze heatmap'leri:**
+- [ ] 4 grup × 3 seans için occupancy heatmap'leri
+- [ ] 4 grup × rearing heatmap'leri — seçim zonunda yoğunlaşma var mı?
+- [ ] 4 grup × grooming heatmap'leri
 
-- [ ] Plot each behavioral metric across sessions 1→2→3 per rat
-- [ ] Overlay individual rats + group mean ± SD
-- [ ] Mark significant within-subject changes (Wilcoxon signed-rank)
+**Karşılaştırma panelleri:**
+- [ ] Seans 1 vs Seans 3 yan yana (öğrenme etkisi)
+- [ ] Kontrol vs ASP vs Greyfurt vs ASP&Greyfurt yan yana
 
-### 7.6 — Decision Bias Maps
+```
+reports/figures/heatmaps/
+├── open_field/
+│   ├── group_all_occupancy.png        # 4-panel
+│   ├── group_rearing.png              # 4-panel
+│   └── group_grooming.png             # 4-panel
+└── tmaze/
+    ├── group_all_occupancy.png        # 4-panel
+    ├── group_rearing.png              # 4-panel → seçim zonu yoğunluğu
+    └── group_grooming.png             # 4-panel
+```
 
-- [ ] For each rat: bar chart of L/R choice per session
-- [ ] Group-level: proportion of left/right choosers per condition
-- [ ] Test for lateralization bias (binomial test: p(left) ≠ 0.5)
+### 7.5 — Öğrenme Eğrisi Analizi
 
-### 7.7 — Model Performance Summary
+- [ ] Her davranışsal metriği seans 1→2→3 boyunca çiz (hayvan başına)
+- [ ] Bireysel hayvanların + grup ortalaması ± SD'nin üst üste bindirilmesi
+- [ ] Seans-içi önemli değişiklikleri işaretle (Wilcoxon işaret-rank testi)
+- [ ] **Yeni:** rearing ve grooming eğilimleri seans boyunca (olağandışı değişim var mı?)
 
-- [ ] Table: model × label × accuracy × F1 × AUC
-- [ ] SHAP summary plot for best model
-- [ ] Confusion matrices per label (TP/FP/FN/TN with rat IDs)
+### 7.6 — Karar Yanlılığı Haritaları
 
-### 7.8 — Thesis Report Structure
+- [ ] Her hayvan için seans başına Sol/Sağ seçim çubuğu grafiği
+- [ ] Grup düzeyi: koşul başına sol/sağ seçeneklerin oranı
+- [ ] Lateralizasyon yanlılığı testi (iki terimli test: p(sol) ≠ 0.5)
 
-Generate supporting material organized for thesis integration:
+### 7.7 — Davranış Zaman Çizelgesi (Ethogram Görselleştirmesi)
+
+- [ ] Seans başına örnek ethogram zaman çizelgesi çiz (rearing/grooming/locomotion renk kodlu)
+- [ ] Grup başına ortalama bout sıklığı çubuğu grafiği
+- [ ] Bout süresi dağılımı (violin/box grafikleri, 4 grup)
+
+```python
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+def plot_ethogram(ethogram: pd.DataFrame, fps: int = 25,
+                  title: str = "", save_path: str = None):
+    """
+    Tam seans ethogramı: x=zaman(s), y=davranış kanalları
+    """
+    time_axis = np.arange(len(ethogram)) / fps
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 4), sharex=True)
+    behavior_colors = {
+        'rearing':    '#F44336',
+        'grooming':   '#4CAF50',
+        'locomotion': '#2196F3',
+    }
+
+    for ax, (behavior, color) in zip(axes, behavior_colors.items()):
+        mask = ethogram[behavior].values if behavior in ethogram.columns else \
+               (~ethogram['rearing'] & ~ethogram['grooming']).values
+        ax.fill_between(time_axis, 0, mask.astype(int), color=color, alpha=0.7)
+        ax.set_ylabel(behavior, fontsize=8)
+        ax.set_ylim(0, 1.2)
+        ax.set_yticks([])
+
+    axes[-1].set_xlabel("Zaman (s)")
+    fig.suptitle(title)
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+    return fig
+```
+
+### 7.8 — Model Performans Özeti
+
+- [ ] Tablo: model × etiket × doğruluk × F1 × AUC
+- [ ] En iyi model için SHAP özet grafiği
+- [ ] Etiket başına karışıklık matrisleri (hayvan ID'leriyle TP/FP/FN/TN)
+- [ ] SHAP'ta davranış özelliklerinin katkısını vurgula:
+  - `rearing_in_secim_pct`, `davranis_kaygisi`, `rearing_context_ratio`
+
+### 7.9 — Tez Rapor Yapısı
 
 ```
 reports/
 ├── figures/
 │   ├── heatmaps/
-│   │   ├── oft/              # Open field heatmaps
-│   │   └── tmaze/            # T-maze heatmaps
-│   ├── paths/                # Trajectory plots
-│   ├── statistics/           # Group comparison figures
-│   ├── learning_curves/      # Session-over-session trends
-│   └── model/                # SHAP, confusion matrices, ROC curves
+│   │   ├── open_field/         # Genel + rearing + grooming heatmap'leri
+│   │   └── tmaze/              # Genel + rearing + grooming heatmap'leri
+│   ├── trajectories/           # Davranış renkli rota grafikleri
+│   ├── ethograms/              # Seans zaman çizelgeleri
+│   ├── statistics/             # Grup karşılaştırma grafikleri
+│   ├── learning_curves/        # Seans-seans eğilimler
+│   └── model/                  # SHAP, karışıklık matrisleri, ROC eğrileri
 ├── tables/
 │   ├── oft_metrics_summary.csv
 │   ├── tmaze_metrics_summary.csv
+│   ├── behavior_bout_stats.csv    # Rearing/grooming bout istatistikleri
 │   ├── group_comparisons.csv
 │   └── model_comparison.csv
 └── profiles/
-    ├── MA1_profile.pdf
-    ├── MA3_profile.pdf
-    ├── MA5_profile.pdf
-    └── MA7_profile.pdf
+    ├── MA1_profile.pdf    (Kontrol)
+    ├── MA3_profile.pdf    (ASP)
+    ├── MA5_profile.pdf    (Greyfurt)
+    └── MA7_profile.pdf    (ASP & Greyfurt)
 ```
 
-**Report sections:**
+**Rapor bölümleri:**
 
-1. **Experiment Summary** — dataset, conditions, arena types
-2. **Group Demographics** — rat IDs, conditions, session counts
-3. **OFT Heatmap Gallery** — occupancy, velocity per group/session
-4. **T-Maze Heatmap & Path Analysis** — occupancy, path lines, zone dwell
-5. **Cross-Arena Correlations** — OFT ↔ T-maze feature relationships
-6. **Feature Distributions & Statistics** — box plots, group comparisons
-7. **Model Performance Report** — accuracy, F1, SHAP
-8. **Psychological State Classifications** — predicted labels per rat
-9. **Conclusions** — behavioral interpretation, limitations, future work
+1. **Deney Özeti** — veri seti, koşullar, arena türleri, gruplar
+2. **Grup Demografisi** — hayvan ID'leri, gruplar, seans sayıları
+3. **Davranış Tespiti** — rearing/grooming metodolojisi (02B), kalibrasyon sonuçları
+4. **OFT Heatmap Galerisi** — genel + rearing + grooming, grup karşılaştırması
+5. **T-Maze Heatmap & Rota Analizi** — occupancy, rota çizgileri, zon occupancy
+6. **Davranış Zaman Çizelgeleri** — ethogram örnekleri, bout istatistikleri
+7. **Çapraz Arena Korelasyonlar** — OFT ↔ T-maze ↔ Rearing/Grooming ilişkileri
+8. **Özellik Dağılımları & İstatistikler** — kutu grafikleri, grup karşılaştırmaları
+9. **Model Performans Raporu** — doğruluk, F1, SHAP
+10. **Psikolojik Durum Sınıflandırmaları** — hayvan başına tahminlenen etiketler
+11. **Sonuçlar** — davranışsal yorum, sınırlamalar, gelecek çalışma
 
-### 7.9 — Notebook Finalization
+### 7.10 — Notebook Sonlandırma
 
-- [ ] `01_dlc_analysis.ipynb` — DLC QC and tracking visualization
-- [ ] `02_heatmap_generation.ipynb` — all heatmap outputs with commentary
-- [ ] `03_path_analysis.ipynb` — T-maze metrics walkthrough
-- [ ] `04_feature_engineering.ipynb` — feature derivation and correlation analysis
-- [ ] `05_model_training.ipynb` — model training, evaluation, SHAP interpretation
-
----
-
-## Acceptance Criteria
-
-- Per-rat behavioral profiles generated for all 4 rats
-- Group comparison table with p-values and effect sizes
-- Cross-arena correlation matrix with at least 3 significant cross-arena features
-- Model performance tables for at least 2 models × 2 labels
-- All figures exported at ≥ 300 DPI for print quality
+- [ ] `01_dlc_analysis.ipynb` — DLC QC ve tracking görselleştirme
+- [ ] `02_behavior_classification.ipynb` — Rearing/grooming tespiti, kalibrasyon (02B)
+- [ ] `03_heatmap_generation.ipynb` — Tüm heatmap çıktıları, davranış katmanlı
+- [ ] `04_path_analysis.ipynb` — T-maze metrik kılavuzu, davranış-deneme entegrasyonu
+- [ ] `05_feature_engineering.ipynb` — Özellik türetimi ve korelasyon analizi
+- [ ] `06_model_training.ipynb` — Model eğitimi, değerlendirme, SHAP yorumu
 
 ---
 
-## Output Files
+## Kabul Kriterleri
 
-| Path | Description |
-|------|-------------|
-| `reports/figures/` | All publication-quality figures |
-| `reports/tables/` | Summary statistics tables |
-| `reports/profiles/` | Per-rat behavioral profile PDFs |
-| `notebooks/*.ipynb` | Final analysis notebooks |
+- 4 hayvan için hayvan başına davranışsal profiller üretilmiş
+- Rearing ve grooming bout istatistiklerini içeren grup karşılaştırma tablosu (p-değerleri ile)
+- En az 3 anlamlı çapraz arena özellik korelasyonu olan korelasyon matrisi
+- En az 2 model × 3 etiket için model performans tablosu
+- Tüm görseller ≥ 300 DPI baskı kalitesinde dışa aktarılmış
 
 ---
 
-## Notes
+## Çıktı Dosyaları
 
-- All analysis should be run blinded to condition labels during feature extraction
-- Model psychological state labels are behavioral proxies — expert validation required before clinical interpretation
-- Correlations with n=12 have low statistical power — treat as hypothesis-generating, not confirmatory
+| Yol | Açıklama |
+|-----|----------|
+| `reports/figures/` | Tüm yayın kalitesinde görseller |
+| `reports/tables/` | Özet istatistik tabloları |
+| `reports/profiles/` | Hayvan başına davranışsal profil PDF'leri |
+| `notebooks/*.ipynb` | Son analiz notebook'ları |
+
+---
+
+## Notlar
+
+- Tüm analizler özellik çıkarımı sırasında koşul etiketlerine kör yapılmalı
+- Model psikolojik durum etiketleri davranışsal proxy'lerdir — klinik yorumlamadan önce uzman doğrulaması gerekir
+- n=12 ile korelasyonların düşük istatistiksel gücü var — hipotez oluşturucu olarak ele al, doğrulayıcı değil
+- Rearing/grooming tespiti için kalibrasyon eşik değerlerini ve doğrulama metriklerini (F1, precision, recall) raporda belgele
