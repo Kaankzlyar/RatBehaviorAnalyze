@@ -95,13 +95,13 @@ def draw_arena_zones(ax, arena, inner_zone, arena_color="#FFFFFF", zone_color="#
     # arena boundary
     ax.add_patch(mpatches.Rectangle(
         (x_min, y_min), x_max - x_min, y_max - y_min,
-        linewidth=2.0, edgecolor=arena_color,
+        linewidth=2.5, edgecolor=arena_color,
         facecolor="none", zorder=10, linestyle="--",
     ))
     # inner zone boundary
     ax.add_patch(mpatches.Rectangle(
         (ix_min, iy_min), ix_max - ix_min, iy_max - iy_min,
-        linewidth=1.5, edgecolor=zone_color,
+        linewidth=2.0, edgecolor=zone_color,
         facecolor="none", zorder=10, linestyle=":",
     ))
 
@@ -173,8 +173,8 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     positions = np.vstack([xx.ravel(), yy.ravel()])
     z = kde(positions).reshape(xx.shape)
 
-    # Plot KDE
-    h = ax.contourf(xx, yy, z, levels=20, cmap=cmap, alpha=0.9)
+    # Plot KDE (simplified contour levels for cleaner appearance)
+    h = ax.contourf(xx, yy, z, levels=15, cmap=cmap, alpha=0.9)
     cbar = plt.colorbar(h, ax=ax, label="Density")
     cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
 
