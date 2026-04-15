@@ -15,10 +15,9 @@ import os
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
-from scipy.ndimage import gaussian_filter
+from scipy.stats import gaussian_kde
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
@@ -144,119 +143,58 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
     print(f"Heatmap saved → {out_path}")
 
 
-def _make_football_cmap() -> mcolors.LinearSegmentedColormap:
-    """Custom RGBA colormap: fully transparent → pale yellow → orange → red → dark red.
-
-    Alpha=0 at density=0 ensures background shows through cleanly.
-    No pale fog across the entire arena — only visited regions get color.
-    """
-    # (R, G, B, A) at positions 0.0 → 1.0
-    rgba = [
-        (1.00, 1.00, 1.00, 0.00),  # 0%   — fully transparent (background shows through)
-        (1.00, 1.00, 0.55, 0.20),  # 15%  — barely-there pale yellow
-        (1.00, 0.90, 0.10, 0.65),  # 40%  — yellow, mostly visible
-        (1.00, 0.55, 0.00, 0.88),  # 65%  — orange
-        (0.90, 0.10, 0.00, 0.96),  # 85%  — red
-        (0.50, 0.00, 0.00, 1.00),  # 100% — dark red, fully opaque
-    ]
-    return mcolors.LinearSegmentedColormap.from_list("football", rgba)
-
-
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     sigma: float = 10.0, percentile: float = 75.0, **_):
-    """Football-style activity heatmap.
+                     cmap: str = "inferno"):
+    """Create smooth KDE (kernel density estimate) heatmap.
 
-    Pipeline:
-      1. Per-pixel histogram (arena resolution, no grid artifacts)
-      2. Moderate gaussian blur (sigma px)
-      3. Percentile clipping — bottom p% of non-zero density → 0 (invisible)
-      4. Custom RGBA colormap: alpha=0 at 0 → pale yellow → orange → dark red
-      5. Transparent imshow — background shows through unvisited cells
-
-    Args:
-        sigma:      Gaussian blur radius in pixels (default 10; lower=sharper)
-        percentile: Suppress the bottom N% of non-zero density values (default 75)
+    High-contrast sequential palettes on dark background:
+      - inferno (default): black → purple → yellow (strong contrast, scientific)
+      - magma: black → purple → white (similar to inferno)
+      - hot: black → red → yellow (classic, very sharp)
+      - twilight: cyclic color scheme (good for highlighting spatial patterns)
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
 
     if len(xv) < 10:
-        print("Not enough valid data for heatmap.")
+        print("Not enough valid data for KDE heatmap.")
         return
 
+    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
+    ax.set_facecolor("#111111")
+
+    # Create KDE
+    xy = np.vstack([xv, yv])
+    kde = gaussian_kde(xy)
+
+    # Grid for KDE evaluation
     x_min, x_max, y_min, y_max = arena
-    W = int(x_max - x_min)
-    H = int(y_max - y_min)
+    xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
+    positions = np.vstack([xx.ravel(), yy.ravel()])
+    z = kde(positions).reshape(xx.shape)
 
-    # ── 1. Per-pixel visit count ──────────────────────────────────────────────
-    hist, _, _ = np.histogram2d(
-        xv, yv, bins=[W, H],
-        range=[[x_min, x_max], [y_min, y_max]]
-    )
+    # Plot KDE (simplified contour levels for cleaner appearance)
+    h = ax.contourf(xx, yy, z, levels=15, cmap=cmap, alpha=0.9)
+    cbar = plt.colorbar(h, ax=ax, label="Density")
+    cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
 
-    # ── 2. Moderate gaussian blur ─────────────────────────────────────────────
-    density = gaussian_filter(hist.T, sigma=sigma)
+    # Arena zones
+    draw_arena_zones(ax, arena, inner_zone)
 
-    # ── 3. Percentile clipping — suppress weak / noise density ───────────────
-    nonzero = density[density > 0]
-    if len(nonzero):
-        threshold = np.percentile(nonzero, percentile)
-        density = np.clip(density - threshold, 0, None)
-
-    # ── 4. Normalize 0 → 1 ───────────────────────────────────────────────────
-    vmax = density.max()
-    density_norm = density / vmax if vmax > 0 else density
-
-    # ── 5. Plot ───────────────────────────────────────────────────────────────
-    BG = "#F5F5F2"   # warm off-white, like a football pitch scan
-    fig, ax = plt.subplots(figsize=(12, 9), facecolor="white")
-    ax.set_facecolor(BG)
-
-    # Arena background fill
-    ax.add_patch(mpatches.Rectangle(
-        (x_min, y_min), W, H,
-        facecolor=BG, edgecolor="none", zorder=0,
-    ))
-
-    cmap = _make_football_cmap()
-    ax.imshow(
-        density_norm,
-        origin="upper",
-        extent=[x_min, x_max, y_max, y_min],
-        cmap=cmap,
-        aspect="auto",
-        interpolation="bilinear",
-        vmin=0, vmax=1,
-        zorder=1,
-    )
-
-    # Subtle boundary overlays
-    draw_arena_zones(ax, arena, inner_zone,
-                     arena_color="#888888", zone_color="#BBBBBB")
-
-    # Colorbar using the football cmap
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=mcolors.Normalize(0, 1))
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("Activity intensity", color="#333333", fontsize=10)
-    cbar.ax.tick_params(colors="#555555", labelsize=8)
-
-    ax.set_xlabel("X (pixels)", color="#333333", fontsize=12)
-    ax.set_ylabel("Y (pixels)", color="#333333", fontsize=12)
+    ax.invert_yaxis()
+    ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
+    ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Heatmap — {video_name}\n"
-        f"body_center  |  {len(xv)} frames  |  σ={sigma}  |  clip={percentile:.0f}th pct",
-        color="#111111", fontsize=13, pad=10,
+        f"Activity Density (KDE) — {video_name}\n"
+        f"(body_center kernel density estimate, {len(xv)} frames)",
+        color="white", fontsize=13, pad=10,
     )
-    ax.tick_params(colors="#555555", labelsize=9)
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#DDDDDD")
+    ax.tick_params(colors="#666666", labelsize=9)
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=150, bbox_inches="tight",
-                facecolor="white", transparent=False)
+    plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Heatmap saved → {out_path}")
+    print(f"KDE heatmap saved → {out_path}")
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -274,8 +212,7 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
-    parser.add_argument("--sigma",       default=10.0, type=float,  help="Gaussian blur radius in pixels (default: 10)")
-    parser.add_argument("--percentile",  default=75.0, type=float,  help="Suppress bottom N%% of non-zero density (default: 75)")
+    parser.add_argument("--cmap",        default="inferno",         help="Colormap for KDE (default: inferno; try: magma, hot, twilight)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
@@ -313,8 +250,7 @@ def main():
     plot_kde_heatmap(
         x, y, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_heatmap_kde.png"),
-        sigma=args.sigma,
-        percentile=args.percentile,
+        cmap=args.cmap
     )
 
 
