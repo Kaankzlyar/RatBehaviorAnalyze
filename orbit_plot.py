@@ -50,23 +50,44 @@ BODYPART_COLORS = {
 
 # ─── DATA LOADING ─────────────────────────────────────────────────────────────
 
-def remove_position_outliers(x: np.ndarray, y: np.ndarray, iqr_factor: float = 4.0):
+def apply_arena_filter(x: np.ndarray, y: np.ndarray, arena: tuple) -> tuple:
+    """Set points outside arena bounds to NaN."""
     x, y = x.copy(), y.copy()
-    for arr in (x, y):
-        valid = ~np.isnan(arr)
-        if valid.sum() < 4:
-            continue
-        q1, q3 = np.nanpercentile(arr, [25, 75])
-        iqr = q3 - q1
-        arr[arr < q1 - iqr_factor * iqr] = np.nan
-        arr[arr > q3 + iqr_factor * iqr] = np.nan
-    bad = np.isnan(x) | np.isnan(y)
-    x[bad] = np.nan
-    y[bad] = np.nan
+    if arena is None:
+        return x, y
+    x_min, x_max, y_min, y_max = arena
+    outside = (x < x_min) | (x > x_max) | (y < y_min) | (y > y_max)
+    x[outside] = np.nan
+    y[outside] = np.nan
     return x, y
 
 
-def load_dlc_csv(csv_path: str, likelihood_thresh: float) -> dict[str, dict]:
+def apply_jump_threshold(x: np.ndarray, y: np.ndarray, threshold_px: float = 60.0) -> tuple:
+    """Set points to NaN where consecutive frame distance exceeds threshold."""
+    x, y = x.copy(), y.copy()
+    dx = np.diff(x, prepend=np.nan)
+    dy = np.diff(y, prepend=np.nan)
+    dist = np.sqrt(dx**2 + dy**2)
+    jumps = dist > threshold_px
+    x[jumps] = np.nan
+    y[jumps] = np.nan
+    return x, y
+
+
+def apply_rolling_median(x: np.ndarray, y: np.ndarray, window: int = 5) -> tuple:
+    """Apply rolling median smoothing, preserving NaN gaps."""
+    nan_mask = np.isnan(x) | np.isnan(y)
+    x_s = pd.Series(x).rolling(window, center=True, min_periods=1).median().values.copy()
+    y_s = pd.Series(y).rolling(window, center=True, min_periods=1).median().values.copy()
+    # Re-apply NaN mask from original (smoothing shouldn't fill real gaps)
+    x_s[nan_mask] = np.nan
+    y_s[nan_mask] = np.nan
+    return x_s, y_s
+
+
+def load_dlc_csv(csv_path: str, likelihood_thresh: float,
+                 arena: tuple = None, jump_thresh: float = 60.0,
+                 smooth_window: int = 5) -> dict[str, dict]:
     df = pd.read_csv(csv_path, header=[1, 2], index_col=0)
     bodyparts = df.columns.get_level_values(0).unique().tolist()
     tracking = {}
@@ -74,10 +95,21 @@ def load_dlc_csv(csv_path: str, likelihood_thresh: float) -> dict[str, dict]:
         x   = df[bp]["x"].values.astype(float)
         y   = df[bp]["y"].values.astype(float)
         lkh = df[bp]["likelihood"].values.astype(float)
-        mask = lkh < likelihood_thresh
-        x[mask] = np.nan
-        y[mask] = np.nan
-        x, y = remove_position_outliers(x, y)
+
+        # Step 1: likelihood filter
+        x[lkh < likelihood_thresh] = np.nan
+        y[lkh < likelihood_thresh] = np.nan
+
+        # Step 2: arena bounds filter (set outside to NaN)
+        if arena is not None:
+            x, y = apply_arena_filter(x, y, arena)
+
+        # Step 3: jump threshold (temporal consistency)
+        x, y = apply_jump_threshold(x, y, jump_thresh)
+
+        # Step 4: rolling median smoothing
+        x, y = apply_rolling_median(x, y, smooth_window)
+
         pct = np.sum(~np.isnan(x)) / len(x) * 100
         print(f"  {bp:>15s}: {pct:.1f}% frames kept")
         tracking[bp] = {"x": x, "y": y}
@@ -319,7 +351,11 @@ def main():
     parser.add_argument("--inner-zone",  nargs=4, type=float,       metavar=("XMIN", "XMAX", "YMIN", "YMAX"),
                         dest="inner_zone",
                         help="Manual inner zone bounds in pixels (from show_frame_coords.py)")
-    parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
+    parser.add_argument("--out-dir",      default=DEFAULT_OUT_DIR,   dest="out_dir")
+    parser.add_argument("--jump-thresh",  default=60.0, type=float,  dest="jump_thresh",
+                        help="Max px between consecutive frames before marking as outlier (default 60)")
+    parser.add_argument("--smooth",       default=5,    type=int,
+                        help="Rolling median window size for smoothing (default 5)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
@@ -328,8 +364,15 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     stem = os.path.splitext(os.path.basename(args.csv))[0]
 
-    print(f"Loading: {args.csv}  (likelihood ≥ {args.likelihood})")
-    tracking = load_dlc_csv(args.csv, args.likelihood)
+    # Determine arena early so load_dlc_csv can apply arena filter
+    pre_arena = tuple(args.arena) if args.arena else None
+
+    print(f"Loading: {args.csv}  (likelihood >= {args.likelihood})")
+    print(f"  jump_thresh={args.jump_thresh}px  smooth_window={args.smooth}")
+    tracking = load_dlc_csv(args.csv, args.likelihood,
+                            arena=pre_arena,
+                            jump_thresh=args.jump_thresh,
+                            smooth_window=args.smooth)
 
     # ── Arena bounds ─────────────────────────────────────────────────────────
     if args.arena:
@@ -347,12 +390,18 @@ def main():
         inner_zone = compute_inner_zone(arena, args.margin)
         print(f"Inner zone   (auto {args.margin*100:.0f}% margin): X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
 
-    # ── Thigmotaxis summary ──────────────────────────────────────────────────
-    print(f"\nThigmotaxis rates:")
+    # ── Thigmotaxis summary (reference: body_center) ────────────────────────
+    REF_BP = "body_center"
+    if REF_BP not in tracking:
+        REF_BP = list(tracking.keys())[0]
+    ref_rate = thigmotaxis_rate(tracking[REF_BP]["x"], tracking[REF_BP]["y"], inner_zone)
+    print(f"\nThigmotaxis rate (reference: {REF_BP}): {ref_rate*100:.1f}%")
+    print(f"\nAll body parts (for reference):")
     for bp, data in tracking.items():
         rate = thigmotaxis_rate(data["x"], data["y"], inner_zone)
         bar  = "█" * int(rate * 20) if not np.isnan(rate) else ""
-        print(f"  {bp:>15s}: {rate*100:5.1f}%  {bar}")
+        marker = " <-- REFERENCE" if bp == REF_BP else ""
+        print(f"  {bp:>15s}: {rate*100:5.1f}%  {bar}{marker}")
 
     print("\nRendering plots...")
     plot_grid(
