@@ -117,8 +117,8 @@ Examples:
                        help="Jump threshold in px (default: 60)")
     parser.add_argument("--smooth", type=int, default=5,
                        help="Rolling median window (default: 5)")
-    parser.add_argument("--cmap", default="inferno",
-                       help="Heatmap colormap (default: inferno)")
+    parser.add_argument("--cmap", default="YlOrRd",
+                       help="Heatmap colormap (default: YlOrRd; try: Reds, hot, inferno)")
     parser.add_argument("--sigma", type=float, default=15.0,
                        help="Gaussian blur sigma for heatmap (default: 15.0 px)")
     parser.add_argument("--skip-orbit", action="store_true",

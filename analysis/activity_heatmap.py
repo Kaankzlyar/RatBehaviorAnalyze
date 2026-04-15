@@ -144,15 +144,13 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "inferno", sigma: float = 15.0):
-    """Create smooth football-style activity density heatmap.
+                     cmap: str = "YlOrRd", sigma: float = 15.0):
+    """Create smooth football-style activity density heatmap (white background).
 
     Uses arena-resolution histogram + heavy gaussian blur + log scale.
-    Produces fully smooth, pixel-artifact-free density maps consistent
-    with trajectory visualizations.
+    White background with warm colormap (YlOrRd) for natural heatmap appearance.
 
     - sigma: blur in pixels (default 15 ≈ 4% of arena width)
-      Lower = sharper paths, higher = smoother blobs
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
@@ -173,19 +171,18 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
         range=[[x_min, x_max], [y_min, y_max]]
     )
 
-    # Step 2: Heavy gaussian blur — creates smooth football-heatmap appearance
-    # hist.T: rows=Y, cols=X (imshow convention)
+    # Step 2: Heavy gaussian blur — smooth football-heatmap appearance
     hist_smooth = gaussian_filter(hist.T, sigma=sigma)
 
-    # Step 3: Log scale — keeps traversed paths visible without washing out hotspots
+    # Step 3: Log scale — traversed paths visible, hotspots dominant
     hist_log = np.log1p(hist_smooth)
 
-    # Step 4: Normalize 0→1 so colormap uses full dynamic range
+    # Step 4: Normalize 0→1
     vmax = hist_log.max()
     hist_norm = hist_log / vmax if vmax > 0 else hist_log
 
-    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
-    ax.set_facecolor("#0A0A0A")
+    fig, ax = plt.subplots(figsize=(12, 9), facecolor="white")
+    ax.set_facecolor("white")
 
     im = ax.imshow(
         hist_norm,
@@ -197,22 +194,26 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
         vmin=0, vmax=1,
     )
     cbar = plt.colorbar(im, ax=ax, label="Relative activity (log scale)")
-    cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
+    cbar.ax.tick_params(colors="#333333", labelsize=9)
+    cbar.set_label("Relative activity (log scale)", color="#333333")
 
-    # Arena zones
-    draw_arena_zones(ax, arena, inner_zone)
+    # Arena zones — dark lines on white background
+    draw_arena_zones(ax, arena, inner_zone,
+                     arena_color="#222222", zone_color="#E07000")
 
-    ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
-    ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
+    ax.set_xlabel("X (pixels)", color="#222222", fontsize=12)
+    ax.set_ylabel("Y (pixels)", color="#222222", fontsize=12)
     ax.set_title(
         f"Activity Density Heatmap — {video_name}\n"
         f"(body_center  |  {len(xv)} frames  |  log scale  |  σ={sigma})",
-        color="white", fontsize=13, pad=10,
+        color="#111111", fontsize=13, pad=10,
     )
-    ax.tick_params(colors="#666666", labelsize=9)
+    ax.tick_params(colors="#444444", labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#CCCCCC")
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close()
     print(f"Heatmap saved → {out_path}")
 
@@ -232,8 +233,8 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
-    parser.add_argument("--cmap",        default="inferno",         help="Colormap (default: inferno; try: magma, hot)")
-    parser.add_argument("--sigma",       default=3.0, type=float,   help="Gaussian blur sigma — lower=sharper paths, higher=smoother (default: 3.0)")
+    parser.add_argument("--cmap",        default="YlOrRd",          help="Colormap (default: YlOrRd; try: Reds, hot, inferno)")
+    parser.add_argument("--sigma",       default=15.0, type=float,  help="Gaussian blur sigma in pixels (default: 15.0)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
