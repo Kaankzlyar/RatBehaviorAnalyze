@@ -251,12 +251,9 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         draw_trajectory(ax, x, y, color)
         draw_arena_zones(ax, arena, inner_zone)
 
-        rate = thigmotaxis_rate(x, y, inner_zone)
-        rate_str = f"{rate * 100:.1f}%" if not np.isnan(rate) else "N/A"
-
         ax.invert_yaxis()
         ax.set_title(
-            f"{bp}\nThigmotaxis: {rate_str}",
+            bp,
             color=BODYPART_COLORS.get(bp, "#FFFFFF"),
             fontsize=9, pad=4,
         )
@@ -390,18 +387,13 @@ def main():
         inner_zone = compute_inner_zone(arena, args.margin)
         print(f"Inner zone   (auto {args.margin*100:.0f}% margin): X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
 
-    # ── Thigmotaxis summary (reference: body_center) ────────────────────────
+    # ── Thigmotaxis summary (reference: body_center only) ───────────────────
     REF_BP = "body_center"
     if REF_BP not in tracking:
         REF_BP = list(tracking.keys())[0]
     ref_rate = thigmotaxis_rate(tracking[REF_BP]["x"], tracking[REF_BP]["y"], inner_zone)
-    print(f"\nThigmotaxis rate (reference: {REF_BP}): {ref_rate*100:.1f}%")
-    print(f"\nAll body parts (for reference):")
-    for bp, data in tracking.items():
-        rate = thigmotaxis_rate(data["x"], data["y"], inner_zone)
-        bar  = "█" * int(rate * 20) if not np.isnan(rate) else ""
-        marker = " <-- REFERENCE" if bp == REF_BP else ""
-        print(f"  {bp:>15s}: {rate*100:5.1f}%  {bar}{marker}")
+    bar = "█" * int(ref_rate * 20) if not np.isnan(ref_rate) else ""
+    print(f"\nThigmotaxis rate [{REF_BP}]: {ref_rate*100:.1f}%  {bar}")
 
     print("\nRendering plots...")
     plot_grid(
