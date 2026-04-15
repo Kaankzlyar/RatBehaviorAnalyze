@@ -144,18 +144,15 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "inferno", grid_size: int = 200, sigma: float = 3.0):
-    """Create trajectory-consistent density heatmap.
+                     cmap: str = "inferno", sigma: float = 15.0):
+    """Create smooth football-style activity density heatmap.
 
-    Uses histogram2d + gaussian_filter + log scale so that:
-    - Every traversed path appears with some color (matches trajectory plot)
-    - Dwell areas appear brighter (higher log count)
-    - Rarely-visited paths are distinguishable from never-visited areas
+    Uses arena-resolution histogram + heavy gaussian blur + log scale.
+    Produces fully smooth, pixel-artifact-free density maps consistent
+    with trajectory visualizations.
 
-    High-contrast sequential palettes on dark background:
-      - inferno (default): black → purple → yellow
-      - magma: black → purple → white
-      - hot: black → red → yellow
+    - sigma: blur in pixels (default 15 ≈ 4% of arena width)
+      Lower = sharper paths, higher = smoother blobs
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
@@ -166,34 +163,40 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
 
     x_min, x_max, y_min, y_max = arena
 
-    # Step 1: Fine-grained 2D histogram — counts every frame visit per bin
-    hist, xedges, yedges = np.histogram2d(
-        xv, yv, bins=grid_size,
+    # Grid resolution = 1 bin per arena pixel → no pixelation artifacts
+    W = int(x_max - x_min)
+    H = int(y_max - y_min)
+
+    # Step 1: Per-pixel visit count
+    hist, _, _ = np.histogram2d(
+        xv, yv, bins=[W, H],
         range=[[x_min, x_max], [y_min, y_max]]
     )
 
-    # Step 2: Gaussian blur — smooth paths without merging distinct regions
-    hist_smooth = gaussian_filter(hist, sigma=sigma)
+    # Step 2: Heavy gaussian blur — creates smooth football-heatmap appearance
+    # hist.T: rows=Y, cols=X (imshow convention)
+    hist_smooth = gaussian_filter(hist.T, sigma=sigma)
 
-    # Step 3: Log scale — compresses dynamic range so traversed paths
-    # (low count) are visible alongside dwell hotspots (high count)
+    # Step 3: Log scale — keeps traversed paths visible without washing out hotspots
     hist_log = np.log1p(hist_smooth)
 
-    # Step 4: Mask zero-count cells (never visited) → stay black
-    hist_masked = np.ma.masked_where(hist_smooth == 0, hist_log)
+    # Step 4: Normalize 0→1 so colormap uses full dynamic range
+    vmax = hist_log.max()
+    hist_norm = hist_log / vmax if vmax > 0 else hist_log
 
     fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
     ax.set_facecolor("#0A0A0A")
 
     im = ax.imshow(
-        hist_masked.T,
+        hist_norm,
         origin="upper",
         extent=[x_min, x_max, y_max, y_min],
         cmap=cmap,
         aspect="auto",
         interpolation="bilinear",
+        vmin=0, vmax=1,
     )
-    cbar = plt.colorbar(im, ax=ax, label="log(visit count + 1)")
+    cbar = plt.colorbar(im, ax=ax, label="Relative activity (log scale)")
     cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
 
     # Arena zones

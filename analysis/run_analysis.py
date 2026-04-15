@@ -119,8 +119,8 @@ Examples:
                        help="Rolling median window (default: 5)")
     parser.add_argument("--cmap", default="inferno",
                        help="Heatmap colormap (default: inferno)")
-    parser.add_argument("--sigma", type=float, default=5.0,
-                       help="Gaussian blur sigma for heatmap paths (default: 5.0)")
+    parser.add_argument("--sigma", type=float, default=15.0,
+                       help="Gaussian blur sigma for heatmap (default: 15.0 px)")
     parser.add_argument("--skip-orbit", action="store_true",
                        help="Skip orbit_plot.py (trajectory visualization)")
     parser.add_argument("--skip-heatmap", action="store_true",
