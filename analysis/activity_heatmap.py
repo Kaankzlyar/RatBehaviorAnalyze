@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
-from scipy.stats import gaussian_kde
+from scipy.ndimage import gaussian_filter
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
@@ -144,49 +144,66 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "inferno"):
-    """Create smooth KDE (kernel density estimate) heatmap.
+                     cmap: str = "inferno", grid_size: int = 200, sigma: float = 3.0):
+    """Create trajectory-consistent density heatmap.
+
+    Uses histogram2d + gaussian_filter + log scale so that:
+    - Every traversed path appears with some color (matches trajectory plot)
+    - Dwell areas appear brighter (higher log count)
+    - Rarely-visited paths are distinguishable from never-visited areas
 
     High-contrast sequential palettes on dark background:
-      - inferno (default): black → purple → yellow (strong contrast, scientific)
-      - magma: black → purple → white (similar to inferno)
-      - hot: black → red → yellow (classic, very sharp)
-      - twilight: cyclic color scheme (good for highlighting spatial patterns)
+      - inferno (default): black → purple → yellow
+      - magma: black → purple → white
+      - hot: black → red → yellow
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
 
     if len(xv) < 10:
-        print("Not enough valid data for KDE heatmap.")
+        print("Not enough valid data for heatmap.")
         return
 
-    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
-    ax.set_facecolor("#111111")
-
-    # Create KDE
-    xy = np.vstack([xv, yv])
-    kde = gaussian_kde(xy)
-
-    # Grid for KDE evaluation
     x_min, x_max, y_min, y_max = arena
-    xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
-    positions = np.vstack([xx.ravel(), yy.ravel()])
-    z = kde(positions).reshape(xx.shape)
 
-    # Plot KDE (simplified contour levels for cleaner appearance)
-    h = ax.contourf(xx, yy, z, levels=15, cmap=cmap, alpha=0.9)
-    cbar = plt.colorbar(h, ax=ax, label="Density")
+    # Step 1: Fine-grained 2D histogram — counts every frame visit per bin
+    hist, xedges, yedges = np.histogram2d(
+        xv, yv, bins=grid_size,
+        range=[[x_min, x_max], [y_min, y_max]]
+    )
+
+    # Step 2: Gaussian blur — smooth paths without merging distinct regions
+    hist_smooth = gaussian_filter(hist, sigma=sigma)
+
+    # Step 3: Log scale — compresses dynamic range so traversed paths
+    # (low count) are visible alongside dwell hotspots (high count)
+    hist_log = np.log1p(hist_smooth)
+
+    # Step 4: Mask zero-count cells (never visited) → stay black
+    hist_masked = np.ma.masked_where(hist_smooth == 0, hist_log)
+
+    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
+    ax.set_facecolor("#0A0A0A")
+
+    im = ax.imshow(
+        hist_masked.T,
+        origin="upper",
+        extent=[x_min, x_max, y_max, y_min],
+        cmap=cmap,
+        aspect="auto",
+        interpolation="bilinear",
+    )
+    cbar = plt.colorbar(im, ax=ax, label="log(visit count + 1)")
     cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
 
     # Arena zones
     draw_arena_zones(ax, arena, inner_zone)
 
-    ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Density (KDE) — {video_name}\n"
-        f"(body_center kernel density estimate, {len(xv)} frames)",
+        f"Activity Density Heatmap — {video_name}\n"
+        f"(body_center  |  {len(xv)} frames  |  log scale  |  σ={sigma})",
         color="white", fontsize=13, pad=10,
     )
     ax.tick_params(colors="#666666", labelsize=9)
@@ -194,7 +211,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"KDE heatmap saved → {out_path}")
+    print(f"Heatmap saved → {out_path}")
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -212,7 +229,8 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
-    parser.add_argument("--cmap",        default="inferno",         help="Colormap for KDE (default: inferno; try: magma, hot, twilight)")
+    parser.add_argument("--cmap",        default="inferno",         help="Colormap (default: inferno; try: magma, hot)")
+    parser.add_argument("--sigma",       default=3.0, type=float,   help="Gaussian blur sigma — lower=sharper paths, higher=smoother (default: 3.0)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
@@ -250,7 +268,8 @@ def main():
     plot_kde_heatmap(
         x, y, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_heatmap_kde.png"),
-        cmap=args.cmap
+        cmap=args.cmap,
+        sigma=args.sigma,
     )
 
 

@@ -15,7 +15,9 @@ Usage (RECOMMENDED):
     # Interactive: define boundaries with tool
     python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA1_2.mp4
     # Copy the --arena and --inner-zone from output, then:
-    python run_analysis.py --arena 396 776 153 530 --inner-zone 422 747 177 502
+    python run_analysis.py --arena 395 778 153 533 --inner-zone 421 746 176 502
+    --arena 395 778 153 533 \
+    --inner-zone 421 746 176 502
 
 Or (QUICK - auto-generate inner-zone):
     python run_analysis.py --arena 396 776 153 530
@@ -116,7 +118,9 @@ Examples:
     parser.add_argument("--smooth", type=int, default=5,
                        help="Rolling median window (default: 5)")
     parser.add_argument("--cmap", default="inferno",
-                       help="KDE colormap (default: inferno)")
+                       help="Heatmap colormap (default: inferno)")
+    parser.add_argument("--sigma", type=float, default=5.0,
+                       help="Gaussian blur sigma for heatmap paths (default: 5.0)")
     parser.add_argument("--skip-orbit", action="store_true",
                        help="Skip orbit_plot.py (trajectory visualization)")
     parser.add_argument("--skip-heatmap", action="store_true",
@@ -176,7 +180,7 @@ Examples:
 
     # ── Step 2: Activity heatmap (KDE) ───────────────────────────────────────
     if not args.skip_heatmap:
-        heatmap_args = common_args + ["--cmap", args.cmap]
+        heatmap_args = common_args + ["--cmap", args.cmap, "--sigma", str(args.sigma)]
         results["heatmap"] = run_command(
             "activity_heatmap.py",
             heatmap_args,
