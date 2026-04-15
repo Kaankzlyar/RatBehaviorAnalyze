@@ -144,14 +144,14 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "coolwarm"):
+                     cmap: str = "inferno"):
     """Create smooth KDE (kernel density estimate) heatmap.
 
-    Recommended cmaps:
-      - coolwarm (default): blue (low) to red (high)
-      - twilight: cyclic, visually distinct
-      - viridis: perceptually uniform
-      - RdYlBu_r: red-yellow-blue reversed
+    High-contrast sequential palettes on dark background:
+      - inferno (default): black → purple → yellow (strong contrast, scientific)
+      - magma: black → purple → white (similar to inferno)
+      - hot: black → red → yellow (classic, very sharp)
+      - twilight: cyclic color scheme (good for highlighting spatial patterns)
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
@@ -212,7 +212,7 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
-    parser.add_argument("--cmap",        default="coolwarm",        help="Colormap for KDE (default: coolwarm; try: twilight, viridis, RdYlBu_r)")
+    parser.add_argument("--cmap",        default="inferno",         help="Colormap for KDE (default: inferno; try: magma, hot, twilight)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
