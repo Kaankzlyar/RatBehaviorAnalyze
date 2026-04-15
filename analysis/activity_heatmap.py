@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
-from scipy.stats import gaussian_kde
+from scipy.ndimage import gaussian_filter
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
@@ -144,49 +144,66 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "inferno"):
-    """Create smooth KDE (kernel density estimate) heatmap.
+                     cmap: str = "inferno", sigma: float = 15.0):
+    """Create smooth football-style activity density heatmap.
 
-    High-contrast sequential palettes on dark background:
-      - inferno (default): black → purple → yellow (strong contrast, scientific)
-      - magma: black → purple → white (similar to inferno)
-      - hot: black → red → yellow (classic, very sharp)
-      - twilight: cyclic color scheme (good for highlighting spatial patterns)
+    Uses arena-resolution histogram + heavy gaussian blur + log scale.
+    Produces pixel-artifact-free density maps consistent with trajectory plots.
+
+    sigma: blur radius in pixels (default 15 ≈ ~4% of arena width).
+           Lower = sharper paths, higher = smoother blobs.
     """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
 
     if len(xv) < 10:
-        print("Not enough valid data for KDE heatmap.")
+        print("Not enough valid data for heatmap.")
         return
 
-    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
-    ax.set_facecolor("#111111")
-
-    # Create KDE
-    xy = np.vstack([xv, yv])
-    kde = gaussian_kde(xy)
-
-    # Grid for KDE evaluation
     x_min, x_max, y_min, y_max = arena
-    xx, yy = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
-    positions = np.vstack([xx.ravel(), yy.ravel()])
-    z = kde(positions).reshape(xx.shape)
+    W = int(x_max - x_min)
+    H = int(y_max - y_min)
 
-    # Plot KDE (simplified contour levels for cleaner appearance)
-    h = ax.contourf(xx, yy, z, levels=15, cmap=cmap, alpha=0.9)
-    cbar = plt.colorbar(h, ax=ax, label="Density")
+    # Step 1: per-pixel visit count (1 bin per arena pixel → no pixelation)
+    hist, _, _ = np.histogram2d(
+        xv, yv, bins=[W, H],
+        range=[[x_min, x_max], [y_min, y_max]]
+    )
+
+    # Step 2: heavy gaussian blur — football-heatmap smoothness
+    # hist.T: rows=Y, cols=X (imshow convention)
+    hist_smooth = gaussian_filter(hist.T, sigma=sigma)
+
+    # Step 3: log scale — keeps traversed paths visible without washing out hotspots
+    hist_log = np.log1p(hist_smooth)
+
+    # Step 4: normalize 0→1 so colormap uses full dynamic range
+    vmax = hist_log.max()
+    hist_norm = hist_log / vmax if vmax > 0 else hist_log
+
+    fig, ax = plt.subplots(figsize=(12, 9), facecolor="#0A0A0A")
+    ax.set_facecolor("#0A0A0A")
+
+    im = ax.imshow(
+        hist_norm,
+        origin="upper",
+        extent=[x_min, x_max, y_max, y_min],
+        cmap=cmap,
+        aspect="auto",
+        interpolation="bilinear",
+        vmin=0, vmax=1,
+    )
+    cbar = plt.colorbar(im, ax=ax, label="Relative activity (log scale)")
     cbar.ax.tick_params(colors="#AAAAAA", labelsize=9)
 
     # Arena zones
     draw_arena_zones(ax, arena, inner_zone)
 
-    ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Density (KDE) — {video_name}\n"
-        f"(body_center kernel density estimate, {len(xv)} frames)",
+        f"Activity Density — {video_name}\n"
+        f"(body_center, {len(xv)} frames, σ={sigma}px)",
         color="white", fontsize=13, pad=10,
     )
     ax.tick_params(colors="#666666", labelsize=9)
@@ -194,7 +211,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"KDE heatmap saved → {out_path}")
+    print(f"Heatmap saved → {out_path}")
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -212,7 +229,8 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
-    parser.add_argument("--cmap",        default="inferno",         help="Colormap for KDE (default: inferno; try: magma, hot, twilight)")
+    parser.add_argument("--cmap",        default="inferno",         help="Colormap (default: inferno; try: magma, hot)")
+    parser.add_argument("--sigma",       default=15.0, type=float,  help="Gaussian blur sigma in pixels (default: 15.0)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
@@ -250,7 +268,7 @@ def main():
     plot_kde_heatmap(
         x, y, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_heatmap_kde.png"),
-        cmap=args.cmap
+        cmap=args.cmap, sigma=args.sigma
     )
 
 
