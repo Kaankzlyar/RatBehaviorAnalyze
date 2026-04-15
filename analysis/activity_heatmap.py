@@ -21,8 +21,8 @@ from scipy.stats import gaussian_kde
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
-DEFAULT_CSV       = "data/DLCfiltered/OpenFieldMA1_2.csv"
-DEFAULT_OUT_DIR   = "data/DLCfiltered"
+DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR   = "../data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
 
 
@@ -144,8 +144,15 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
-                     cmap: str = "hot"):
-    """Create smooth KDE (kernel density estimate) heatmap."""
+                     cmap: str = "coolwarm"):
+    """Create smooth KDE (kernel density estimate) heatmap.
+
+    Recommended cmaps:
+      - coolwarm (default): blue (low) to red (high)
+      - twilight: cyclic, visually distinct
+      - viridis: perceptually uniform
+      - RdYlBu_r: red-yellow-blue reversed
+    """
     valid = ~(np.isnan(x) | np.isnan(y))
     xv, yv = x[valid], y[valid]
 
@@ -205,6 +212,7 @@ def main():
     parser.add_argument("--smooth",      default=5,    type=int)
     parser.add_argument("--out-dir",     default=DEFAULT_OUT_DIR,   dest="out_dir")
     parser.add_argument("--bins",        default=40,   type=int,    help="2D histogram bin count (default 40)")
+    parser.add_argument("--cmap",        default="coolwarm",        help="Colormap for KDE (default: coolwarm; try: twilight, viridis, RdYlBu_r)")
     args = parser.parse_args()
 
     if not os.path.isfile(args.csv):
@@ -242,6 +250,7 @@ def main():
     plot_kde_heatmap(
         x, y, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_heatmap_kde.png"),
+        cmap=args.cmap
     )
 
 
