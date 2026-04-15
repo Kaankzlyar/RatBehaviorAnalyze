@@ -18,10 +18,10 @@ import deeplabcut
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-CONFIG_PATH   = "D:/ProjectsD/ThesisWork/models/dlc_model/rat_behavior-kaank-YYYY-MM-DD/config.yaml"
-VIDEO_DIR     = "D:/ProjectsD/ThesisWork/data/raw_videos"
-OUTPUT_BASE   = "D:/ProjectsD/ThesisWork/data/dlc_output"
-LABELED_DIR   = "D:/ProjectsD/ThesisWork/data/dlc_output/labeled_videos"
+CONFIG_PATH   = "C:/RatWork/models/dlc_model/rat_behavior-kaank-2026-04-01/config.yaml"
+VIDEO_DIR     = "C:/RatWork/data/raw_videos"
+OUTPUT_BASE   = "C:/RatWork/data/dlc_output"
+LABELED_DIR   = "C:/RatWork/data/dlc_output/labeled_videos"
 VIDEO_EXT     = "avi"
 SHUFFLE       = 1
 GPU_ID        = 0

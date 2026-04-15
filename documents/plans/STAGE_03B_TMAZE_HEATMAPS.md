@@ -1,165 +1,260 @@
-# Stage 03B — T-Maze Heatmap Generation
+# Stage 03B — T-Maze Heatmap Üretimi
 ## Plan & Roadmap
 
 ---
 
 ## Objective
 
-Generate spatial heatmaps from T-maze tracking data (Part1 + Part2) to visualize occupancy, movement density, and zone preference per rat and per session.
+T-maze tracking verilerinden (Part1) uzaysal heatmap'ler ve zon occupancy zaman serileri üret. Stage 02B ethogram verilerini kullanarak rearing/grooming'in T-maze içindeki **zona özgü** dağılımını ortaya koy. Dört grup: **Kontrol, ASP, Greyfurt, ASP & Greyfurt**.
 
 ---
 
 ## Status
 
-- [ ] Not started — requires Stage 02 clean CSVs
+- [ ] Başlanmadı — Stage 02 (temiz DLC CSV) + Stage 02B (ethogram CSV) gerektirir
 
 ---
 
-## T-Maze Zone Layout
+## Girdi Dosyaları
+
+| Dosya | Kaynak | Açıklama |
+|-------|--------|----------|
+| `data/dlc_output/tmaze/{grup}/{video}_clean.csv` | Stage 02 | DLC tracking CSV |
+| `data/behavior/ethograms/{video}_ethogram.csv` | Stage 02B | Frame-level rearing/grooming etiketleri |
+| `data/metadata.xlsx` | Stage 01 | Hayvan ID, grup, seans bilgisi |
+
+---
+
+## Grup → Hayvan Haritası (T-Maze)
+
+| Grup | Hayvan | Video'lar |
+|------|--------|-----------|
+| Kontrol | MA1 | Part1-MA1-1, Part1-MA1-2, Part1-MA1-3 |
+| ASP | MA3 | Part1-MA3-1, Part1-MA3-2, Part1-MA3-3 |
+| Greyfurt | MA5 | Part1-MA5-1, Part1-MA5-2, Part1-MA5-3 |
+| ASP & Greyfurt | MA7 | Part1-MA7-1, Part1-MA7-2, Part1-MA7-3 |
+
+---
+
+## T-Maze Zon Düzeni
 
 ```
          ┌──────┐  ┌──────┐
-         │ Left │  │Right │     ← Goal zones (reward arms)
-         │ Arm  │  │ Arm  │
+         │  SG  │  │  SG  │    SG = sol_goal / sag_goal
          └──┬───┘  └──┬───┘
-            │  Choice │
-            │  Point  │
+            │  Seçim  │
+            │  Noktası│
             └────┬────┘
-                 │ Stem
+                 │ Gövde
                  │
             ┌────┴────┐
-            │  Entry  │         ← Start box / entry zone
+            │  Giriş  │
             └─────────┘
 ```
 
-### Named Zones
+### Adlandırılmış Zonlar
 
-| Zone ID | Name | Description |
-|---------|------|-------------|
-| `entry` | Entry zone | Start box / bottom of stem |
-| `stem` | Stem | Corridor from entry to choice point |
-| `choice` | Choice point | Junction between stem and arms |
-| `left_arm` | Left arm | Left corridor |
-| `right_arm` | Right arm | Right corridor |
-| `left_goal` | Left goal | Tip of left arm |
-| `right_goal` | Right goal | Tip of right arm |
+| Zon ID | İsim | Açıklama |
+|--------|------|----------|
+| `giris` | Giriş zonu | Başlangıç kutusu / gövdenin tabanı |
+| `govde` | Gövde | Girişten seçim noktasına koridor |
+| `secim` | Seçim noktası | Gövde ile kollar arasındaki kavşak |
+| `sol_kol` | Sol kol | Sol koridor |
+| `sag_kol` | Sağ kol | Sağ koridor |
+| `sol_goal` | Sol goal | Sol kolun ucu |
+| `sag_goal` | Sağ goal | Sağ kolun ucu |
 
 ---
 
-## Tasks
+## Görevler
 
-### 3B.1 — Coordinate System Calibration
+### 3B.1 — Koordinat Sistemi Kalibrasyonu
 
-- [ ] Extract a reference frame from a T-maze video
-- [ ] Manually define zone polygon corners in pixel coordinates
-- [ ] Compute px-to-cm scale factor from known maze dimensions
-- [ ] Save zone definitions to `data/arena_config_tmaze.json`
+- [ ] T-maze videosundan referans kare çıkar
+- [ ] Zon poligon köşelerini piksel koordinatlarında manuel tanımla
+- [ ] Bilinen labirent boyutlarından px-to-cm ölçek faktörü hesapla
+- [ ] Kaydet: `data/arena_config_tmaze.json`
 
 ```python
 arena_config = {
     "px_per_cm": 4.8,
     "zones": {
-        "entry":      [[x1,y1], [x2,y2], [x3,y3], [x4,y4]],
-        "stem":       [[...], ...],
-        "choice":     [[...], ...],
-        "left_arm":   [[...], ...],
-        "right_arm":  [[...], ...],
-        "left_goal":  [[...], ...],
-        "right_goal": [[...], ...],
+        "giris":    [[x1,y1], [x2,y2], [x3,y3], [x4,y4]],
+        "govde":    [[...], ...],
+        "secim":    [[...], ...],
+        "sol_kol":  [[...], ...],
+        "sag_kol":  [[...], ...],
+        "sol_goal": [[...], ...],
+        "sag_goal": [[...], ...],
     }
 }
 ```
 
-### 3B.2 — Heatmap Types to Generate
+### 3B.2 — Genel Heatmap Türleri
 
-Implement `src/heatmap.py`.
+`src/heatmap.py` içinde uygula.
 
-| Heatmap | Implementation | Output |
-|---------|---------------|--------|
-| Occupancy | 2D histogram of body_center (x, y) | `occupancy_{rat}_{session}.png` |
-| Velocity | Mean speed per spatial bin | `velocity_{rat}_{session}.png` |
-| Nose point | 2D histogram of nose (x, y) — investigation map | `nose_{rat}_{session}.png` |
-| Entry frequency | Zone entry counts overlaid on maze | `entry_freq_{rat}_{session}.png` |
-| Path density | All trajectory lines overlaid | `paths_{rat}_{session}.png` |
+| Heatmap | Uygulama | Çıktı |
+|---------|----------|-------|
+| Occupancy (tümü) | body_center 2D histogramı | `occupancy_{hayvan}_{seans}.png` |
+| Hız | Uzaysal bin başına ortalama hız | `velocity_{hayvan}_{seans}.png` |
+| Burun noktası | nose 2D histogramı — araştırma haritası | `nose_{hayvan}_{seans}.png` |
+| Giriş sıklığı | Zon geçiş sayıları labirent üzerine | `entry_freq_{hayvan}_{seans}.png` |
+| Yol yoğunluğu | Tüm trajectory çizgilerinin üst üste bindirilmesi | `paths_{hayvan}_{seans}.png` |
 
-- [ ] Implement per-session heatmap generation
-- [ ] Implement group-average heatmap (mean normalized across rats of same condition)
-- [ ] Normalize all heatmaps to [0, 1] for cross-session comparison
+### 3B.3 — Davranışa Özel Heatmap'ler (Stage 02B Entegrasyonu)
+
+Ethogram CSV'sinden davranış maskelerini yükle ve ayrı heatmap'ler üret.
+
+- [ ] **Rearing heatmap** — yalnızca rearing frame'lerindeki pozisyonlar
+- [ ] **Grooming heatmap** — yalnızca grooming frame'lerindeki pozisyonlar
+- [ ] **Locomotion heatmap** — yalnızca aktif hareket frame'leri
 
 ```python
-def generate_occupancy_heatmap(x, y, arena_bounds, grid_size=50, save_path=None):
-    heatmap, xedges, yedges = np.histogram2d(
-        x[~np.isnan(x)], y[~np.isnan(y)],
-        bins=grid_size,
-        range=[[arena_bounds["x_min"], arena_bounds["x_max"]],
-               [arena_bounds["y_min"], arena_bounds["y_max"]]]
-    )
-    heatmap = heatmap / heatmap.max()   # normalize
+import pandas as pd
+import numpy as np
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    im = ax.imshow(heatmap.T, origin="lower", cmap="hot", aspect="auto")
-    plt.colorbar(im, ax=ax, label="Normalized occupancy")
-    ax.set_title("Occupancy Heatmap")
-    if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-    return heatmap
+def load_behavior_masks(ethogram_path: str) -> dict:
+    eth = pd.read_csv(ethogram_path)
+    return {
+        'rearing':   eth['rearing'].values.astype(bool),
+        'grooming':  eth['grooming'].values.astype(bool),
+        'locomotion': (~eth['rearing'] & ~eth['grooming']).values,
+    }
+
+def generate_behavior_heatmaps(x: np.ndarray, y: np.ndarray,
+                                masks: dict, arena_bounds: dict,
+                                grid_size: int = 50, output_dir: str = None):
+    for behavior, mask in masks.items():
+        x_b = x[mask]; y_b = y[mask]
+        if len(x_b) < 10:
+            continue  # yeterli veri yok
+        heatmap, _, _ = np.histogram2d(
+            x_b[~np.isnan(x_b)], y_b[~np.isnan(y_b)],
+            bins=grid_size,
+            range=[[arena_bounds["x_min"], arena_bounds["x_max"]],
+                   [arena_bounds["y_min"], arena_bounds["y_max"]]]
+        )
+        heatmap = heatmap / (heatmap.max() + 1e-9)
+        # kaydet...
 ```
 
-### 3B.3 — Zone Occupancy Time
+### 3B.4 — Zon Occupancy Süresi
 
-- [ ] Per frame, assign rat to a zone using Shapely `Point.within(Polygon)`
-- [ ] Compute time spent in each zone (frames × (1/fps))
-- [ ] Compute zone entry counts (transitions between zones)
+- [ ] Her frame'de hayvanı Shapely `Point.within(Polygon)` ile bir zona ata
+- [ ] Her zonda geçirilen süreyi hesapla (frames × 1/fps)
+- [ ] Zon geçiş sayılarını hesapla (zonlar arası geçişler)
+- [ ] Rearing ve grooming'in zona göre dağılımını hesapla
 
 ```python
 from shapely.geometry import Point, Polygon
 
-def assign_zone(x_frame, y_frame, zones):
+def assign_zone(x_frame: float, y_frame: float, zones: dict) -> str:
     pt = Point(x_frame, y_frame)
     for zone_name, coords in zones.items():
         if Polygon(coords).contains(pt):
             return zone_name
-    return "outside"
+    return "disari"
+
+def zone_behavior_breakdown(zone_sequence: list, ethogram: pd.DataFrame,
+                             fps: int = 25) -> dict:
+    """
+    Her zon × her davranış için süre ve oranı döndürür.
+    Örnek: rearing'in %40'ı secim zonunda gerçekleşiyor mu?
+    """
+    zone_arr = np.array(zone_sequence)
+    zones = ['giris', 'govde', 'secim', 'sol_kol', 'sag_kol', 'sol_goal', 'sag_goal']
+    behaviors = ['rearing', 'grooming']
+    results = {}
+
+    for zone in zones:
+        in_zone = (zone_arr == zone)
+        for behavior in behaviors:
+            b_mask = ethogram[behavior].values
+            overlap = (in_zone & b_mask).sum()
+            results[f'{zone}_{behavior}_s'] = overlap / fps
+            results[f'{zone}_{behavior}_pct'] = (
+                overlap / b_mask.sum() * 100 if b_mask.sum() > 0 else 0
+            )
+
+    return results
 ```
 
-### 3B.4 — Per-Session Heatmap Export
+**Hipotez:** Rearing'in `secim` zonunda yoğunlaşması → karar noktasında anksiyete göstergesi olabilir.
 
-- [ ] Generate and save all heatmap types for each of the 12 T-maze sessions
-- [ ] Save numpy arrays alongside PNGs for downstream CNN input
+### 3B.5 — Seans Başına Heatmap Dışa Aktarımı
+
+- [ ] 12 T-maze seans için tüm heatmap türlerini üret ve kaydet
+- [ ] Numpy dizilerini downstream CNN girdisi için PNG'nin yanında kaydet
 
 ```
-data/heatmaps/tmaze/
-├── MA1_session1_occupancy.png
-├── MA1_session1_occupancy.npy
-├── MA1_session1_velocity.png
-...
+data/figures/heatmaps/tmaze/{grup}/
+├── MA1_s1_occupancy_all.png    + .npy
+├── MA1_s1_occupancy_rearing.png + .npy
+├── MA1_s1_occupancy_grooming.png + .npy
+├── MA1_s1_velocity.png
+├── MA1_s1_nose.png
+└── MA1_s1_paths.png
 ```
 
-### 3B.5 — Group-Average Heatmaps
+### 3B.6 — Grup Ortalama Heatmap'ler
 
-- [ ] Stack normalized heatmaps per condition and compute mean
-- [ ] Visualize condition differences (e.g., control vs stressed)
+- [ ] Aynı gruptaki normalize heatmap'leri üst üste katmanla ve ortalamasını al
+- [ ] Her davranış için grup karşılaştırma paneli üret (4 panel yan yana)
+
+```python
+def group_average_heatmap(heatmap_list: list) -> np.ndarray:
+    """Normalize edilmiş heatmap'lerin piksel bazında ortalaması."""
+    stacked = np.stack(heatmap_list, axis=0)
+    return stacked.mean(axis=0)
+```
+
+**Üretilecek karşılaştırma panelleri:**
+
+| Panel | İçerik |
+|-------|--------|
+| `group_compare_all.png` | 4 grup × tüm frameler |
+| `group_compare_rearing.png` | 4 grup × yalnızca rearing |
+| `group_compare_grooming.png` | 4 grup × yalnızca grooming |
+| `group_compare_locomotion.png` | 4 grup × yalnızca lokomotion |
 
 ---
 
-## Acceptance Criteria
+## Zon Occupancy Metrik Tablosu
 
-- All 12 T-maze sessions have occupancy, velocity, and nose-point heatmaps
-- Heatmaps are normalized and saved as both PNG and `.npy`
-- Zone occupancy times computed and ready for Stage 04
+Her seans için aşağıdaki zon metrikleri hesaplanır ve `data/features/tmaze_zone_metrics.csv`'e eklenir:
 
----
-
-## Output Files
-
-| Path | Description |
-|------|-------------|
-| `data/arena_config_tmaze.json` | Zone polygon definitions |
-| `data/heatmaps/tmaze/` | Per-session heatmap images and arrays |
-| `src/heatmap.py` | Heatmap generation script |
+| Sütun | Açıklama |
+|-------|----------|
+| `secim_dwell_s` | Seçim zonunda geçirilen toplam süre |
+| `secim_rearing_s` | Seçim zonundaki rearing süresi |
+| `secim_grooming_s` | Seçim zonundaki grooming süresi |
+| `govde_rearing_pct` | Gövdedeki rearing'in % dağılımı |
+| `goal_entry_count` | Goal zon girişi sayısı |
+| `sol_bias` | sol_goal / (sol_goal + sag_goal) girişleri |
 
 ---
 
-## Next Step
+## Kabul Kriterleri
 
-→ **Stage 04:** `STAGE_04_PATH_ANALYSIS.md`
+- 12 T-maze seans için occupancy, velocity, nose-point, rearing ve grooming heatmap'leri mevcut
+- Tüm heatmap'ler normalize ve hem PNG hem `.npy` olarak kaydedilmiş
+- Zon occupancy süreleri + davranış dağılımı Stage 04'e hazır
+- 4 grup karşılaştırma paneli üretilmiş
+
+---
+
+## Çıktı Dosyaları
+
+| Yol | Açıklama |
+|-----|----------|
+| `data/arena_config_tmaze.json` | Zon poligon tanımları |
+| `data/figures/heatmaps/tmaze/` | Seans başına heatmap görüntüleri ve dizileri |
+| `data/features/tmaze_zone_metrics.csv` | Seans başına zon × davranış metrikleri |
+| `src/heatmap.py` | Heatmap üretim betiği |
+
+---
+
+## Sonraki Adım
+
+→ **Stage 04:** `STAGE_04_PATH_ANALYSIS.md` (T-maze rota analizi)

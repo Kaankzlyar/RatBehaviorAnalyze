@@ -5,35 +5,37 @@
 
 ## Objective
 
-Merge OFT (Stage 03A) and T-maze (Stage 04) metrics into a unified feature dataset. Engineer derived features, aggregate by session and rat, and produce the final table ready for ML model training.
+OFT (Stage 03A), T-maze (Stage 04) ve davranış sınıflandırma (Stage 02B) metriklerini birleştirerek birleşik özellik veri seti oluştur. Türetilmiş özellikler üret, seans ve hayvan bazında topla, ML model eğitimi için nihai tabloyu hazırla. Gruplar: **Kontrol, ASP, Greyfurt, ASP & Greyfurt**.
 
 ---
 
 ## Status
 
-- [ ] Not started — requires Stage 03A and Stage 04 outputs
+- [ ] Başlanmadı — Stage 02B, 03A, 03B, 04 çıktıları gerektirir
 
 ---
 
-## Input Sources
+## Girdi Kaynakları
 
-| File | Source Stage | Description |
-|------|-------------|-------------|
-| `data/features/oft_metrics.csv` | Stage 03A | Per-session OFT metrics |
-| `data/features/tmaze_metrics.csv` | Stage 04 | Per-trial T-maze metrics |
-| `data/metadata.csv` | Stage 01 | Rat IDs, conditions, sessions |
+| Dosya | Kaynak Stage | Açıklama |
+|-------|-------------|----------|
+| `data/features/oft_metrics.csv` | Stage 03A | Seans başına OFT + davranış metrikleri |
+| `data/features/tmaze_metrics.csv` | Stage 04 | Deneme başına T-maze metrikleri |
+| `data/features/tmaze_zone_metrics.csv` | Stage 03B | Seans başına zon × davranış metrikleri |
+| `data/behavior/group_stats.xlsx` | Stage 02B | Grup bazında bout istatistikleri |
+| `data/metadata.xlsx` | Stage 01 | Hayvan ID, grup, seans bilgisi |
 
 ---
 
-## Tasks
+## Görevler
 
-### 5.1 — Session-Level Aggregation of T-Maze Trials
+### 5.1 — T-Maze Denemelerinden Seans Düzeyi Toplama
 
-T-maze metrics are per-trial; aggregate to per-session for merging with OFT.
+T-maze metrikleri deneme başına; OFT ile birleştirmek için seans başına topla.
 
-- [ ] Mean and SD of each per-trial metric across all trials in a session
-- [ ] Correct-arm choice rate (if correct arm is defined per session)
-- [ ] Learning slope (turn_bias change across trials in session)
+- [ ] Her deneme metriği için seans başına ortalama ve SD hesapla
+- [ ] Doğru kol seçim oranı (eğer doğru kol tanımlanmışsa)
+- [ ] Denemeler içi öğrenme eğimi (turn_bias değişimi)
 
 ```python
 import pandas as pd
@@ -41,128 +43,182 @@ import pandas as pd
 tmaze = pd.read_csv("data/features/tmaze_metrics.csv")
 
 agg = tmaze.groupby(["rat_id", "session"]).agg(
-    turn_bias=("turn_choice", lambda x: (x == "left").mean()),
-    path_efficiency_mean=("path_efficiency", "mean"),
-    path_efficiency_std=("path_efficiency", "std"),
-    decision_latency_mean=("decision_latency_s", "mean"),
-    velocity_stem_mean=("velocity_stem", "mean"),
-    backtrack_rate=("backtrack_rate", "first"),
-    heading_var_mean=("heading_angle_var", "mean"),
+    turn_bias                  = ("turn_choice", lambda x: (x == "sol").mean()),
+    path_efficiency_mean       = ("path_efficiency", "mean"),
+    path_efficiency_std        = ("path_efficiency", "std"),
+    decision_latency_mean      = ("decision_latency_s", "mean"),
+    velocity_govde_mean        = ("velocity_govde", "mean"),
+    backtrack_rate             = ("backtrack_rate", "first"),
+    heading_var_mean           = ("heading_angle_var", "mean"),
+    # Davranış metrikleri (Stage 02B entegrasyonu)
+    rearing_pct_mean           = ("rearing_pct_of_trial", "mean"),
+    rearing_in_secim_pct_mean  = ("rearing_in_secim_pct", "mean"),
+    grooming_pct_mean          = ("grooming_pct_of_trial", "mean"),
+    rearing_before_decision_mean = ("rearing_before_decision_s", "mean"),
+    trial_count                = ("turn_choice", "count"),
 ).reset_index()
 ```
 
-### 5.2 — Merge OFT + T-Maze Features
+### 5.2 — OFT + T-Maze + Zon Metriklerini Birleştir
 
-- [ ] Left-join on `rat_id` + `session`
-- [ ] Verify no sessions are lost (all 4 rats × 3 sessions = 12 rows)
-- [ ] Add `condition` column from metadata
+- [ ] `rat_id` + `session` üzerinden sol-birleştir
+- [ ] Hiçbir seans kaybolmadığını doğrula (4 hayvan × 3 seans = 12 satır)
+- [ ] Metadata'dan `group` sütununu ekle
 
 ```python
-oft   = pd.read_csv("data/features/oft_metrics.csv")
-meta  = pd.read_csv("data/metadata.csv")[["rat_id", "session", "condition"]].drop_duplicates()
+oft       = pd.read_csv("data/features/oft_metrics.csv")
+zone      = pd.read_csv("data/features/tmaze_zone_metrics.csv")
+meta      = pd.read_excel("data/metadata.xlsx")[["rat_id", "session", "group"]].drop_duplicates()
 
 features = (
     oft
-    .merge(agg, on=["rat_id", "session"], how="outer")
+    .merge(agg,  on=["rat_id", "session"], how="outer")
+    .merge(zone, on=["rat_id", "session"], how="left")
     .merge(meta, on=["rat_id", "session"], how="left")
 )
+
+assert len(features) == 12, f"Beklenen 12 satır, bulunan {len(features)}"
 ```
 
-### 5.3 — Cross-Arena Derived Features
+### 5.3 — Çapraz Arena Türetilmiş Özellikler
 
-Engineer features that combine OFT and T-maze signals.
+OFT ile T-maze sinyallerini birleştiren özellikler türet.
 
-| Feature | Formula | Rationale |
-|---------|---------|-----------|
-| `anxiety_composite` | `peripheral_time_ratio * decision_latency_mean` | Combined anxiety index |
-| `locomotion_delta` | `oft_total_distance - tmaze_path_length_mean` | Activity shift across arenas |
-| `exploration_vs_efficiency` | `oft_exploration_rate / path_efficiency_mean` | Exploration strategy |
-| `velocity_consistency` | `oft_mean_velocity / tmaze_velocity_stem_mean` | Cross-arena motor consistency |
+| Özellik | Formül | Biyolojik Gerekçe |
+|---------|--------|-------------------|
+| `anksiyete_kompozit` | `peripheral_time_ratio × decision_latency_mean` | OFT kaçınması + T-maze kararsızlığı |
+| `lokomotor_delta` | `oft_total_distance - tmaze_path_efficiency_mean × 100` | Arenalar arası aktivite kayması |
+| `kesifinml_verimlilik` | `oft_exploration_rate / path_efficiency_mean` | Keşif stratejisi |
+| `hiz_tutarlilik` | `oft_mean_velocity / velocity_govde_mean` | Arenalar arası motor tutarlılığı |
+| `davranis_kaygisi` | `(rearing_in_secim_pct_mean + peripheral_time_ratio) / 2` | Karar noktası + periferal kombinasyonu |
+| `rearing_context_ratio` | `rearing_in_secim_pct_mean / rearing_pct (OFT)` | Rearing'in ne kadarı stres bağlamında? |
 
-- [ ] Implement all cross-arena features in `src/features.py`
+```python
+features['anksiyete_kompozit']    = features['peripheral_time_ratio'] * features['decision_latency_mean']
+features['lokomotor_delta']       = features['total_distance_cm'] - features['path_efficiency_mean'] * 100
+features['kesifinml_verimlilik']  = features['exploration_rate'] / (features['path_efficiency_mean'] + 1e-9)
+features['hiz_tutarlilik']        = features['mean_velocity_cms'] / (features['velocity_govde_mean'] + 1e-9)
+features['davranis_kaygisi']      = (features['rearing_in_secim_pct_mean'] + features['peripheral_time_ratio']) / 2
+features['rearing_context_ratio'] = features['rearing_in_secim_pct_mean'] / (features['rearing_pct'] + 1e-9)
+```
 
-### 5.4 — Rolling / Within-Session Features
+### 5.4 — Seans-İçi (Rolling) Özellikler
 
-- [ ] Rolling 3-session average for each metric (learning curves)
-- [ ] Session-over-session delta (session 2 − session 1, session 3 − session 2)
-- [ ] Within-session variability (SD across trials for T-maze metrics)
+- [ ] Her metrik için 3 seans üzerinden kayan ortalama
+- [ ] Seans-seans delta (seans2 − seans1, seans3 − seans2)
+- [ ] T-maze metrikleri için seans-içi varyabilite (deneme başına SD)
 
-### 5.5 — Missing Value Handling
+```python
+features_sorted = features.sort_values(["rat_id", "session"])
 
-- [ ] Report % missing per column
-- [ ] If T-maze session has no valid trials: set aggregated metrics to NaN
-- [ ] Impute remaining NaN with column median (document any imputations)
-- [ ] Drop columns with > 30% missing values
+for col in metric_cols:
+    features_sorted[f'{col}_rolling3'] = (
+        features_sorted.groupby("rat_id")[col].transform(
+            lambda x: x.rolling(3, min_periods=1).mean()
+        )
+    )
+    features_sorted[f'{col}_delta'] = (
+        features_sorted.groupby("rat_id")[col].diff()
+    )
+```
 
-### 5.6 — Encoding & Normalization
+### 5.5 — Eksik Değer İşleme
 
-- [ ] Encode `rat_id` as integer factor
-- [ ] One-hot encode `condition` (control, stressed, etc.)
-- [ ] StandardScaler on all continuous features for ML model input
-- [ ] Save scaler to `models/classifier/scaler.pkl` for inference
+- [ ] Sütun başına % eksik değeri raporla
+- [ ] T-maze seans için geçerli deneme yoksa: toplanmış metrikler NaN
+- [ ] Kalan NaN'ları sütun medyanı ile doldur (tüm imputasyonları belgele)
+- [ ] % 30'dan fazla eksik değer olan sütunları düşür
 
-### 5.7 — Label Assignment
+### 5.6 — Kodlama & Normalizasyon
 
-Define classification targets in consultation with domain expert:
+- [ ] `rat_id`'yi tamsayı faktörü olarak kodla
+- [ ] `group`'u one-hot encode et (Kontrol, ASP, Greyfurt, ASP_Greyfurt)
+- [ ] Tüm sürekli özellikler üzerinde StandardScaler uygula
+- [ ] Ölçekleyiciyi kaydet: `models/classifier/scaler.pkl`
 
-| Label | Type | Definition |
-|-------|------|-----------|
-| `anxiety_level` | binary | High vs Low (OFT thigmotaxis + T-maze latency) |
-| `spatial_memory` | ordinal | Correct arm choice rate in T-maze |
-| `cognitive_flexibility` | binary | Fast vs slow reversal learning |
-| `stress_response` | binary | Behavioral deviation from baseline |
+### 5.7 — Etiket Atama
 
-- [ ] Add label columns to feature dataset
+4-sınıflı grup etiketi birincil hedef; ikincil davranışsal etiketler aşağıdaki gibi:
 
-### 5.8 — Export
+| Etiket | Tür | Tanım |
+|--------|-----|-------|
+| `group` | 4 sınıf | Kontrol / ASP / Greyfurt / ASP_Greyfurt |
+| `anksiyete_seviyesi` | ikili | Yüksek vs Düşük (peripheral_time + decision_latency eşiği) |
+| `uzamsal_hafiza` | sıralı | T-maze'de doğru kol seçim oranı |
+| `stres_yaniti` | ikili | Kontrolden davranışsal sapma |
+| `rearing_profili` | ikili | Yüksek rearing (> grup medyanı) |
+| `grooming_profili` | ikili | Yüksek grooming (> grup medyanı) |
 
-- [ ] Save raw merged features to `data/features/features_raw.csv`
-- [ ] Save normalized features to `data/features/features_normalized.csv`
-- [ ] Save label columns to `data/features/labels.csv`
+### 5.8 — Dışa Aktarım
+
+- [ ] `data/features/features_raw.csv` — normalize edilmemiş birleşik özellikler
+- [ ] `data/features/features_normalized.csv` — StandardScale edilmiş
+- [ ] `data/features/labels.csv` — hedef etiket sütunları
 
 ---
 
-## Final Feature Dataset Structure
+## Nihai Özellik Veri Seti Yapısı
 
 ```
-rat_id | session | condition |
-# OFT
+# Kimlik
+rat_id | session | group |
+
+# OFT Metrikleri (Stage 03A)
 oft_center_time | oft_peripheral_time | oft_total_distance |
 oft_mean_velocity | oft_exploration_rate | oft_immobility_bouts |
-# T-Maze (aggregated)
+oft_first_center_latency |
+
+# OFT Davranış Metrikleri (Stage 02B → 03A)
+oft_rearing_pct | oft_rearing_bout_count | oft_rearing_total_s |
+oft_rearing_in_center_pct | oft_rearing_in_peripheral_pct |
+oft_grooming_pct | oft_grooming_bout_count | oft_grooming_total_s |
+oft_locomotion_pct |
+
+# T-Maze (Stage 04 — toplanmış)
 tmaze_turn_bias | tmaze_path_efficiency_mean | tmaze_decision_latency_mean |
-tmaze_velocity_stem | tmaze_backtrack_rate | tmaze_heading_var |
-# Cross-arena
-anxiety_composite | locomotion_delta | exploration_vs_efficiency |
-# Session deltas
-oft_distance_delta | tmaze_latency_delta |
-# Labels
-anxiety_level | spatial_memory | cognitive_flexibility
+tmaze_velocity_govde | tmaze_backtrack_rate | tmaze_heading_var |
+
+# T-Maze Davranış (Stage 02B → 04)
+tmaze_rearing_pct | tmaze_rearing_in_secim_pct |
+tmaze_grooming_pct | tmaze_rearing_before_decision |
+
+# T-Maze Zon (Stage 03B)
+secim_dwell_s | secim_rearing_s | secim_grooming_s | sol_bias |
+
+# Çapraz Arena Türetilmiş
+anksiyete_kompozit | lokomotor_delta | kesifinml_verimlilik |
+hiz_tutarlilik | davranis_kaygisi | rearing_context_ratio |
+
+# Seans Deltaları
+oft_distance_delta | tmaze_latency_delta | rearing_pct_delta |
+
+# Etiketler
+group | anksiyete_seviyesi | uzamsal_hafiza | rearing_profili | grooming_profili
 ```
 
 ---
 
-## Acceptance Criteria
+## Kabul Kriterleri
 
-- Unified feature dataset with 12 rows (4 rats × 3 sessions), no dropped sessions
-- All features documented with units and derivation
-- Correlation matrix generated showing OFT ↔ T-maze relationships
-- Label columns assigned (at minimum `anxiety_level`)
-
----
-
-## Output Files
-
-| Path | Description |
-|------|-------------|
-| `data/features/features_raw.csv` | Merged, un-normalized features |
-| `data/features/features_normalized.csv` | StandardScaled features |
-| `data/features/labels.csv` | Target labels |
-| `models/classifier/scaler.pkl` | Saved StandardScaler |
-| `src/features.py` | Feature engineering script |
+- 12 satırlı birleşik özellik veri seti (4 hayvan × 3 seans), seans kaybı yok
+- Tüm özellikler birim ve türetim yöntemiyle belgelenmiş
+- OFT ↔ T-maze ilişkilerini gösteren korelasyon matrisi üretilmiş
+- En az `group` ve `anksiyete_seviyesi` etiket sütunları atanmış
 
 ---
 
-## Next Step
+## Çıktı Dosyaları
+
+| Yol | Açıklama |
+|-----|----------|
+| `data/features/features_raw.csv` | Birleştirilmiş, normalize edilmemiş özellikler |
+| `data/features/features_normalized.csv` | StandardScale edilmiş özellikler |
+| `data/features/labels.csv` | Hedef etiketler |
+| `models/classifier/scaler.pkl` | Kaydedilmiş StandardScaler |
+| `src/features.py` | Özellik mühendisliği betiği |
+
+---
+
+## Sonraki Adım
 
 → **Stage 06:** `STAGE_06_MODEL_TRAINING.md`
