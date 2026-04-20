@@ -15,10 +15,16 @@ Usage (RECOMMENDED):
     # Interactive: define boundaries with tool
     python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA1_2.mp4
     # Copy the --arena and --inner-zone from output, then:
-    python run_analysis.py --arena 396 776 153 530 --inner-zone 422 747 177 502
+    python run_analysis.py --arena 396 778 152 531  --inner-zone 418 747 176 502
+
+    Run orbit_plot.py with these exact bounds:
+
+  python orbit_plot.py \
+    --arena 396 778 152 531 \
+        --inner-zone 418 747 176 502
 
 Or (QUICK - auto-generate inner-zone):
-    python run_analysis.py --arena 396 776 153 530
+    python run_analysis.py --arena 396 778 152 531
 
 The script will automatically calculate inner-zone as:
     inner_zone = arena_bounds_with_20%_margin
@@ -31,8 +37,9 @@ import os
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
-DEFAULT_CSV = "../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_CSV = "../data/DLCfiltered/OpenFieldMA1_1/OpenFieldMA1_1.csv"
 DEFAULT_MARGIN = 0.20  # 20% margin = thigmotaxis zone
+DEFAULT_FPS = 30  # video frame rate
 
 
 def compute_inner_zone(arena: tuple, margin: float = 0.20) -> tuple:
@@ -109,6 +116,8 @@ Examples:
                        help=f"Border margin fraction if auto-calculating inner-zone (default {DEFAULT_MARGIN})")
     parser.add_argument("--csv", default=DEFAULT_CSV,
                        help=f"Path to DLC CSV (default: {DEFAULT_CSV})")
+    parser.add_argument("--fps", type=float, default=DEFAULT_FPS,
+                       help=f"Video frame rate (default: {DEFAULT_FPS})")
     parser.add_argument("--likelihood", type=float, default=0.6,
                        help="Likelihood threshold (default: 0.6)")
     parser.add_argument("--jump-thresh", type=float, default=60.0,
@@ -119,6 +128,8 @@ Examples:
                        help="Heatmap colormap (default: inferno)")
     parser.add_argument("--sigma", type=float, default=15.0,
                        help="Gaussian blur sigma for heatmap (default: 15.0 px)")
+    parser.add_argument("--skip-behavior", action="store_true",
+                       help="Skip behavior_detection.py (rearing & grooming detection)")
     parser.add_argument("--skip-orbit", action="store_true",
                        help="Skip orbit_plot.py (trajectory visualization)")
     parser.add_argument("--skip-heatmap", action="store_true",
@@ -165,12 +176,28 @@ Examples:
     print(f"📊 CSV: {args.csv}")
     print(f"⚙️  Likelihood: {args.likelihood}  |  Jump-thresh: {args.jump_thresh}px  |  Smooth: {args.smooth}")
 
+    # ── Step 0: Behavior Detection (rearing & grooming) ─────────────────────
+    if not args.skip_behavior:
+        behavior_args = [
+            "--csv", args.csv,
+            "--fps", str(args.fps),
+            "--out-dir", os.path.dirname(args.csv),
+        ]
+        results["behavior"] = run_command(
+            "../src/behavior_detection.py",
+            behavior_args,
+            "Step 0/4: Behavior Detection (Rearing & Grooming)"
+        )
+    else:
+        print("\n⊘ Skipping behavior_detection.py")
+        results["behavior"] = None
+
     # ── Step 1: Orbit trajectories ────────────────────────────────────────────
     if not args.skip_orbit:
         results["orbit"] = run_command(
             "orbit_plot.py",
             common_args,
-            "Step 1/3: Orbit Trajectories & Thigmotaxis"
+            "Step 1/4: Orbit Trajectories & Thigmotaxis"
         )
     else:
         print("\n⊘ Skipping orbit_plot.py")
@@ -182,7 +209,7 @@ Examples:
         results["heatmap"] = run_command(
             "activity_heatmap.py",
             heatmap_args,
-            "Step 2/3: Activity Heatmap (KDE) — THESIS PRIMARY"
+            "Step 2/4: Activity Heatmap (KDE) — THESIS PRIMARY"
         )
     else:
         print("\n⊘ Skipping activity_heatmap.py")
@@ -193,7 +220,7 @@ Examples:
         results["bodypart"] = run_command(
             "bodypart_heatmaps.py",
             common_args,
-            "Step 3/3: Per-Bodypart Heatmap Grid"
+            "Step 3/4: Per-Bodypart Heatmap Grid"
         )
     else:
         print("\n⊘ Skipping bodypart_heatmaps.py")
@@ -207,6 +234,12 @@ Examples:
     completed = sum(1 for v in results.values() if v is True)
     skipped = sum(1 for v in results.values() if v is None)
     failed = sum(1 for v in results.values() if v is False)
+
+    if results.get("behavior") is True:
+        print("✅ Behavior detection completed")
+        print("   → *_behavior_bouts.csv (per-bout summary)")
+        print("   → *_behavior_frames.csv (per-frame labels)")
+        print("   → *_behavior_timeline.png (timeline visualization)")
 
     if results.get("orbit") is True:
         print("✅ Orbit trajectories generated")
@@ -229,7 +262,7 @@ Examples:
         print(f"\n❌ {failed} script(s) FAILED")
         sys.exit(1)
 
-    print(f"\n✨ All outputs saved to: ../data/DLCfiltered/")
+    print(f"\n✨ All outputs saved to: ../data/DLCfiltered/OpenFieldMA1_1")
     print(f"{'='*70}\n")
 
 
