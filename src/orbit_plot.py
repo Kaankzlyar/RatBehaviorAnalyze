@@ -16,6 +16,8 @@ Usage:
     python orbit_plot.py --csv data/DLCfiltered/OpenFieldMA1_2.csv \\
         --arena 397 775 158 532 \\
         --inner-zone 460 710 220 470
+        
+        PYTHONIOENCODING=utf-8 python orbit_plot.py --arena 396 776 153 530 --inner-zone 422 747 177 502
 """
 
 import argparse
@@ -29,8 +31,8 @@ import pandas as pd
 
 # ─── DEFAULTS ─────────────────────────────────────────────────────────────────
 
-DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
-DEFAULT_OUT_DIR   = "../data/DLCfiltered"
+DEFAULT_CSV       = "data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR   = "data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
 THIGMO_MARGIN     = 0.20   # outer 20% of arena width/height = thigmotaxis zone
 

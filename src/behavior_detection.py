@@ -1,0 +1,419 @@
+"""
+behavior_detection.py
+---------------------
+Detects rearing and grooming from DLC-filtered tracking data.
+
+Detection logic
+---------------
+REARING – two complementary cues (either is sufficient):
+
+  1. Compact rearing  (htdist < REAR_COMPACT_HTDIST)
+     When the rat stands against a wall the head and tail-base converge
+     strongly in the 2-D overhead projection.
+     Confirmed ground-truth windows: frames 685-729, 1233-1293.
+
+  2. Extended rearing  (fp_hp_vert > REAR_EXTEND_FPHP  AND  nose_y < REAR_NOSE_Y_MAX)
+     When the rat rears freely (not compressed against the wall) the
+     forepaws are clearly above the hindpaws AND the nose is near the top
+     wall of the arena (small y-value in image coordinates).
+     Confirmed ground-truth windows: ~frames 323-372 (0:11), 1800-1843 (1:00).
+
+GROOMING  (nose2fp < GROOM_NOSE2FP  AND  not rearing)
+     Nose tip stays very close to the forepaw cluster; the rat holds its
+     face against its paws.
+     Confirmed ground-truth window: frames 4795-5034 (2:39-2:47).
+
+Outputs
+-------
+  <name>_behavior_timeline.png   – colour-coded timeline
+  <name>_behavior_bouts.csv      – per-bout summary table
+  Printed summary to stdout
+
+Usage
+-----
+    python behavior_detection.py
+    python behavior_detection.py --csv data/DLCfiltered/OpenFieldMA1_2.csv
+    python behavior_detection.py --csv data/DLCfiltered/OpenFieldMA1_2.csv \\
+        --fps 30 --out-dir data/DLCfiltered
+"""
+
+import argparse
+import os
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+# ─── THRESHOLDS ───────────────────────────────────────────────────────────────
+# Rearing – compact (body compressed against wall in 2-D projection)
+REAR_COMPACT_HTDIST   = 55     # px: head-to-tail distance below this → rearing
+
+# Rearing – extended (body upright near the TOP wall of the arena)
+REAR_EXTEND_FPHP      = 45     # px: hindpaw_y - forepaw_y must exceed this
+REAR_NOSE_Y_MAX       = 165    # px: nose must be above this y-threshold (smaller y = higher)
+
+# Rearing – side walls (rat stands against the LEFT or RIGHT wall)
+REAR_SIDE_NOSE_X_RIGHT = 760   # px: nose beyond this x → near right wall  (arena right edge ≈ 775)
+REAR_SIDE_NOSE_X_LEFT  = 430   # px: nose below this x → near left wall   (arena left edge  ≈ 397)
+REAR_SIDE_HTD_Y_MIN    = 40    # px: head-tail y-separation lower bound  (< 40 = horizontal thigmotaxis, not rearing)
+REAR_SIDE_HTD_Y_MAX    = 60    # px: head-tail y-separation upper bound  (> 60 = normal oblique locomotion)
+
+# Rearing – bottom wall (rat stands against the BOTTOM wall; forepaws are lower than hindpaws)
+# Two sub-types with separate conditions so a borderline "walking near wall" bout (high velocity,
+# body not compressed) does not count:
+#   Strong:  very large fp_hp_vert signal — catches early-session rearing (frames ~22-58)
+#   Compact: moderate signal but body is compressed (htdist small) — catches frames ~1016-1038
+REAR_BOTTOM_STRONG_FPHP   = -80   # strong: forepaws very far below hindpaws
+REAR_BOTTOM_COMPACT_FPHP  = -45   # compact: moderate forepaw depression + body compressed
+REAR_BOTTOM_HTDIST        = 105   # compact: head-to-tail distance must be below this (body squished)
+REAR_BOTTOM_NOSE_Y        = 500   # both: nose must be near the bottom wall
+
+# Grooming
+GROOM_NOSE2FP         = 22     # px: nose-to-forepaw distance below this → grooming
+GROOM_MAX_FPHP        = 10     # forepaw must NOT be elevated above hindpaw (excludes rearing postures)
+
+# Tracking quality filter
+LIKELIHOOD_THRESH     = 0.6
+
+# Bout grouping
+INTER_BOUT_GAP        = 15     # frames: gap ≤ this is bridged into a single bout
+MIN_BOUT_FRAMES       = 10     # frames: bouts shorter than this are discarded
+
+# Defaults
+DEFAULT_CSV     = "../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR = None   # None = same directory as the input CSV
+DEFAULT_FPS     = 30
+
+# ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+def load_dlc_csv(path: str) -> pd.DataFrame:
+    """Load a DLC filtered CSV and return a flat DataFrame with short column names."""
+    df = pd.read_csv(path, header=[0, 1, 2], index_col=0)
+    df.columns = ["_".join(c[-2:]).strip() for c in df.columns.values]
+    df.index = df.index.astype(int)
+    return df
+
+
+def mask_low_likelihood(df: pd.DataFrame, thresh: float) -> pd.DataFrame:
+    """Replace x/y with NaN for any keypoint whose likelihood < thresh."""
+    df = df.copy()
+    bodyparts = {c.rsplit("_", 1)[0] for c in df.columns if c.endswith("_x")}
+    for bp in bodyparts:
+        mask = df[f"{bp}_likelihood"] < thresh
+        df.loc[mask, f"{bp}_x"] = np.nan
+        df.loc[mask, f"{bp}_y"] = np.nan
+    return df
+
+
+def compute_features(raw_df: pd.DataFrame, masked_df: pd.DataFrame) -> pd.DataFrame:
+    """Compute per-frame postural features used for behaviour classification.
+
+    raw_df    – original DLC output (no likelihood masking): used for htdist so
+                tail occlusion during wall-rearing does not create NaN values.
+    masked_df – coordinates set to NaN where likelihood < threshold: used for
+                positional/distance features that rely on accurate keypoint locations.
+    """
+    # Use .mean(axis=1) so a single occluded (NaN) paw does not blank the pair
+    fp_x = masked_df[["left_forepaw_x", "right_forepaw_x"]].mean(axis=1)
+    fp_y = masked_df[["left_forepaw_y", "right_forepaw_y"]].mean(axis=1)
+    hp_y = masked_df[["left_hindpaw_y", "right_hindpaw_y"]].mean(axis=1)
+
+    feat = pd.DataFrame(index=raw_df.index)
+
+    # Head-to-tail distance computed on RAW (unmasked) data: tail_base is often
+    # occluded when the rat rears against a wall, so we must not discard it.
+    feat["htdist"] = np.sqrt(
+        (raw_df["head_x"] - raw_df["tail_base_x"]) ** 2
+        + (raw_df["head_y"] - raw_df["tail_base_y"]) ** 2
+    )
+
+    # Hindpaw minus forepaw vertical separation (positive = forepaws elevated)
+    feat["fp_hp_vert"] = hp_y - fp_y
+
+    # Nose height in image (smaller y = higher in the frame)
+    feat["nose_y"] = masked_df["nose_y"]
+
+    # Nose-to-forepaw cluster distance (grooming cue)
+    feat["nose2fp"] = np.sqrt(
+        (masked_df["nose_x"] - fp_x) ** 2 + (masked_df["nose_y"] - fp_y) ** 2
+    )
+
+    # Side-wall rearing cues (raw data: nose near left/right boundary + body runs horizontally)
+    feat["htd_y"]  = (raw_df["head_y"] - raw_df["tail_base_y"]).abs()
+    feat["nose_x"] = masked_df["nose_x"]
+
+    return feat
+
+
+def classify_frames(feat: pd.DataFrame) -> pd.Series:
+    """Return a Series of string labels: 'rearing', 'grooming', or 'other'."""
+    # Five complementary rearing cues
+    rear_compact  = feat["htdist"] < REAR_COMPACT_HTDIST
+    rear_top_wall = (feat["fp_hp_vert"] > REAR_EXTEND_FPHP) & (feat["nose_y"] < REAR_NOSE_Y_MAX)
+    # Bottom-wall rearing – two sub-types (strong signal OR compact body)
+    rear_bot_strong  = (feat["fp_hp_vert"] < REAR_BOTTOM_STRONG_FPHP) & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y)
+    rear_bot_compact = (feat["fp_hp_vert"] < REAR_BOTTOM_COMPACT_FPHP) & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y) & (feat["htdist"] < REAR_BOTTOM_HTDIST)
+    # Side-wall rearing: nose at left/right boundary + body axis partially horizontal
+    # htd_y bounds exclude: (< min) pure horizontal thigmotaxis, (> max) normal oblique locomotion
+    # fp_hp_vert < 25: blocks walk-away frames where forepaws are elevated post-rearing
+    # (fp_hp_vert > 25 during locomotion, ≤ 24 during actual side-wall rearing)
+    rear_side_wall = (
+        (feat["htd_y"] > REAR_SIDE_HTD_Y_MIN) & (feat["htd_y"] < REAR_SIDE_HTD_Y_MAX)
+        & ((feat["nose_x"] > REAR_SIDE_NOSE_X_RIGHT) | (feat["nose_x"] < REAR_SIDE_NOSE_X_LEFT))
+        & (feat["fp_hp_vert"] < 25)
+    )
+    rearing = rear_compact | rear_top_wall | rear_bot_strong | rear_bot_compact | rear_side_wall
+
+    # Grooming: nose close to forepaws, forepaws NOT elevated (excludes rearing postures)
+    grooming = (
+        (feat["nose2fp"] < GROOM_NOSE2FP)
+        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+        & ~rearing
+    )
+
+    labels = pd.Series("other", index=feat.index, dtype=str)
+    labels[grooming] = "grooming"
+    labels[rearing]  = "rearing"
+    return labels
+
+
+def frames_to_bouts(
+    frames: np.ndarray,
+    gap: int = INTER_BOUT_GAP,
+    min_dur: int = MIN_BOUT_FRAMES,
+) -> list[tuple[int, int]]:
+    """Merge consecutive detected frames into bouts; discard short ones."""
+    if len(frames) == 0:
+        return []
+    bouts: list[tuple[int, int]] = []
+    start = int(frames[0])
+    prev  = int(frames[0])
+    for f in frames[1:]:
+        f = int(f)
+        if f - prev > gap:
+            if prev - start >= min_dur:
+                bouts.append((start, prev))
+            start = f
+        prev = f
+    if prev - start >= min_dur:
+        bouts.append((start, prev))
+    return bouts
+
+
+def bouts_to_dataframe(bouts: list[tuple[int, int]], label: str, fps: float) -> pd.DataFrame:
+    rows = []
+    for i, (s, e) in enumerate(bouts, 1):
+        rows.append(
+            {
+                "behaviour":  label,
+                "bout":       i,
+                "start_frame": s,
+                "end_frame":   e,
+                "start_s":    round(s / fps, 2),
+                "end_s":      round(e / fps, 2),
+                "duration_s": round((e - s) / fps, 2),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+# ─── PLOTTING ─────────────────────────────────────────────────────────────────
+
+BEHAVIOUR_COLORS = {
+    "rearing":  "#E74C3C",
+    "grooming": "#2ECC71",
+    "other":    "#D0D0D0",
+}
+
+GROUND_TRUTH = {
+    # Confirmed rearing windows (frames at 30 fps):
+    #   ~0.7–1.9 s     ~10.8–12.4 s   ~22.8–24.3 s   ~26.1–26.7 s
+    #   ~29.2–31.5 s   ~33.9–34.6 s   ~41.2–43.0 s   ~59.7–63.1 s   ~67.5–68.7 s
+    "rearing":  [
+        (21, 57),          # 0.7–1.9 s   (bottom-wall compact)
+        (323, 371),        # 10.8–12.4 s (top-wall extended)
+        (685, 729),        # 22.8–24.3 s (compact)
+        (783, 801),        # 26.1–26.7 s (side-wall right)
+        (876, 945),        # 29.2–31.5 s (side-wall left / bottom-wall)
+        (990, 1040),       # 33.0–34.7 s (bottom-wall compact)
+        (1236, 1290),      # 41.2–43.0 s (compact)
+        (1800, 1893),      # 59.7–63.1 s (top-wall extended)
+        (2025, 2061),      # 67.5–68.7 s (compact)
+    ],
+    # Confirmed grooming windows:
+    #   ~72.7–73.2 s   ~160.2–167.7 s
+    "grooming": [
+        (2181, 2196),      # 72.7–73.2 s  (brief face-washing)
+        (4806, 5031),      # 160.2–167.7 s (extended grooming)
+    ],
+}
+
+
+def plot_timeline(
+    labels: pd.Series,
+    rear_bouts: list[tuple[int, int]],
+    groom_bouts: list[tuple[int, int]],
+    fps: float,
+    out_path: str,
+) -> None:
+    n_frames = len(labels)
+    time_s   = np.arange(n_frames) / fps
+
+    fig, axes = plt.subplots(3, 1, figsize=(18, 6), sharex=True,
+                              gridspec_kw={"height_ratios": [1, 1, 1]})
+    fig.suptitle("Behaviour Timeline — Rearing & Grooming Detection", fontsize=13, y=1.01)
+
+    row_labels   = ["Ground Truth", "Detected", "Frame Labels"]
+    row_data     = [
+        # ground truth (from the confirmed windows above)
+        None,
+        # detected bouts
+        None,
+        # per-frame colour strip
+        None,
+    ]
+
+    # ── Row 0: ground truth ──
+    ax0 = axes[0]
+    ax0.set_ylabel("Ground\nTruth", rotation=0, ha="right", va="center", fontsize=9)
+    ax0.set_yticks([])
+    ax0.set_ylim(0, 1)
+    for beh, color in [("rearing", BEHAVIOUR_COLORS["rearing"]),
+                        ("grooming", BEHAVIOUR_COLORS["grooming"])]:
+        for s, e in GROUND_TRUTH.get(beh, []):
+            ax0.axvspan(s / fps, e / fps, ymin=0, ymax=1,
+                        color=color, alpha=0.6, label=beh)
+
+    # ── Row 1: detected bouts ──
+    ax1 = axes[1]
+    ax1.set_ylabel("Detected\nBouts", rotation=0, ha="right", va="center", fontsize=9)
+    ax1.set_yticks([])
+    ax1.set_ylim(0, 1)
+    for s, e in rear_bouts:
+        ax1.axvspan(s / fps, e / fps, ymin=0, ymax=1,
+                    color=BEHAVIOUR_COLORS["rearing"], alpha=0.6)
+    for s, e in groom_bouts:
+        ax1.axvspan(s / fps, e / fps, ymin=0, ymax=1,
+                    color=BEHAVIOUR_COLORS["grooming"], alpha=0.6)
+
+    # ── Row 2: per-frame colour strip ──
+    ax2 = axes[2]
+    ax2.set_ylabel("Per-Frame\nLabel", rotation=0, ha="right", va="center", fontsize=9)
+    ax2.set_yticks([])
+    ax2.set_ylim(0, 1)
+    color_arr = np.array([BEHAVIOUR_COLORS[lb] for lb in labels])
+    for i, c in enumerate(color_arr):
+        if c != BEHAVIOUR_COLORS["other"]:
+            ax2.axvspan(time_s[i], time_s[i] + 1 / fps,
+                        ymin=0, ymax=1, color=c, alpha=0.8, linewidth=0)
+
+    # Shared x axis
+    ax2.set_xlabel("Time (s)", fontsize=10)
+    ax2.set_xlim(0, n_frames / fps)
+
+    # Legend
+    legend_handles = [
+        mpatches.Patch(color=BEHAVIOUR_COLORS["rearing"],  label="Rearing"),
+        mpatches.Patch(color=BEHAVIOUR_COLORS["grooming"], label="Grooming"),
+        mpatches.Patch(color=BEHAVIOUR_COLORS["other"],    label="Other"),
+    ]
+    axes[0].legend(handles=legend_handles, loc="upper right",
+                   fontsize=8, framealpha=0.8)
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: {out_path}")
+
+
+# ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Detect rearing and grooming from DLC CSV")
+    parser.add_argument("--csv",     default=DEFAULT_CSV,     help="Path to DLC filtered CSV")
+    parser.add_argument("--fps",     type=float, default=DEFAULT_FPS, help="Video frame rate")
+    parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR, help="Output directory")
+    args = parser.parse_args()
+
+    csv_path = os.path.abspath(args.csv)
+    out_dir  = os.path.abspath(args.out_dir) if args.out_dir else os.path.dirname(csv_path)
+    os.makedirs(out_dir, exist_ok=True)
+
+    base = os.path.splitext(os.path.basename(csv_path))[0]
+    fps  = args.fps
+
+    print(f"Loading {csv_path}")
+    raw_df    = load_dlc_csv(csv_path)
+    masked_df = mask_low_likelihood(raw_df, LIKELIHOOD_THRESH)
+    feat      = compute_features(raw_df, masked_df)
+
+    print("Classifying frames...")
+    labels = classify_frames(feat)
+
+    rear_frames  = np.where(labels == "rearing")[0]
+    groom_frames = np.where(labels == "grooming")[0]
+
+    rear_bouts  = frames_to_bouts(rear_frames)
+    groom_bouts = frames_to_bouts(groom_frames)
+
+    # ── Console summary ──────────────────────────────────────────────────────
+    total_s = len(raw_df) / fps
+    print(f"\nVideo length : {total_s:.1f} s  ({len(raw_df)} frames @ {fps} fps)")
+    print(f"Likelihood filter  : > {LIKELIHOOD_THRESH}")
+    print(f"Rearing thresholds : htdist<{REAR_COMPACT_HTDIST}"
+          f" | (fp_hp>{REAR_EXTEND_FPHP} & nose_y<{REAR_NOSE_Y_MAX})"
+          f" | (fp_hp<{REAR_BOTTOM_STRONG_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y})"
+          f" | (fp_hp<{REAR_BOTTOM_COMPACT_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y} & htdist<{REAR_BOTTOM_HTDIST})")
+    print(f"Grooming threshold : nose2fp < {GROOM_NOSE2FP}")
+    print(f"Minimum bout duration : {MIN_BOUT_FRAMES} frames ({MIN_BOUT_FRAMES/fps:.2f} s)\n")
+
+    print("REARING BOUTS:")
+    for i, (s, e) in enumerate(rear_bouts, 1):
+        print(f"  Bout {i:2d}:  frames {s:5d}–{e:5d}"
+              f"  ({s/fps:6.2f} s – {e/fps:6.2f} s,"
+              f"  duration {(e-s)/fps:.2f} s)")
+
+    print(f"\nGROOMING BOUTS:")
+    for i, (s, e) in enumerate(groom_bouts, 1):
+        print(f"  Bout {i:2d}:  frames {s:5d}–{e:5d}"
+              f"  ({s/fps:6.2f} s – {e/fps:6.2f} s,"
+              f"  duration {(e-s)/fps:.2f} s)")
+
+    rear_time_s  = sum(e - s for s, e in rear_bouts)  / fps
+    groom_time_s = sum(e - s for s, e in groom_bouts) / fps
+    print(f"\nTotal rearing time  : {rear_time_s:.1f} s"
+          f"  ({100*rear_time_s/total_s:.1f}% of session)")
+    print(f"Total grooming time : {groom_time_s:.1f} s"
+          f"  ({100*groom_time_s/total_s:.1f}% of session)")
+
+    # ── Save CSV ─────────────────────────────────────────────────────────────
+    bout_df = pd.concat([
+        bouts_to_dataframe(rear_bouts,  "rearing",  fps),
+        bouts_to_dataframe(groom_bouts, "grooming", fps),
+    ]).sort_values("start_frame").reset_index(drop=True)
+
+    csv_out = os.path.join(out_dir, f"{base}_behavior_bouts.csv")
+    bout_df.to_csv(csv_out, index=False)
+    print(f"\n  Saved: {csv_out}")
+
+    # Also save a per-frame label CSV
+    frame_labels = pd.DataFrame({
+        "frame":     raw_df.index,
+        "time_s":    raw_df.index / fps,
+        "behaviour": labels.values,
+    })
+    frame_csv = os.path.join(out_dir, f"{base}_behavior_frames.csv")
+    frame_labels.to_csv(frame_csv, index=False)
+    print(f"  Saved: {frame_csv}")
+
+    # ── Plot ─────────────────────────────────────────────────────────────────
+    print("\nPlotting timeline...")
+    img_out = os.path.join(out_dir, f"{base}_behavior_timeline.png")
+    plot_timeline(labels, rear_bouts, groom_bouts, fps, img_out)
+
+    print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
