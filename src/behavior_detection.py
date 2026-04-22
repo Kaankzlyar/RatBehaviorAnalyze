@@ -9,7 +9,7 @@ GROOMING posture is computed FIRST (before rearing) so it can disambiguate
 compact rearing from grooming – both compress the body in 2-D projection,
 but grooming has nose close to forepaws while rearing does not.
 
-GROOMING – three sufficient postural branches (disjunction), all requiring
+GROOMING – four sufficient postural branches (disjunction), all requiring
      body_vel < GROOM_MAX_VEL:
 
        (a) Tight posture  (nose2fp < GROOM_NOSE2FP_TIGHT, fp_hp_vert low)
@@ -25,6 +25,24 @@ GROOMING – three sufficient postural branches (disjunction), all requiring
            are ABOVE hindpaws in image (fp_hp_vert > GROOM_MAX_FPHP), so
            branches (a)/(b) miss this phenotype. The nose_y gate keeps
            real top-wall rearing from being reclassified as grooming.
+
+       (d) Nose-occluded sit-up (fp_hp_vert elevated, body_center stable
+           and inside the arena)
+           The rat's face is buried in its paws so the nose likelihood
+           drops below threshold and branches (a)–(c) fail. We fall back
+           to body_center + paw geometry to verify "sitting still in the
+           middle of the arena". Without a nose there is no nose2fp to
+           check — the physical context (paws elevated, positionally
+           stationary, not at a wall) is sufficient.
+
+     NOTE on the "stationary" check: branches (a)–(c) use body_vel
+     (instantaneous speed), which is the classic grooming gate. Branch
+     (d) uses body_still (position range over a 1 s window) because DLC
+     body_center jitters by a few px even for a visually static rat, and
+     the instantaneous body_vel of a quiet grooming rat can exceed
+     GROOM_MAX_VEL purely from that jitter. body_still is also what gates
+     the "compact rearing" rule, so a jittery sitting rat isn't mistaken
+     for an htdist-compressed rear.
 
      Confirmed ground-truth windows:
        MA1_2  — frames 2181-2196 (brief face-wash), 4795-5034 (2:39-2:47).
@@ -114,6 +132,20 @@ GROOM_MAX_FPHP        = 10     # forepaw must NOT be elevated above hindpaw (exc
 GROOM_MAX_VEL         = 25     # px/s: body_center speed (grooming ≈ stationary)
 GROOM_VEL_WINDOW      = 5      # frames: rolling mean window for velocity smoothing
 
+# Positional stillness gate (position-range over a short window).
+# Used instead of body_vel when a robust "not moving" signal is needed —
+# DLC body_center has ~2–4 px of per-frame jitter so instantaneous velocity
+# can exceed GROOM_MAX_VEL even when the rat is visually stationary.
+BODY_STILL_WINDOW     = 30     # frames: ~1 s centered window
+BODY_STILL_MIN        = 10     # frames: minimum non-NaN samples needed
+BODY_STILL_RANGE      = 15     # px: max span of body_center (x or y) within the window
+
+# Body-center arena-interior margin (for nose-occluded grooming fallback
+# and the sitting-upright R1 gate). Tighter than the nose-arena box so
+# wall-rearing bouts, whose body_center sits near the wall edge, are not
+# misclassified as "sitting in the middle of the arena".
+BODY_INSIDE_MARGIN    = 20     # px margin inside ARENA_*
+
 # Arena bounds — nose outside these limits means the rat is pressed against
 # (or past) the wall and cannot be grooming.  Also used for wall-press
 # rearing (R6): nose beyond boundary + compressed body → rearing.
@@ -201,6 +233,13 @@ def compute_features(
     feat["htd_y"]  = (raw_df["head_y"] - raw_df["tail_base_y"]).abs()
     feat["nose_x"] = masked_df["nose_x"]
 
+    # Body-center position (for nose-occluded grooming fallback). The nose
+    # likelihood drops sharply while grooming (face buried in paws), so we
+    # need a second anchor to tell "rat sitting still in the middle of the
+    # arena" from "rat pressed against a wall".
+    feat["body_x"] = masked_df["body_center_x"]
+    feat["body_y"] = masked_df["body_center_y"]
+
     # Body-center speed in px/frame, smoothed and converted to px/s.
     # Assumes unit frame spacing (consecutive DLC rows are consecutive frames).
     bc_dx = masked_df["body_center_x"].diff()
@@ -211,6 +250,24 @@ def compute_features(
         .rolling(GROOM_VEL_WINDOW, min_periods=1, center=True)
         .mean()
         * fps
+    )
+
+    # Positional stillness over a ~1-second centered window: True when the
+    # body_center has moved less than BODY_STILL_RANGE px in either axis.
+    # More robust than `body_vel < threshold` because DLC body_center has
+    # a few px of per-frame jitter even when the rat is visually static —
+    # instantaneous velocity can read 60+ px/s for a stationary grooming
+    # rat, so we need position-range to tell "sitting still" from actual
+    # locomotion.
+    bx_win = masked_df["body_center_x"].rolling(
+        BODY_STILL_WINDOW, min_periods=BODY_STILL_MIN, center=True
+    )
+    by_win = masked_df["body_center_y"].rolling(
+        BODY_STILL_WINDOW, min_periods=BODY_STILL_MIN, center=True
+    )
+    feat["body_still"] = (
+        ((bx_win.max() - bx_win.min()) < BODY_STILL_RANGE)
+        & ((by_win.max() - by_win.min()) < BODY_STILL_RANGE)
     )
 
     return feat
@@ -235,31 +292,75 @@ def classify_frames(feat: pd.DataFrame) -> pd.Series:
         (feat["nose_x"] > ARENA_X_LEFT) & (feat["nose_x"] < ARENA_X_RIGHT)
         & (feat["nose_y"] > ARENA_Y_TOP) & (feat["nose_y"] < ARENA_Y_BOTTOM)
     )
+    # Body-center proxy used when nose data is unreliable. A BODY_INSIDE_MARGIN
+    # margin keeps wall-rearing frames (where body_center sits near the edge)
+    # out of the grooming branches that rely on this mask.
+    body_inside = (
+        (feat["body_x"] > ARENA_X_LEFT + BODY_INSIDE_MARGIN)
+        & (feat["body_x"] < ARENA_X_RIGHT - BODY_INSIDE_MARGIN)
+        & (feat["body_y"] > ARENA_Y_TOP + BODY_INSIDE_MARGIN)
+        & (feat["body_y"] < ARENA_Y_BOTTOM - BODY_INSIDE_MARGIN)
+    )
     groom_tight = (
         (feat["nose2fp"] < GROOM_NOSE2FP_TIGHT)
         & (feat["body_vel"] < GROOM_MAX_VEL)
         & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+        & nose_inside
     )
     groom_loose = (
         (feat["nose2fp"] < GROOM_NOSE2FP)
         & (feat["body_vel"] < GROOM_MAX_VEL)
         & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+        & nose_inside
     )
     groom_upright = (
         (feat["nose2fp"] < GROOM_NOSE2FP)
         & (feat["body_vel"] < GROOM_MAX_VEL)
         & (feat["fp_hp_vert"] > GROOM_MAX_FPHP)        # forepaws elevated
         & (feat["nose_y"] > REAR_NOSE_Y_MAX)           # not near top wall
+        & nose_inside
     )
-    grooming_posture = (groom_tight | groom_loose | groom_upright) & nose_inside
+    # Fourth branch: nose is occluded (face in paws) but the rat is clearly
+    # sitting still in the middle of the arena. We fall back to body_center
+    # stability + location. `body_still` is a position-range check rather
+    # than an instantaneous-velocity check, because DLC body_center has a
+    # few px of per-frame jitter that makes body_vel unreliable for a
+    # stationary rat.
+    groom_nose_occluded = (
+        feat["nose_y"].isna()
+        & feat["body_still"]
+        & body_inside
+        & (feat["fp_hp_vert"] > GROOM_MAX_FPHP)
+    )
+    grooming_posture = groom_tight | groom_loose | groom_upright | groom_nose_occluded
 
     # ── Rearing rules ────────────────────────────────────────────────────
     # R1 – Compact rearing (body compressed in 2-D projection).
-    #   Grooming also compresses the body (htdist drops), so we exclude
-    #   frames that show clear grooming posture (nose near forepaws,
-    #   forepaws not elevated, low velocity).  Other rearing rules
-    #   (R2-R5) have wall-specific gates and are unaffected.
-    rear_compact  = (feat["htdist"] < REAR_COMPACT_HTDIST) & ~grooming_posture
+    #   Two exclusions:
+    #     ~grooming_posture     — frame is clearly grooming (nose near
+    #                              forepaws etc.) already caught above.
+    #     ~sitting_upright      — rat is stationary on its haunches in
+    #                              the middle of the arena (paws elevated,
+    #                              nose away from top wall, low velocity).
+    #                              During upright grooming the nose-to-paw
+    #                              distance briefly grows between licks; we
+    #                              don't want those moments to flip to
+    #                              "compact rearing" just because htdist
+    #                              happens to be low. Real compact rearing
+    #                              involves motion and/or a wall press,
+    #                              which R2–R6 still cover.
+    #   Other rearing rules (R2–R6) have wall-specific gates and are
+    #   unaffected by both exclusions.
+    # The "not a wall-rear" context: the rat is positionally stationary AND
+    # its body_center sits inside the arena away from any wall. Real compact
+    # rearings in the training data happen at walls (body_center within the
+    # BODY_INSIDE_MARGIN edge band), so this gate leaves them alone while
+    # suppressing the htdist-drop false positives during stationary grooming.
+    # Uses body_still (position range) rather than body_vel (instantaneous
+    # speed) because body_center has ~2–4 px of per-frame jitter that makes
+    # body_vel unreliable during quiet grooming.
+    sitting_upright = feat["body_still"] & body_inside
+    rear_compact  = (feat["htdist"] < REAR_COMPACT_HTDIST) & ~grooming_posture & ~sitting_upright
 
     # R2 – Top-wall extended rearing
     rear_top_wall = (feat["fp_hp_vert"] > REAR_EXTEND_FPHP) & (feat["nose_y"] < REAR_NOSE_Y_MAX)
@@ -515,7 +616,9 @@ def main() -> None:
     print(f"Grooming thresholds : (nose2fp<{GROOM_NOSE2FP_TIGHT} & fp_hp<{GROOM_MAX_FPHP})"
           f" OR (nose2fp<{GROOM_NOSE2FP} & fp_hp<{GROOM_MAX_FPHP})"
           f" OR (nose2fp<{GROOM_NOSE2FP} & fp_hp>{GROOM_MAX_FPHP} & nose_y>{REAR_NOSE_Y_MAX})"
-          f"   [all & body_vel<{GROOM_MAX_VEL} px/s & not rearing]")
+          f"   [all three & body_vel<{GROOM_MAX_VEL} px/s]"
+          f" OR (nose occluded & fp_hp>{GROOM_MAX_FPHP} & body_still & body_inside)"
+          f"   [& not rearing; R1 gated by body_still & body_inside]")
     print(f"Minimum bout duration : {args.min_bout_frames} frames ({args.min_bout_frames/fps:.2f} s)\n")
 
     print("REARING BOUTS:")
