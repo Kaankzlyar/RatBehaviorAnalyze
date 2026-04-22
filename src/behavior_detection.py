@@ -5,21 +5,12 @@ Detects rearing and grooming from DLC-filtered tracking data.
 
 Detection logic
 ---------------
-REARING – two complementary cues (either is sufficient):
-
-  1. Compact rearing  (htdist < REAR_COMPACT_HTDIST)
-     When the rat stands against a wall the head and tail-base converge
-     strongly in the 2-D overhead projection.
-     Confirmed ground-truth windows: frames 685-729, 1233-1293.
-
-  2. Extended rearing  (fp_hp_vert > REAR_EXTEND_FPHP  AND  nose_y < REAR_NOSE_Y_MAX)
-     When the rat rears freely (not compressed against the wall) the
-     forepaws are clearly above the hindpaws AND the nose is near the top
-     wall of the arena (small y-value in image coordinates).
-     Confirmed ground-truth windows: ~frames 323-372 (0:11), 1800-1843 (1:00).
+GROOMING posture is computed FIRST (before rearing) so it can disambiguate
+compact rearing from grooming – both compress the body in 2-D projection,
+but grooming has nose close to forepaws while rearing does not.
 
 GROOMING – two sufficient postural branches (disjunction), both requiring
-     fp_hp_vert < GROOM_MAX_FPHP  AND  not rearing.
+     fp_hp_vert < GROOM_MAX_FPHP:
 
        (a) Tight posture  (nose2fp < GROOM_NOSE2FP_TIGHT)
            Classic face-washing: nose held against the forepaw cluster.
@@ -29,17 +20,29 @@ GROOMING – two sufficient postural branches (disjunction), both requiring
            Low / splayed body-grooming where the nose is farther from the
            paws in 2-D projection but the animal is nearly stationary.
 
-     The second branch makes the detector portable across subjects.
-     Different rats groom in different postures: MA1_2 sits upright with
-     nose2fp ≈ 15–20 px, while MA5_1 grooms in a low posture with
-     nose2fp ≈ 25–35 px. The velocity gate prevents the wider nose2fp
-     window from leaking in walking frames.
-
      Confirmed ground-truth windows:
        MA1_2  — frames 2181-2196 (brief face-wash), 4795-5034 (2:39-2:47).
        MA5_1  — ~65-67, 92-103, 106-121, 131-145, 145-180 s (long bouts).
      Note: the MA5_1 78-81 s bout is unrecoverable from DLC because the
      nose is occluded by paws (likelihood < 0.6 in 85/90 frames).
+
+REARING – five complementary cues (any is sufficient):
+
+  1. Compact rearing  (htdist < REAR_COMPACT_HTDIST  AND  NOT grooming_posture)
+     Body compressed in 2-D projection. Grooming posture is excluded
+     because a grooming rat also compresses its body but keeps its nose
+     near the forepaws. Other rearing rules (R2-R5) have wall-specific
+     gates and need no grooming exclusion.
+
+  2. Top-wall extended rearing  (fp_hp_vert > REAR_EXTEND_FPHP  AND  nose_y < REAR_NOSE_Y_MAX)
+     Forepaws clearly above hindpaws + nose near the top wall.
+
+  3-4. Bottom-wall rearing  (strong: fp_hp < -80  OR  compact: fp_hp < -45 + htdist guard)
+       Forepaws well below hindpaws + nose near the bottom wall.
+
+  5. Side-wall rearing  (htd_y in 40-60 + nose at left/right boundary)
+
+The final grooming label = grooming_posture AND NOT rearing.
 
 Outputs
 -------
@@ -189,23 +192,30 @@ def compute_features(
 
 def classify_frames(feat: pd.DataFrame) -> pd.Series:
     """Return a Series of string labels: 'rearing', 'grooming', or 'other'."""
-    # Low & stationary posture looks exactly like compact rearing in 2-D
-    # (head/tail overlap) but is really grooming. True rearing always
-    # involves body motion. Excluded from the compact rule; bottom-wall
-    # rearing (which also has very negative fp_hp_vert) keeps firing
-    # because it has its own rules with a nose_y gate.
-    low_still = (feat["fp_hp_vert"] < -25) & (feat["body_vel"] < GROOM_MAX_VEL)
+    # ── Grooming posture (computed BEFORE rearing so it can gate R1) ──────
+    # Two sufficient branches, both requiring forepaws not elevated:
+    #   Tight: nose very close to forepaws (classic face-washing)
+    #   Loose: moderate nose-forepaw distance but animal is stationary
+    # NaN in any feature → condition evaluates False (occluded frames
+    # cannot be classified as grooming).
+    groom_tight = feat["nose2fp"] < GROOM_NOSE2FP_TIGHT
+    groom_loose = (feat["nose2fp"] < GROOM_NOSE2FP) & (feat["body_vel"] < GROOM_MAX_VEL)
+    grooming_posture = (groom_tight | groom_loose) & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
 
-    # Five complementary rearing cues
-    rear_compact  = (feat["htdist"] < REAR_COMPACT_HTDIST) & ~low_still
+    # ── Rearing rules ────────────────────────────────────────────────────
+    # R1 – Compact rearing (body compressed in 2-D projection).
+    #   Grooming also compresses the body (htdist drops), so we exclude
+    #   frames that show clear grooming posture (nose near forepaws,
+    #   forepaws not elevated, low velocity).  Other rearing rules
+    #   (R2-R5) have wall-specific gates and are unaffected.
+    rear_compact  = (feat["htdist"] < REAR_COMPACT_HTDIST) & ~grooming_posture
+
+    # R2 – Top-wall extended rearing
     rear_top_wall = (feat["fp_hp_vert"] > REAR_EXTEND_FPHP) & (feat["nose_y"] < REAR_NOSE_Y_MAX)
-    # Bottom-wall rearing – two sub-types (strong signal OR compact body)
+    # R3/R4 – Bottom-wall rearing (strong signal OR compact body)
     rear_bot_strong  = (feat["fp_hp_vert"] < REAR_BOTTOM_STRONG_FPHP) & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y)
     rear_bot_compact = (feat["fp_hp_vert"] < REAR_BOTTOM_COMPACT_FPHP) & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y) & (feat["htdist"] < REAR_BOTTOM_HTDIST)
-    # Side-wall rearing: nose at left/right boundary + body axis partially horizontal
-    # htd_y bounds exclude: (< min) pure horizontal thigmotaxis, (> max) normal oblique locomotion
-    # fp_hp_vert < 25: blocks walk-away frames where forepaws are elevated post-rearing
-    # (fp_hp_vert > 25 during locomotion, ≤ 24 during actual side-wall rearing)
+    # R5 – Side-wall rearing: nose at left/right boundary + body axis partially horizontal
     rear_side_wall = (
         (feat["htd_y"] > REAR_SIDE_HTD_Y_MIN) & (feat["htd_y"] < REAR_SIDE_HTD_Y_MAX)
         & ((feat["nose_x"] > REAR_SIDE_NOSE_X_RIGHT) | (feat["nose_x"] < REAR_SIDE_NOSE_X_LEFT))
@@ -213,17 +223,8 @@ def classify_frames(feat: pd.DataFrame) -> pd.Series:
     )
     rearing = rear_compact | rear_top_wall | rear_bot_strong | rear_bot_compact | rear_side_wall
 
-    # Grooming = (tight posture) OR (loose posture AND stationary), all
-    # gated by (forepaws not elevated) AND (not rearing).
-    # NaN in body_vel / nose2fp / fp_hp_vert → condition evaluates False, so
-    # occluded frames cannot be classified as grooming.
-    groom_tight = feat["nose2fp"] < GROOM_NOSE2FP_TIGHT
-    groom_loose = (feat["nose2fp"] < GROOM_NOSE2FP) & (feat["body_vel"] < GROOM_MAX_VEL)
-    grooming = (
-        (groom_tight | groom_loose)
-        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
-        & ~rearing
-    )
+    # ── Final grooming label: grooming posture that wasn't claimed by rearing ─
+    grooming = grooming_posture & ~rearing
 
     labels = pd.Series("other", index=feat.index, dtype=str)
     labels[grooming] = "grooming"
