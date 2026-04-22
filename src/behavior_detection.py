@@ -18,10 +18,28 @@ REARING – two complementary cues (either is sufficient):
      wall of the arena (small y-value in image coordinates).
      Confirmed ground-truth windows: ~frames 323-372 (0:11), 1800-1843 (1:00).
 
-GROOMING  (nose2fp < GROOM_NOSE2FP  AND  not rearing)
-     Nose tip stays very close to the forepaw cluster; the rat holds its
-     face against its paws.
-     Confirmed ground-truth window: frames 4795-5034 (2:39-2:47).
+GROOMING – two sufficient postural branches (disjunction), both requiring
+     fp_hp_vert < GROOM_MAX_FPHP  AND  not rearing.
+
+       (a) Tight posture  (nose2fp < GROOM_NOSE2FP_TIGHT)
+           Classic face-washing: nose held against the forepaw cluster.
+
+       (b) Loose posture + stillness
+           (nose2fp < GROOM_NOSE2FP  AND  body_vel < GROOM_MAX_VEL)
+           Low / splayed body-grooming where the nose is farther from the
+           paws in 2-D projection but the animal is nearly stationary.
+
+     The second branch makes the detector portable across subjects.
+     Different rats groom in different postures: MA1_2 sits upright with
+     nose2fp ≈ 15–20 px, while MA5_1 grooms in a low posture with
+     nose2fp ≈ 25–35 px. The velocity gate prevents the wider nose2fp
+     window from leaking in walking frames.
+
+     Confirmed ground-truth windows:
+       MA1_2  — frames 2181-2196 (brief face-wash), 4795-5034 (2:39-2:47).
+       MA5_1  — ~65-67, 92-103, 106-121, 131-145, 145-180 s (long bouts).
+     Note: the MA5_1 78-81 s bout is unrecoverable from DLC because the
+     nose is occluded by paws (likelihood < 0.6 in 85/90 frames).
 
 Outputs
 -------
@@ -69,9 +87,15 @@ REAR_BOTTOM_COMPACT_FPHP  = -45   # compact: moderate forepaw depression + body 
 REAR_BOTTOM_HTDIST        = 105   # compact: head-to-tail distance must be below this (body squished)
 REAR_BOTTOM_NOSE_Y        = 500   # both: nose must be near the bottom wall
 
-# Grooming
-GROOM_NOSE2FP         = 22     # px: nose-to-forepaw distance below this → grooming
+# Grooming – disjunctive posture rule (see module docstring).
+#   Tight branch covers upright face-washing (MA1_2): nose held against paws.
+#   Loose branch covers low/splayed body-grooming (MA5_1): wider nose2fp
+#     window, gated by near-zero body velocity to exclude locomotion.
+GROOM_NOSE2FP_TIGHT   = 22     # px: tight-posture grooming (no velocity gate)
+GROOM_NOSE2FP         = 35     # px: loose-posture grooming (requires velocity gate)
 GROOM_MAX_FPHP        = 10     # forepaw must NOT be elevated above hindpaw (excludes rearing postures)
+GROOM_MAX_VEL         = 25     # px/s: body_center speed for the loose branch (grooming ≈ stationary)
+GROOM_VEL_WINDOW      = 5      # frames: rolling mean window for velocity smoothing
 
 # Tracking quality filter
 LIKELIHOOD_THRESH     = 0.6
@@ -106,13 +130,18 @@ def mask_low_likelihood(df: pd.DataFrame, thresh: float) -> pd.DataFrame:
     return df
 
 
-def compute_features(raw_df: pd.DataFrame, masked_df: pd.DataFrame) -> pd.DataFrame:
+def compute_features(
+    raw_df: pd.DataFrame,
+    masked_df: pd.DataFrame,
+    fps: float = DEFAULT_FPS,
+) -> pd.DataFrame:
     """Compute per-frame postural features used for behaviour classification.
 
     raw_df    – original DLC output (no likelihood masking): used for htdist so
                 tail occlusion during wall-rearing does not create NaN values.
     masked_df – coordinates set to NaN where likelihood < threshold: used for
                 positional/distance features that rely on accurate keypoint locations.
+    fps       – video frame rate; needed to express body velocity in px/s.
     """
     # Use .mean(axis=1) so a single occluded (NaN) paw does not blank the pair
     fp_x = masked_df[["left_forepaw_x", "right_forepaw_x"]].mean(axis=1)
@@ -143,6 +172,18 @@ def compute_features(raw_df: pd.DataFrame, masked_df: pd.DataFrame) -> pd.DataFr
     feat["htd_y"]  = (raw_df["head_y"] - raw_df["tail_base_y"]).abs()
     feat["nose_x"] = masked_df["nose_x"]
 
+    # Body-center speed in px/frame, smoothed and converted to px/s.
+    # Assumes unit frame spacing (consecutive DLC rows are consecutive frames).
+    bc_dx = masked_df["body_center_x"].diff()
+    bc_dy = masked_df["body_center_y"].diff()
+    bc_speed_per_frame = np.sqrt(bc_dx ** 2 + bc_dy ** 2)
+    feat["body_vel"] = (
+        bc_speed_per_frame
+        .rolling(GROOM_VEL_WINDOW, min_periods=1, center=True)
+        .mean()
+        * fps
+    )
+
     return feat
 
 
@@ -165,9 +206,14 @@ def classify_frames(feat: pd.DataFrame) -> pd.Series:
     )
     rearing = rear_compact | rear_top_wall | rear_bot_strong | rear_bot_compact | rear_side_wall
 
-    # Grooming: nose close to forepaws, forepaws NOT elevated (excludes rearing postures)
+    # Grooming = (tight posture) OR (loose posture AND stationary), all
+    # gated by (forepaws not elevated) AND (not rearing).
+    # NaN in body_vel / nose2fp / fp_hp_vert → condition evaluates False, so
+    # occluded frames cannot be classified as grooming.
+    groom_tight = feat["nose2fp"] < GROOM_NOSE2FP_TIGHT
+    groom_loose = (feat["nose2fp"] < GROOM_NOSE2FP) & (feat["body_vel"] < GROOM_MAX_VEL)
     grooming = (
-        (feat["nose2fp"] < GROOM_NOSE2FP)
+        (groom_tight | groom_loose)
         & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
         & ~rearing
     )
@@ -226,28 +272,45 @@ BEHAVIOUR_COLORS = {
     "other":    "#D0D0D0",
 }
 
-GROUND_TRUTH = {
-    # Confirmed rearing windows (frames at 30 fps):
-    #   ~0.7–1.9 s     ~10.8–12.4 s   ~22.8–24.3 s   ~26.1–26.7 s
-    #   ~29.2–31.5 s   ~33.9–34.6 s   ~41.2–43.0 s   ~59.7–63.1 s   ~67.5–68.7 s
-    "rearing":  [
-        (21, 57),          # 0.7–1.9 s   (bottom-wall compact)
-        (323, 371),        # 10.8–12.4 s (top-wall extended)
-        (685, 729),        # 22.8–24.3 s (compact)
-        (783, 801),        # 26.1–26.7 s (side-wall right)
-        (876, 945),        # 29.2–31.5 s (side-wall left / bottom-wall)
-        (990, 1040),       # 33.0–34.7 s (bottom-wall compact)
-        (1236, 1290),      # 41.2–43.0 s (compact)
-        (1800, 1893),      # 59.7–63.1 s (top-wall extended)
-        (2025, 2061),      # 67.5–68.7 s (compact)
-    ],
-    # Confirmed grooming windows:
-    #   ~72.7–73.2 s   ~160.2–167.7 s
-    "grooming": [
-        (2181, 2196),      # 72.7–73.2 s  (brief face-washing)
-        (4806, 5031),      # 160.2–167.7 s (extended grooming)
-    ],
+GROUND_TRUTH_BY_SUBJECT: dict[str, dict[str, list[tuple[int, int]]]] = {
+    "OpenFieldMA1_2": {
+        # Confirmed rearing windows (frames at 30 fps)
+        "rearing": [
+            (21, 57),          # 0.7–1.9 s   (bottom-wall compact)
+            (323, 371),        # 10.8–12.4 s (top-wall extended)
+            (685, 729),        # 22.8–24.3 s (compact)
+            (783, 801),        # 26.1–26.7 s (side-wall right)
+            (876, 945),        # 29.2–31.5 s (side-wall left / bottom-wall)
+            (990, 1040),       # 33.0–34.7 s (bottom-wall compact)
+            (1236, 1290),      # 41.2–43.0 s (compact)
+            (1800, 1893),      # 59.7–63.1 s (top-wall extended)
+            (2025, 2061),      # 67.5–68.7 s (compact)
+        ],
+        # Confirmed grooming windows
+        "grooming": [
+            (2181, 2196),      # 72.7–73.2 s  (brief face-washing)
+            (4806, 5031),      # 160.2–167.7 s (extended grooming)
+        ],
+    },
+    "OpenFieldMA5_1": {
+        "rearing": [],
+        # Grooming windows reported from video review (seconds → frames @ 30 fps).
+        # 78-81 s is intentionally omitted: DLC nose likelihood fails in 85/90
+        # frames of that window, so it is unrecoverable from the current data.
+        "grooming": [
+            (1950, 2010),      # 65-67 s
+            (2760, 3090),      # 92-103 s
+            (3180, 3630),      # 106-121 s
+            (3930, 4350),      # 131-145 s
+            (4350, 5400),      # 145-180 s (grooming-like continuation)
+        ],
+    },
 }
+
+
+def ground_truth_for(base: str) -> dict[str, list[tuple[int, int]]]:
+    """Return the GT dict for a given CSV basename, or empty if unknown."""
+    return GROUND_TRUTH_BY_SUBJECT.get(base, {"rearing": [], "grooming": []})
 
 
 def plot_timeline(
@@ -256,7 +319,10 @@ def plot_timeline(
     groom_bouts: list[tuple[int, int]],
     fps: float,
     out_path: str,
+    ground_truth: dict[str, list[tuple[int, int]]] | None = None,
 ) -> None:
+    if ground_truth is None:
+        ground_truth = {"rearing": [], "grooming": []}
     n_frames = len(labels)
     time_s   = np.arange(n_frames) / fps
 
@@ -281,7 +347,7 @@ def plot_timeline(
     ax0.set_ylim(0, 1)
     for beh, color in [("rearing", BEHAVIOUR_COLORS["rearing"]),
                         ("grooming", BEHAVIOUR_COLORS["grooming"])]:
-        for s, e in GROUND_TRUTH.get(beh, []):
+        for s, e in ground_truth.get(beh, []):
             ax0.axvspan(s / fps, e / fps, ymin=0, ymax=1,
                         color=color, alpha=0.6, label=beh)
 
@@ -353,7 +419,7 @@ def main() -> None:
     print(f"Loading {csv_path}")
     raw_df    = load_dlc_csv(csv_path)
     masked_df = mask_low_likelihood(raw_df, LIKELIHOOD_THRESH)
-    feat      = compute_features(raw_df, masked_df)
+    feat      = compute_features(raw_df, masked_df, fps=fps)
 
     print("Classifying frames...")
     labels = classify_frames(feat)
@@ -372,7 +438,9 @@ def main() -> None:
           f" | (fp_hp>{REAR_EXTEND_FPHP} & nose_y<{REAR_NOSE_Y_MAX})"
           f" | (fp_hp<{REAR_BOTTOM_STRONG_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y})"
           f" | (fp_hp<{REAR_BOTTOM_COMPACT_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y} & htdist<{REAR_BOTTOM_HTDIST})")
-    print(f"Grooming threshold : nose2fp < {GROOM_NOSE2FP}")
+    print(f"Grooming thresholds : nose2fp<{GROOM_NOSE2FP_TIGHT}"
+          f" OR (nose2fp<{GROOM_NOSE2FP} & body_vel<{GROOM_MAX_VEL} px/s)"
+          f"   [& fp_hp<{GROOM_MAX_FPHP} & not rearing]")
     print(f"Minimum bout duration : {args.min_bout_frames} frames ({args.min_bout_frames/fps:.2f} s)\n")
 
     print("REARING BOUTS:")
@@ -421,7 +489,8 @@ def main() -> None:
     # ── Plot ─────────────────────────────────────────────────────────────────
     print("\nPlotting timeline...")
     img_out = os.path.join(out_dir, f"{base}_behavior_timeline.png")
-    plot_timeline(labels, rear_bouts, groom_bouts, fps, img_out)
+    plot_timeline(labels, rear_bouts, groom_bouts, fps, img_out,
+                  ground_truth=ground_truth_for(base))
 
     print("\nDone.")
 
