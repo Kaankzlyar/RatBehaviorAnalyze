@@ -108,9 +108,17 @@ def get_video_properties(filepath: str) -> dict:
 
     props["readable"]     = True
     props["fps"]          = cap.get(cv2.CAP_PROP_FPS)
-    props["frame_count"]  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     props["width"]        = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     props["height"]       = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Count frames by iterating through video (avoids OpenCV AVI metadata bug)
+    frame_count = 0
+    while True:
+        ret, _ = cap.read()
+        if not ret:
+            break
+        frame_count += 1
+    props["frame_count"] = frame_count
 
     if props["fps"] and props["fps"] > 0:
         props["duration_s"] = round(props["frame_count"] / props["fps"], 2)
