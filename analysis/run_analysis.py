@@ -15,7 +15,7 @@ Usage (RECOMMENDED):
     # Interactive: define boundaries with tool
     python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA3_2/MA3-2_res.avi
     # Copy the --arena and --inner-zone from output, then:
-    python run_analysis.py --arena 397 775 155 531 --inner-zone 423 749 178 503 --csv ../data/DLCfiltered/OpenFieldMA5_1/OpenFieldMA5_1.csv
+    python run_analysis.py --arena 397 775 154 531 --inner-zone 422 748 179 503 --csv ../data/DLCfiltered/OpenFieldMA5_2/OpenFieldMA5_2.csv
 
     Run orbit_plot.py with these exact bounds:
 
