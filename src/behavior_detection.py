@@ -42,6 +42,10 @@ REARING – five complementary cues (any is sufficient):
 
   5. Side-wall rearing  (htd_y in 40-60 + nose at left/right boundary)
 
+  6. Wall-press rearing  (nose beyond arena boundary + htdist < 115)
+     Catches rearing missed by R5 when the rat presses flat against a
+     side wall with low htd_y. Nose outside the arena = wall interaction.
+
 The final grooming label = grooming_posture AND NOT rearing.
 
 Outputs
@@ -94,11 +98,26 @@ REAR_BOTTOM_NOSE_Y        = 500   # both: nose must be near the bottom wall
 #   Tight branch covers upright face-washing (MA1_2): nose held against paws.
 #   Loose branch covers low/splayed body-grooming (MA5_1): wider nose2fp
 #     window, gated by near-zero body velocity to exclude locomotion.
-GROOM_NOSE2FP_TIGHT   = 22     # px: tight-posture grooming (no velocity gate)
-GROOM_NOSE2FP         = 35     # px: loose-posture grooming (requires velocity gate)
+#   Both branches require a velocity gate: during wall-rearing the nose can
+#   be close to the forepaws in 2-D projection (both pressed on the wall),
+#   so velocity separates stationary grooming from active wall-rearing.
+GROOM_NOSE2FP_TIGHT   = 22     # px: tight-posture grooming
+GROOM_NOSE2FP         = 35     # px: loose-posture grooming
 GROOM_MAX_FPHP        = 10     # forepaw must NOT be elevated above hindpaw (excludes rearing postures)
-GROOM_MAX_VEL         = 25     # px/s: body_center speed for the loose branch (grooming ≈ stationary)
+GROOM_MAX_VEL         = 25     # px/s: body_center speed (grooming ≈ stationary)
 GROOM_VEL_WINDOW      = 5      # frames: rolling mean window for velocity smoothing
+
+# Arena bounds — nose outside these limits means the rat is pressed against
+# (or past) the wall and cannot be grooming.  Also used for wall-press
+# rearing (R6): nose beyond boundary + compressed body → rearing.
+ARENA_X_LEFT   = 397    # px: left wall
+ARENA_X_RIGHT  = 775    # px: right wall
+ARENA_Y_TOP    = 158    # px: top wall
+ARENA_Y_BOTTOM = 532    # px: bottom wall
+
+# Rearing – wall-press (nose pushed beyond any arena boundary + body compressed)
+# Catches side-wall rearing with low htd_y that R5 misses (e.g. MA5_2 ~17 s).
+REAR_WALL_PRESS_HTDIST = 115   # px: body must be compressed (walking along wall ≈ 130+)
 
 # Tracking quality filter
 LIKELIHOOD_THRESH     = 0.6
@@ -193,14 +212,18 @@ def compute_features(
 def classify_frames(feat: pd.DataFrame) -> pd.Series:
     """Return a Series of string labels: 'rearing', 'grooming', or 'other'."""
     # ── Grooming posture (computed BEFORE rearing so it can gate R1) ──────
-    # Two sufficient branches, both requiring forepaws not elevated:
-    #   Tight: nose very close to forepaws (classic face-washing)
-    #   Loose: moderate nose-forepaw distance but animal is stationary
-    # NaN in any feature → condition evaluates False (occluded frames
-    # cannot be classified as grooming).
-    groom_tight = feat["nose2fp"] < GROOM_NOSE2FP_TIGHT
+    # Both branches require velocity gate + forepaws not elevated + nose
+    # inside the arena.  During wall-rearing the nose and forepaws are
+    # both pressed on the wall (small nose2fp in 2-D), but the rat is
+    # moving and its nose is at/beyond the arena boundary.
+    # NaN in any feature → condition evaluates False (safe).
+    nose_inside = (
+        (feat["nose_x"] > ARENA_X_LEFT) & (feat["nose_x"] < ARENA_X_RIGHT)
+        & (feat["nose_y"] > ARENA_Y_TOP) & (feat["nose_y"] < ARENA_Y_BOTTOM)
+    )
+    groom_tight = (feat["nose2fp"] < GROOM_NOSE2FP_TIGHT) & (feat["body_vel"] < GROOM_MAX_VEL)
     groom_loose = (feat["nose2fp"] < GROOM_NOSE2FP) & (feat["body_vel"] < GROOM_MAX_VEL)
-    grooming_posture = (groom_tight | groom_loose) & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+    grooming_posture = (groom_tight | groom_loose) & (feat["fp_hp_vert"] < GROOM_MAX_FPHP) & nose_inside
 
     # ── Rearing rules ────────────────────────────────────────────────────
     # R1 – Compact rearing (body compressed in 2-D projection).
@@ -221,7 +244,13 @@ def classify_frames(feat: pd.DataFrame) -> pd.Series:
         & ((feat["nose_x"] > REAR_SIDE_NOSE_X_RIGHT) | (feat["nose_x"] < REAR_SIDE_NOSE_X_LEFT))
         & (feat["fp_hp_vert"] < 25)
     )
-    rearing = rear_compact | rear_top_wall | rear_bot_strong | rear_bot_compact | rear_side_wall
+    # R6 – Wall-press rearing: nose pushed beyond any arena boundary + body
+    #   compressed.  Catches wall rearing that R5 misses (e.g. htd_y too low
+    #   for R5's band when the rat presses flat against a side wall).
+    nose_at_wall = ~nose_inside & feat["nose_x"].notna()
+    rear_wall_press = nose_at_wall & (feat["htdist"] < REAR_WALL_PRESS_HTDIST)
+
+    rearing = rear_compact | rear_top_wall | rear_bot_strong | rear_bot_compact | rear_side_wall | rear_wall_press
 
     # ── Final grooming label: grooming posture that wasn't claimed by rearing ─
     grooming = grooming_posture & ~rearing
