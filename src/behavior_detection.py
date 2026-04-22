@@ -189,8 +189,15 @@ def compute_features(
 
 def classify_frames(feat: pd.DataFrame) -> pd.Series:
     """Return a Series of string labels: 'rearing', 'grooming', or 'other'."""
+    # Low & stationary posture looks exactly like compact rearing in 2-D
+    # (head/tail overlap) but is really grooming. True rearing always
+    # involves body motion. Excluded from the compact rule; bottom-wall
+    # rearing (which also has very negative fp_hp_vert) keeps firing
+    # because it has its own rules with a nose_y gate.
+    low_still = (feat["fp_hp_vert"] < -25) & (feat["body_vel"] < GROOM_MAX_VEL)
+
     # Five complementary rearing cues
-    rear_compact  = feat["htdist"] < REAR_COMPACT_HTDIST
+    rear_compact  = (feat["htdist"] < REAR_COMPACT_HTDIST) & ~low_still
     rear_top_wall = (feat["fp_hp_vert"] > REAR_EXTEND_FPHP) & (feat["nose_y"] < REAR_NOSE_Y_MAX)
     # Bottom-wall rearing – two sub-types (strong signal OR compact body)
     rear_bot_strong  = (feat["fp_hp_vert"] < REAR_BOTTOM_STRONG_FPHP) & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y)
