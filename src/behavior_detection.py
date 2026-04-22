@@ -47,7 +47,7 @@ import pandas as pd
 
 # ─── THRESHOLDS ───────────────────────────────────────────────────────────────
 # Rearing – compact (body compressed against wall in 2-D projection)
-REAR_COMPACT_HTDIST   = 55     # px: head-to-tail distance below this → rearing
+REAR_COMPACT_HTDIST   = 75     # px: head-to-tail distance below this → rearing (adjusted from 55 for labeled data)
 
 # Rearing – extended (body upright near the TOP wall of the arena)
 REAR_EXTEND_FPHP      = 45     # px: hindpaw_y - forepaw_y must exceed this
@@ -192,11 +192,11 @@ def frames_to_bouts(
     for f in frames[1:]:
         f = int(f)
         if f - prev > gap:
-            if prev - start >= min_dur:
+            if prev - start + 1 >= min_dur:  # +1: inclusive frame count
                 bouts.append((start, prev))
             start = f
         prev = f
-    if prev - start >= min_dur:
+    if prev - start + 1 >= min_dur:
         bouts.append((start, prev))
     return bouts
 
@@ -331,9 +331,16 @@ def plot_timeline(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Detect rearing and grooming from DLC CSV")
-    parser.add_argument("--csv",     default=DEFAULT_CSV,     help="Path to DLC filtered CSV")
-    parser.add_argument("--fps",     type=float, default=DEFAULT_FPS, help="Video frame rate")
-    parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR, help="Output directory")
+    parser.add_argument("--csv",            default=DEFAULT_CSV,      help="Path to DLC filtered CSV")
+    parser.add_argument("--fps",            type=float, default=DEFAULT_FPS, help="Video frame rate")
+    parser.add_argument("--out-dir",        default=DEFAULT_OUT_DIR,  help="Output directory")
+    parser.add_argument("--min-bout-frames", type=int, default=MIN_BOUT_FRAMES,
+                        dest="min_bout_frames",
+                        help=f"Minimum frames to count as a bout (default {MIN_BOUT_FRAMES}; "
+                             "use 1 for sparse labeled data)")
+    parser.add_argument("--inter-bout-gap", type=int, default=INTER_BOUT_GAP,
+                        dest="inter_bout_gap",
+                        help=f"Max frame gap to merge into one bout (default {INTER_BOUT_GAP})")
     args = parser.parse_args()
 
     csv_path = os.path.abspath(args.csv)
@@ -354,8 +361,8 @@ def main() -> None:
     rear_frames  = np.where(labels == "rearing")[0]
     groom_frames = np.where(labels == "grooming")[0]
 
-    rear_bouts  = frames_to_bouts(rear_frames)
-    groom_bouts = frames_to_bouts(groom_frames)
+    rear_bouts  = frames_to_bouts(rear_frames,  gap=args.inter_bout_gap, min_dur=args.min_bout_frames)
+    groom_bouts = frames_to_bouts(groom_frames, gap=args.inter_bout_gap, min_dur=args.min_bout_frames)
 
     # ── Console summary ──────────────────────────────────────────────────────
     total_s = len(raw_df) / fps
@@ -366,7 +373,7 @@ def main() -> None:
           f" | (fp_hp<{REAR_BOTTOM_STRONG_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y})"
           f" | (fp_hp<{REAR_BOTTOM_COMPACT_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y} & htdist<{REAR_BOTTOM_HTDIST})")
     print(f"Grooming threshold : nose2fp < {GROOM_NOSE2FP}")
-    print(f"Minimum bout duration : {MIN_BOUT_FRAMES} frames ({MIN_BOUT_FRAMES/fps:.2f} s)\n")
+    print(f"Minimum bout duration : {args.min_bout_frames} frames ({args.min_bout_frames/fps:.2f} s)\n")
 
     print("REARING BOUTS:")
     for i, (s, e) in enumerate(rear_bouts, 1):
@@ -388,10 +395,14 @@ def main() -> None:
           f"  ({100*groom_time_s/total_s:.1f}% of session)")
 
     # ── Save CSV ─────────────────────────────────────────────────────────────
-    bout_df = pd.concat([
-        bouts_to_dataframe(rear_bouts,  "rearing",  fps),
-        bouts_to_dataframe(groom_bouts, "grooming", fps),
-    ]).sort_values("start_frame").reset_index(drop=True)
+    _BOUT_COLS = ["behaviour", "bout", "start_frame", "end_frame", "start_s", "end_s", "duration_s"]
+    _parts = [bouts_to_dataframe(rear_bouts, "rearing", fps),
+              bouts_to_dataframe(groom_bouts, "grooming", fps)]
+    _parts = [p for p in _parts if not p.empty]
+    bout_df = pd.concat(_parts) if _parts else pd.DataFrame(columns=_BOUT_COLS)
+    if not bout_df.empty:
+        bout_df = bout_df.sort_values("start_frame")
+    bout_df = bout_df.reset_index(drop=True)
 
     csv_out = os.path.join(out_dir, f"{base}_behavior_bouts.csv")
     bout_df.to_csv(csv_out, index=False)

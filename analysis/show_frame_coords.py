@@ -9,7 +9,7 @@ Phase 2 — Click 4 inner zone corners  (thigmotaxis boundary)
 At the end prints the exact orbit_plot.py command with your selections.
 
 Usage:
-    python show_frame_coords.py --video data/DLCfiltered/OpenfieldMA1_2.mp4
+    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA5_1/MA5-1_res.avi
 """
 
 import argparse
@@ -20,7 +20,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 
-# ─── STATE ────────────────────────────────────────────────────────────────────
+# --- STATE --------------------------------------------------------------------
 
 phase        = 1          # 1 = arena corners, 2 = inner zone corners
 arena_pts    = []         # up to 4 (x, y)
@@ -72,7 +72,7 @@ def draw_rect(pts, color, linestyle="--", lw=2.0, label=""):
     fig.canvas.draw_idle()
 
 
-# ─── EVENTS ───────────────────────────────────────────────────────────────────
+# --- EVENTS -------------------------------------------------------------------
 
 def onmove(event):
     if event.inaxes is None or event.xdata is None:
@@ -132,14 +132,57 @@ def onclick(event):
     fig.canvas.draw_idle()
 
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+# --- MAIN ---------------------------------------------------------------------
 
 def extract_first_frame(video_path: str) -> np.ndarray:
+    import os
+    from pathlib import Path
+    
+    # Check if file exists
+    if not os.path.exists(video_path):
+        # Try alternative extensions
+        base_path = os.path.splitext(video_path)[0]
+        alternatives = [
+            base_path + ".mp4",
+            base_path + ".avi",
+            base_path + ".mov",
+            base_path + ".mkv",
+        ]
+        
+        print(f"\n❌ File not found: {video_path}")
+        print(f"\nLooking for alternatives in: {os.path.dirname(video_path)}")
+        
+        found = False
+        for alt in alternatives:
+            if os.path.exists(alt):
+                print(f"   ✓ Found: {alt}")
+                video_path = alt
+                found = True
+                break
+            else:
+                print(f"   ✗ Not found: {alt}")
+        
+        if not found:
+            # List all files in the directory
+            dir_path = os.path.dirname(video_path)
+            if os.path.isdir(dir_path):
+                print(f"\nAvailable files in {dir_path}:")
+                try:
+                    files = os.listdir(dir_path)
+                    for f in sorted(files):
+                        print(f"   {f}")
+                except Exception as e:
+                    print(f"   Error listing directory: {e}")
+            raise ValueError(f"Could not find video file: {video_path}\n"
+                           f"Tried extensions: {', '.join(['.mp4', '.avi', '.mov', '.mkv'])}")
+    
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
     cap.release()
     if not ret:
-        raise ValueError(f"Could not read frame from: {video_path}")
+        raise ValueError(f"Could not read frame from: {video_path}\n"
+                        f"The file exists but OpenCV cannot open it.\n"
+                        f"Check if it's a supported video format or corrupted.")
     return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
@@ -170,7 +213,7 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    # ── Summary ──────────────────────────────────────────────────────────────
+    # -- Summary --------------------------------------------------------------
     print("\n" + "=" * 65)
 
     if len(arena_pts) < 4:

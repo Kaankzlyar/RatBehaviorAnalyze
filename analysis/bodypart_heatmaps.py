@@ -18,7 +18,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 
-# ─── DEFAULTS ─────────────────────────────────────────────────────────────────
+# --- DEFAULTS -----------------------------------------------------------------
 
 DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
 DEFAULT_OUT_DIR   = "../data/DLCfiltered"
@@ -85,18 +85,13 @@ def load_dlc_csv(csv_path: str, likelihood_thresh: float,
         y   = df[bp]["y"].values.astype(float)
         lkh = df[bp]["likelihood"].values.astype(float)
 
-        # Step 1: likelihood filter
         x[lkh < likelihood_thresh] = np.nan
         y[lkh < likelihood_thresh] = np.nan
 
-        # Step 2: arena bounds filter
         if arena is not None:
             x, y = apply_arena_filter(x, y, arena)
 
-        # Step 3: jump threshold
         x, y = apply_jump_threshold(x, y, jump_thresh)
-
-        # Step 4: rolling median smoothing
         x, y = apply_rolling_median(x, y, smooth_window)
 
         pct = np.sum(~np.isnan(x)) / len(x) * 100
@@ -191,10 +186,10 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Bodypart heatmap grid saved → {out_path}")
+    print(f"Bodypart heatmap grid saved -> {out_path}")
 
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+# --- MAIN ---------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Per-bodypart activity heatmap grid")
@@ -230,8 +225,8 @@ def main():
                             jump_thresh=args.jump_thresh,
                             smooth_window=args.smooth)
 
-    print(f"\nArena bounds: X {arena[0]:.0f}–{arena[1]:.0f}  Y {arena[2]:.0f}–{arena[3]:.0f}")
-    print(f"Inner zone:   X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
+    print(f"\nArena bounds: X {arena[0]:.0f}-{arena[1]:.0f}  Y {arena[2]:.0f}-{arena[3]:.0f}")
+    print(f"Inner zone:   X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
 
     print("\nRendering per-bodypart heatmap grid...")
     plot_bodypart_heatmaps_grid(

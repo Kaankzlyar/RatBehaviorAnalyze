@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import gaussian_filter
 
-# ─── DEFAULTS ─────────────────────────────────────────────────────────────────
+# --- DEFAULTS -----------------------------------------------------------------
 
 DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
 DEFAULT_OUT_DIR   = "../data/DLCfiltered"
@@ -70,18 +70,13 @@ def load_body_center(csv_path: str, likelihood_thresh: float,
     y   = df["body_center"]["y"].values.astype(float)
     lkh = df["body_center"]["likelihood"].values.astype(float)
 
-    # Step 1: likelihood filter
     x[lkh < likelihood_thresh] = np.nan
     y[lkh < likelihood_thresh] = np.nan
 
-    # Step 2: arena bounds filter
     if arena is not None:
         x, y = apply_arena_filter(x, y, arena)
 
-    # Step 3: jump threshold
     x, y = apply_jump_threshold(x, y, jump_thresh)
-
-    # Step 4: rolling median smoothing
     x, y = apply_rolling_median(x, y, smooth_window)
 
     return x, y
@@ -140,7 +135,7 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Heatmap saved → {out_path}")
+    print(f"Heatmap saved -> {out_path}")
 
 
 def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
@@ -164,7 +159,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     W = int(x_max - x_min)
     H = int(y_max - y_min)
 
-    # Step 1: per-pixel visit count (1 bin per arena pixel → no pixelation)
+    # Step 1: per-pixel visit count (1 bin per arena pixel -> no pixelation)
     hist, _, _ = np.histogram2d(
         xv, yv, bins=[W, H],
         range=[[x_min, x_max], [y_min, y_max]]
@@ -177,7 +172,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     # Step 3: log scale — keeps traversed paths visible without washing out hotspots
     hist_log = np.log1p(hist_smooth)
 
-    # Step 4: normalize 0→1 so colormap uses full dynamic range
+    # Step 4: normalize 0->1 so colormap uses full dynamic range
     vmax = hist_log.max()
     hist_norm = hist_log / vmax if vmax > 0 else hist_log
 
@@ -211,10 +206,10 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Heatmap saved → {out_path}")
+    print(f"Heatmap saved -> {out_path}")
 
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+# --- MAIN ---------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Activity density heatmap from body_center")
@@ -256,8 +251,8 @@ def main():
     valid = ~(np.isnan(x) | np.isnan(y))
     print(f"  {valid.sum()} valid frames")
 
-    print(f"\nArena bounds: X {arena[0]:.0f}–{arena[1]:.0f}  Y {arena[2]:.0f}–{arena[3]:.0f}")
-    print(f"Inner zone:   X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
+    print(f"\nArena bounds: X {arena[0]:.0f}-{arena[1]:.0f}  Y {arena[2]:.0f}-{arena[3]:.0f}")
+    print(f"Inner zone:   X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
 
     print("\nRendering heatmaps...")
     plot_2d_histogram(

@@ -13,18 +13,18 @@ Workflow:
 
 Usage (RECOMMENDED):
     # Interactive: define boundaries with tool
-    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA1_2.mp4
+    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA3_2/MA3-2_res.avi
     # Copy the --arena and --inner-zone from output, then:
-    python run_analysis.py --arena 396 778 152 531  --inner-zone 418 747 176 502
+    python run_analysis.py --arena 397 775 155 531 --inner-zone 423 749 178 503 --csv ../data/DLCfiltered/OpenFieldMA5_1/OpenFieldMA5_1.csv
 
     Run orbit_plot.py with these exact bounds:
 
   python orbit_plot.py \
-    --arena 396 778 152 531 \
-        --inner-zone 418 747 176 502
+    --arena 394 774 153 533 \
+        --inner-zone 423 748 178 503
 
 Or (QUICK - auto-generate inner-zone):
-    python run_analysis.py --arena 396 778 152 531
+    python run_analysis.py --arena 394 774 153 533
 
 The script will automatically calculate inner-zone as:
     inner_zone = arena_bounds_with_20%_margin
@@ -35,9 +35,9 @@ import subprocess
 import sys
 import os
 
-# ─── DEFAULTS ─────────────────────────────────────────────────────────────────
+# --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV = "../data/DLCfiltered/OpenFieldMA1_1/OpenFieldMA1_1.csv"
+DEFAULT_CSV = "../data/DLCfiltered/OpenFieldMA3_1/OpenFieldM3_1.csv"
 DEFAULT_MARGIN = 0.20  # 20% margin = thigmotaxis zone
 DEFAULT_FPS = 30  # video frame rate
 
@@ -75,16 +75,16 @@ def run_command(script: str, args: list, description: str) -> bool:
     """
     cmd = [sys.executable, script] + args
     print(f"\n{'='*70}")
-    print(f"📊 {description}")
+    print(f"[*] {description}")
     print(f"{'='*70}")
     print(f"Running: {' '.join(cmd)}\n")
 
     try:
         result = subprocess.run(cmd, check=True, text=True)
-        print(f"✅ {description} — COMPLETE\n")
+        print(f"[OK] {description} — COMPLETE\n")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ {description} — FAILED")
+        print(f"[ERROR] {description} — FAILED")
         print(f"Error: {e}\n")
         return False
 
@@ -128,6 +128,9 @@ Examples:
                        help="Heatmap colormap (default: inferno)")
     parser.add_argument("--sigma", type=float, default=15.0,
                        help="Gaussian blur sigma for heatmap (default: 15.0 px)")
+    parser.add_argument("--min-bout-frames", type=int, default=None, dest="min_bout_frames",
+                       help="Minimum frames for a behaviour bout "
+                            "(default: 1 for labeled data <200 frames, 10 for video)")
     parser.add_argument("--skip-behavior", action="store_true",
                        help="Skip behavior_detection.py (rearing & grooming detection)")
     parser.add_argument("--skip-orbit", action="store_true",
@@ -152,8 +155,14 @@ Examples:
 
     # Verify CSV exists
     if not os.path.isfile(args.csv):
-        print(f"❌ ERROR: CSV not found: {args.csv}")
+        print(f"[ERROR] ERROR: CSV not found: {args.csv}")
         sys.exit(1)
+
+    # Auto-detect labeled data (few frames) -> lower min_bout threshold
+    if args.min_bout_frames is None:
+        import pandas as pd
+        _n = sum(1 for _ in open(args.csv)) - 3  # subtract 3 header rows
+        args.min_bout_frames = 1 if _n < 200 else 10
 
     # Common arguments for all scripts
     common_args = [
@@ -169,19 +178,20 @@ Examples:
     results = {}
 
     print(f"\n{'='*70}")
-    print(f"🔧 OPEN-FIELD ANALYSIS PIPELINE")
+    print(f"[*] OPEN-FIELD ANALYSIS PIPELINE")
     print(f"{'='*70}")
-    print(f"\n📍 Arena bounds:  X {arena[0]:.0f}–{arena[1]:.0f}  Y {arena[2]:.0f}–{arena[3]:.0f}")
-    print(f"📍 Inner zone:    X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
-    print(f"📊 CSV: {args.csv}")
-    print(f"⚙️  Likelihood: {args.likelihood}  |  Jump-thresh: {args.jump_thresh}px  |  Smooth: {args.smooth}")
+    print(f"\n[*] Arena bounds:  X {arena[0]:.0f}-{arena[1]:.0f}  Y {arena[2]:.0f}-{arena[3]:.0f}")
+    print(f"[*] Inner zone:    X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
+    print(f"[*] CSV: {args.csv}")
+    print(f"[]  Likelihood: {args.likelihood}  |  Jump-thresh: {args.jump_thresh}px  |  Smooth: {args.smooth}")
 
-    # ── Step 0: Behavior Detection (rearing & grooming) ─────────────────────
+    # -- Step 0: Behavior Detection (rearing & grooming) ---------------------
     if not args.skip_behavior:
         behavior_args = [
             "--csv", args.csv,
             "--fps", str(args.fps),
             "--out-dir", os.path.dirname(args.csv),
+            "--min-bout-frames", str(args.min_bout_frames),
         ]
         results["behavior"] = run_command(
             "../src/behavior_detection.py",
@@ -189,10 +199,10 @@ Examples:
             "Step 0/4: Behavior Detection (Rearing & Grooming)"
         )
     else:
-        print("\n⊘ Skipping behavior_detection.py")
+        print("\n[skip] Skipping behavior_detection.py")
         results["behavior"] = None
 
-    # ── Step 1: Orbit trajectories ────────────────────────────────────────────
+    # -- Step 1: Orbit trajectories --------------------------------------------
     if not args.skip_orbit:
         results["orbit"] = run_command(
             "orbit_plot.py",
@@ -200,10 +210,10 @@ Examples:
             "Step 1/4: Orbit Trajectories & Thigmotaxis"
         )
     else:
-        print("\n⊘ Skipping orbit_plot.py")
+        print("\n[skip] Skipping orbit_plot.py")
         results["orbit"] = None
 
-    # ── Step 2: Activity heatmap (KDE) ───────────────────────────────────────
+    # -- Step 2: Activity heatmap (KDE) ---------------------------------------
     if not args.skip_heatmap:
         heatmap_args = common_args + ["--cmap", args.cmap, "--sigma", str(args.sigma)]
         results["heatmap"] = run_command(
@@ -212,10 +222,10 @@ Examples:
             "Step 2/4: Activity Heatmap (KDE) — THESIS PRIMARY"
         )
     else:
-        print("\n⊘ Skipping activity_heatmap.py")
+        print("\n[skip] Skipping activity_heatmap.py")
         results["heatmap"] = None
 
-    # ── Step 3: Per-bodypart heatmap grid ────────────────────────────────────
+    # -- Step 3: Per-bodypart heatmap grid ------------------------------------
     if not args.skip_bodypart:
         results["bodypart"] = run_command(
             "bodypart_heatmaps.py",
@@ -223,12 +233,12 @@ Examples:
             "Step 3/4: Per-Bodypart Heatmap Grid"
         )
     else:
-        print("\n⊘ Skipping bodypart_heatmaps.py")
+        print("\n[skip] Skipping bodypart_heatmaps.py")
         results["bodypart"] = None
 
-    # ── Summary ──────────────────────────────────────────────────────────────
+    # -- Summary --------------------------------------------------------------
     print(f"\n{'='*70}")
-    print(f"📋 PIPELINE SUMMARY")
+    print(f"[] PIPELINE SUMMARY")
     print(f"{'='*70}")
 
     completed = sum(1 for v in results.values() if v is True)
@@ -236,33 +246,33 @@ Examples:
     failed = sum(1 for v in results.values() if v is False)
 
     if results.get("behavior") is True:
-        print("✅ Behavior detection completed")
-        print("   → *_behavior_bouts.csv (per-bout summary)")
-        print("   → *_behavior_frames.csv (per-frame labels)")
-        print("   → *_behavior_timeline.png (timeline visualization)")
+        print("[OK] Behavior detection completed")
+        print("   -> *_behavior_bouts.csv (per-bout summary)")
+        print("   -> *_behavior_frames.csv (per-frame labels)")
+        print("   -> *_behavior_timeline.png (timeline visualization)")
 
     if results.get("orbit") is True:
-        print("✅ Orbit trajectories generated")
-        print("   → *_orbit_grid.png (per-bodypart trajectories)")
-        print("   → *_thigmotaxis.png (body_center + walls)")
+        print("[OK] Orbit trajectories generated")
+        print("   -> *_orbit_grid.png (per-bodypart trajectories)")
+        print("   -> *_thigmotaxis.png (body_center + walls)")
 
     if results.get("heatmap") is True:
-        print("✅ Activity heatmap generated (THESIS PRIMARY)")
-        print("   → *_heatmap_histogram.png (discrete bin density)")
-        print("   → *_heatmap_kde.png (smooth density, inferno colormap)")
+        print("[OK] Activity heatmap generated (THESIS PRIMARY)")
+        print("   -> *_heatmap_histogram.png (discrete bin density)")
+        print("   -> *_heatmap_kde.png (smooth density, inferno colormap)")
 
     if results.get("bodypart") is True:
-        print("✅ Per-bodypart heatmap grid generated")
-        print("   → *_bodypart_heatmaps.png (4×3 grid)")
+        print("[OK] Per-bodypart heatmap grid generated")
+        print("   -> *_bodypart_heatmaps.png (4×3 grid)")
 
     if skipped > 0:
-        print(f"\n⊘ {skipped} script(s) skipped")
+        print(f"\n[skip] {skipped} script(s) skipped")
 
     if failed > 0:
-        print(f"\n❌ {failed} script(s) FAILED")
+        print(f"\n[ERROR] {failed} script(s) FAILED")
         sys.exit(1)
 
-    print(f"\n✨ All outputs saved to: ../data/DLCfiltered/OpenFieldMA1_1")
+    print(f"\n[done] All outputs saved to: ../data/DLCfiltered/OpenFieldMA1_1")
     print(f"{'='*70}\n")
 
 
