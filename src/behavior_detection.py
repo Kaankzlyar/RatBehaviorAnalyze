@@ -370,6 +370,15 @@ GROUND_TRUTH_BY_SUBJECT: dict[str, dict[str, list[tuple[int, int]]]] = {
             (4350, 5400),      # 145-180 s (grooming-like continuation)
         ],
     },
+    "OpenFieldMA7_1": {
+        "rearing": [],
+        # Upright / sit-up grooming confirmed by video review.
+        # User-reported window is 158–180 s, but the tracked CSV ends at
+        # frame 5115 (170.5 s), so GT is capped at the data boundary.
+        "grooming": [
+            (4740, 5115),      # 158–170.5 s (upright grooming)
+        ],
+    },
 }
 
 
