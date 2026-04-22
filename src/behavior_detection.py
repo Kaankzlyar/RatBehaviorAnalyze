@@ -9,20 +9,27 @@ GROOMING posture is computed FIRST (before rearing) so it can disambiguate
 compact rearing from grooming – both compress the body in 2-D projection,
 but grooming has nose close to forepaws while rearing does not.
 
-GROOMING – two sufficient postural branches (disjunction), both requiring
-     fp_hp_vert < GROOM_MAX_FPHP:
+GROOMING – three sufficient postural branches (disjunction), all requiring
+     body_vel < GROOM_MAX_VEL:
 
-       (a) Tight posture  (nose2fp < GROOM_NOSE2FP_TIGHT)
+       (a) Tight posture  (nose2fp < GROOM_NOSE2FP_TIGHT, fp_hp_vert low)
            Classic face-washing: nose held against the forepaw cluster.
 
-       (b) Loose posture + stillness
-           (nose2fp < GROOM_NOSE2FP  AND  body_vel < GROOM_MAX_VEL)
+       (b) Loose posture + stillness  (fp_hp_vert low)
            Low / splayed body-grooming where the nose is farther from the
            paws in 2-D projection but the animal is nearly stationary.
+
+       (c) Upright / sit-up posture  (fp_hp_vert elevated, nose_y not near
+           the top wall)
+           Rat sits on haunches with forepaws raised to the face. Forepaws
+           are ABOVE hindpaws in image (fp_hp_vert > GROOM_MAX_FPHP), so
+           branches (a)/(b) miss this phenotype. The nose_y gate keeps
+           real top-wall rearing from being reclassified as grooming.
 
      Confirmed ground-truth windows:
        MA1_2  — frames 2181-2196 (brief face-wash), 4795-5034 (2:39-2:47).
        MA5_1  — ~65-67, 92-103, 106-121, 131-145, 145-180 s (long bouts).
+       MA7_1  — ~160-170 s (upright / sit-up grooming).
      Note: the MA5_1 78-81 s bout is unrecoverable from DLC because the
      nose is occluded by paws (likelihood < 0.6 in 85/90 frames).
 
@@ -212,18 +219,39 @@ def compute_features(
 def classify_frames(feat: pd.DataFrame) -> pd.Series:
     """Return a Series of string labels: 'rearing', 'grooming', or 'other'."""
     # ── Grooming posture (computed BEFORE rearing so it can gate R1) ──────
-    # Both branches require velocity gate + forepaws not elevated + nose
-    # inside the arena.  During wall-rearing the nose and forepaws are
-    # both pressed on the wall (small nose2fp in 2-D), but the rat is
-    # moving and its nose is at/beyond the arena boundary.
+    # Three sufficient branches cover the observed grooming phenotypes:
+    #   tight   — upright face-wash with nose held against paws (MA1_2)
+    #   loose   — low / splayed body-grooming, stationary (MA5_1)
+    #   upright — sit-up grooming on haunches, forepaws elevated (MA7_1).
+    #             Distinguished from top-wall rearing by the nose_y gate:
+    #             real top-wall rearing has nose_y < REAR_NOSE_Y_MAX (near
+    #             the top of the frame); sit-up grooming happens in the
+    #             middle of the arena.
+    # All three require a velocity gate: during wall-rearing the nose can
+    # be close to the forepaws in 2-D projection (both pressed on the
+    # wall), so velocity separates stationary grooming from active rearing.
     # NaN in any feature → condition evaluates False (safe).
     nose_inside = (
         (feat["nose_x"] > ARENA_X_LEFT) & (feat["nose_x"] < ARENA_X_RIGHT)
         & (feat["nose_y"] > ARENA_Y_TOP) & (feat["nose_y"] < ARENA_Y_BOTTOM)
     )
-    groom_tight = (feat["nose2fp"] < GROOM_NOSE2FP_TIGHT) & (feat["body_vel"] < GROOM_MAX_VEL)
-    groom_loose = (feat["nose2fp"] < GROOM_NOSE2FP) & (feat["body_vel"] < GROOM_MAX_VEL)
-    grooming_posture = (groom_tight | groom_loose) & (feat["fp_hp_vert"] < GROOM_MAX_FPHP) & nose_inside
+    groom_tight = (
+        (feat["nose2fp"] < GROOM_NOSE2FP_TIGHT)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+    )
+    groom_loose = (
+        (feat["nose2fp"] < GROOM_NOSE2FP)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+    )
+    groom_upright = (
+        (feat["nose2fp"] < GROOM_NOSE2FP)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] > GROOM_MAX_FPHP)        # forepaws elevated
+        & (feat["nose_y"] > REAR_NOSE_Y_MAX)           # not near top wall
+    )
+    grooming_posture = (groom_tight | groom_loose | groom_upright) & nose_inside
 
     # ── Rearing rules ────────────────────────────────────────────────────
     # R1 – Compact rearing (body compressed in 2-D projection).
@@ -475,9 +503,10 @@ def main() -> None:
           f" | (fp_hp>{REAR_EXTEND_FPHP} & nose_y<{REAR_NOSE_Y_MAX})"
           f" | (fp_hp<{REAR_BOTTOM_STRONG_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y})"
           f" | (fp_hp<{REAR_BOTTOM_COMPACT_FPHP} & nose_y>{REAR_BOTTOM_NOSE_Y} & htdist<{REAR_BOTTOM_HTDIST})")
-    print(f"Grooming thresholds : nose2fp<{GROOM_NOSE2FP_TIGHT}"
-          f" OR (nose2fp<{GROOM_NOSE2FP} & body_vel<{GROOM_MAX_VEL} px/s)"
-          f"   [& fp_hp<{GROOM_MAX_FPHP} & not rearing]")
+    print(f"Grooming thresholds : (nose2fp<{GROOM_NOSE2FP_TIGHT} & fp_hp<{GROOM_MAX_FPHP})"
+          f" OR (nose2fp<{GROOM_NOSE2FP} & fp_hp<{GROOM_MAX_FPHP})"
+          f" OR (nose2fp<{GROOM_NOSE2FP} & fp_hp>{GROOM_MAX_FPHP} & nose_y>{REAR_NOSE_Y_MAX})"
+          f"   [all & body_vel<{GROOM_MAX_VEL} px/s & not rearing]")
     print(f"Minimum bout duration : {args.min_bout_frames} frames ({args.min_bout_frames/fps:.2f} s)\n")
 
     print("REARING BOUTS:")
