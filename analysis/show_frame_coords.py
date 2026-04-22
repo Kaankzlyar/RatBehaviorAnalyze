@@ -9,7 +9,7 @@ Phase 2 — Click 4 inner zone corners  (thigmotaxis boundary)
 At the end prints the exact orbit_plot.py command with your selections.
 
 Usage:
-    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA5_3/MA5-3_res.avi
+    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldMA7_1/MA7-1_res.avi
 """
 
 import argparse
