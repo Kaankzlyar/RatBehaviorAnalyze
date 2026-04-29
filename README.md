@@ -26,8 +26,8 @@ treatment groups of three, and each rat is recorded in both arenas — giving
 |--------|-----------|---------------------------|--------------------------|
 | MA1    | MA1_1–3   | none (vehicle)            | **control baseline**     |
 | MA3    | MA3_1–3   | aspartame                 | sweetener arm            |
-| MA5    | MA5_1–3   | aspartame + grapefruit    | combined / interaction arm |
-| MA7    | MA7_1–3   | grapefruit only           | grapefruit-only arm      |
+| MA5    | MA5_1–3   | grapefruit only           | grapefruit-only arm        |
+| MA7    | MA7_1–3   | aspartame + grapefruit    | combined / interaction arm |
 
 The grapefruit arm lets us separate a grapefruit-only effect from the
 aspartame + grapefruit combination, and compare both against the aspartame
