@@ -342,14 +342,17 @@ def print_subject_report(row: dict) -> None:
 
 def find_subject_csvs(batch_dir: str) -> list[str]:
     """
-    Walk batch_dir looking for DLC CSVs named OpenField*.csv
-    (one level of subfolders expected).
+    Walk batch_dir looking for raw DLC pose CSVs.
+
+    Only matches the bare ``OpenFieldMA<cohort>_<run>.csv`` filename so that
+    derived per-subject CSVs (``*_behavior_*.csv``, ``*_oft_metrics.csv``,
+    ``*_speed.csv``, ``*_speed_summary.csv``, ``*_kutu_*.csv``) are skipped.
     """
+    pattern = re.compile(r"^OpenFieldMA\d+_\d+\.csv$")
     csvs = []
     for root, dirs, files in os.walk(batch_dir):
         for f in files:
-            if f.startswith("OpenField") and f.endswith(".csv") \
-                    and "_behavior" not in f and "_oft_metrics" not in f:
+            if pattern.match(f):
                 csvs.append(os.path.join(root, f))
     return sorted(csvs)
 
