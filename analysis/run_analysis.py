@@ -13,9 +13,9 @@ Workflow:
 
 Usage (RECOMMENDED):
     # Interactive: define boundaries with tool
-    python show_frame_coords.py --video ../data/DLCfiltered/OpenFieldM5_3/MA5-3_res.avi
+    python show_frame_coords.py --video ../data/DLCfiltered/Greyfurt/OpenFieldMA5_3/MA5-3_res.avi
     # Copy the --arena and --inner-zone from output, then:
-    python run_analysis.py  --arena 398 772 157 533 --inner-zone 423 750 181 508 --csv ../data/DLCfiltered/OpenFieldMA7_3/OpenFieldMA7_3.csv
+    python run_analysis.py  --arena 397 777 156 535 --inner-zone 422 748 182 506 --csv ../data/DLCfiltered/Greyfurt/OpenFieldMA5_3/OpenFieldMA5_3.csv
 
     Run orbit_plot.py with these exact bounds:
 
@@ -37,7 +37,7 @@ import os
 
 # --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV = "../data/DLCfiltered/OpenFieldMA3_1/OpenFieldM3_1.csv"
+DEFAULT_CSV = "../data/DLCfiltered/Greyfurt/OpenFieldMA5_3/OpenFieldMA5_3.csv"
 DEFAULT_MARGIN = 0.20  # 20% margin = thigmotaxis zone
 DEFAULT_FPS = 30  # video frame rate
 
