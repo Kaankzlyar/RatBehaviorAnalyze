@@ -52,15 +52,22 @@ from scipy.io import loadmat
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from speed_analysis import (  # noqa: E402
     DEFAULT_FPS, DEFAULT_SG_WINDOW, DEFAULT_SG_ORDER,
-    COHORT_MAP, GROUP_COLORS,
+    GROUP_COLORS,
     sg_velocity, interpolate_short_gaps,
 )
 
 COHORT_DIR = {
-    "MA1": "control",
-    "MA3": "ASP",
-    "MA5": "Greyfurt",
-    "MA7": "ASP ve Greyfurt",
+    "MA1": "control",         "MA2": "control",
+    "MA3": "ASP",             "MA4": "ASP",
+    "MA5": "Greyfurt",        "MA6": "Greyfurt",
+    "MA7": "ASP ve Greyfurt", "MA8": "ASP ve Greyfurt",
+}
+
+GROUP_FROM_DIR = {
+    "control":         "Control",
+    "ASP":             "Aspartame",
+    "Greyfurt":        "Grapefruit",
+    "ASP ve Greyfurt": "Aspartame+Grapefruit",
 }
 
 
@@ -83,7 +90,7 @@ def kutu_speed(xc: np.ndarray, yc: np.ndarray, fps: float,
 
 
 def kutu_to_subject(mat_basename: str) -> tuple[str, str, str] | None:
-    """`MA1-1_res` -> ('MA1', 'control', 'OpenFieldMA1_1'). None if not in DLC set."""
+    """`MA1-1_res` -> ('MA1', 'control', 'OpenFieldMA1_1'). None if cohort unknown."""
     m = re.match(r"MA(\d+)-(\d+)_res", mat_basename)
     if not m:
         return None
@@ -94,13 +101,22 @@ def kutu_to_subject(mat_basename: str) -> tuple[str, str, str] | None:
     return cohort, COHORT_DIR[cohort], f"OpenField{cohort}_{run}"
 
 
+def _iter_kutu_mats(kare_dir: str):
+    """Yield .mat paths from the cohort subfolders only (skips KareFinal/)."""
+    for cohort_dir in sorted(set(COHORT_DIR.values())):
+        sub = os.path.join(kare_dir, cohort_dir)
+        if not os.path.isdir(sub):
+            continue
+        for f in sorted(os.listdir(sub)):
+            if f.endswith("_res.mat"):
+                yield os.path.join(sub, f)
+
+
 def find_pairs(kare_dir: str, dlc_dir: str) -> list[tuple[str, str, str, str, str]]:
     """Return [(cohort, group, subject_id, mat_path, dlc_speed_csv), ...]."""
     pairs = []
-    for f in sorted(os.listdir(kare_dir)):
-        if not f.endswith("_res.mat"):
-            continue
-        info = kutu_to_subject(os.path.splitext(f)[0])
+    for mat_path in _iter_kutu_mats(kare_dir):
+        info = kutu_to_subject(os.path.splitext(os.path.basename(mat_path))[0])
         if info is None:
             continue
         cohort, cohort_dir, subject = info
@@ -108,8 +124,8 @@ def find_pairs(kare_dir: str, dlc_dir: str) -> list[tuple[str, str, str, str, st
         if not os.path.isfile(dlc_csv):
             print(f"[skip] {subject}: no DLC speed CSV at {dlc_csv}")
             continue
-        group = COHORT_MAP.get(cohort, (cohort, "Unknown"))[1]
-        pairs.append((cohort, group, subject, os.path.join(kare_dir, f), dlc_csv))
+        group = GROUP_FROM_DIR.get(cohort_dir, "Unknown")
+        pairs.append((cohort, group, subject, mat_path, dlc_csv))
     return pairs
 
 
