@@ -1,0 +1,5 @@
+group,f1_binary,accuracy
+Control,0.0,0.4167
+Aspartame,0.3333,0.6667
+Grapefruit,0.0,0.5833
+ASP+GF,0.5714,0.75

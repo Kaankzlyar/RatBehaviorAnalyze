@@ -1,0 +1,17 @@
+target,model,f1_macro,accuracy,n_classes
+group,LogisticReg,0.0833,0.0833,4
+group,RandomForest,0.1548,0.1667,4
+group,XGBoost,0.2548,0.25,4
+group,SVM,0.2667,0.25,4
+anxiety_level,LogisticReg,0.5202,0.75,3
+anxiety_level,RandomForest,0.5202,0.75,3
+anxiety_level,XGBoost,0.5202,0.75,3
+anxiety_level,SVM,0.1961,0.4167,3
+rearing_profile,LogisticReg,0.303,0.4167,3
+rearing_profile,RandomForest,0.4512,0.5833,3
+rearing_profile,XGBoost,0.3407,0.4167,3
+rearing_profile,SVM,0.3165,0.4167,3
+grooming_profile,LogisticReg,0.3833,0.5833,3
+grooming_profile,RandomForest,0.2381,0.4167,3
+grooming_profile,XGBoost,0.5063,0.5833,3
+grooming_profile,SVM,0.1961,0.4167,3
