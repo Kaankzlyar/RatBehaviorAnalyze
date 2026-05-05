@@ -20,6 +20,19 @@ behavioural profiling (MA1 / MA3 / MA5 / MA7).
   made the OFT model unsuitable. Keypoint set, per-behaviour metric mapping,
   and repo layout decisions live in
   [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md).
+- **Cohort statistics (replaces failed cohort classifier):**
+  Kruskal-Wallis + Dunn post-hoc + PERMANOVA pipeline at
+  `analysis/cohort_stats.py` — main result: `center_zone_entries` shows a
+  large effect (ε²=0.69) with Grapefruit < ASP+GF (Dunn z=2.85, within-feature
+  q=0.026); other anxiety-axis features point the same direction but don't
+  survive BH-FDR. Outputs in `reports/cohort_*.csv`.
+- **Next planned model — window-level behaviour classifier:** the
+  subject-level ML stack hit n=12 limits (cohort F1≈0.27, label leakage on
+  anxiety_level). Plan now is to train at the **window level** (1-second
+  pose slices, ~50k samples, subject-grouped LOSO) to replace the rule-based
+  detector with a retrainable model that ports cleanly to T-maze. Full
+  7-phase plan in
+  [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md).
 
 > **Looking for a description of what the pipeline produces?**
 > See [`OUTPUTS.md`](OUTPUTS.md) — a full walkthrough of every file that
@@ -167,6 +180,10 @@ RatBehaviorAnalyze/
 │   ├── features.py                    Stage 05: feature engineering (20+ metrics/subject)
 │   ├── train_baseline.py              Stage 06: LOOCV across 4 targets, 4 model families
 │   ├── visualize_reports.py           Stage 07: confusion matrices, SHAP, OvR F1
+│   ├── window_features.py             (planned) Stage 06.2: pose-window feature extractor
+│   ├── window_labeling.py             (planned) Stage 06.2: bind ground-truth to windows
+│   ├── train_window_classifier.py     (planned) Stage 06.2: subject-grouped LOSO trainer
+│   ├── inference.py                   (planned) Stage 06.2: CSV-in → bouts + metrics
 │   ├── orbit_plot.py                  Trajectory plotting
 │   ├── show_frame_coords.py           Arena-boundary picker (interactive)
 │   ├── requirements.txt
@@ -183,6 +200,8 @@ RatBehaviorAnalyze/
 │   ├── speed_analysis.py              Speed pipeline + cohort summary
 │   ├── kutu_validation.py             Cross-validation vs. professor's HSV-blob pipeline
 │   ├── behavior_analysis.py           Aggregated behaviour bouts → group stats
+│   ├── cohort_stats.py                Kruskal-Wallis + Dunn + PERMANOVA across cohorts
+│   ├── label_bouts.py                 (planned) Interactive bout-labelling tool
 │   ├── orbit_plot.py                  Per-bodypart trajectories
 │   ├── activity_heatmap.py            Body-centre KDE + histogram
 │   ├── bodypart_heatmaps.py           Per-bodypart density grid
@@ -218,6 +237,9 @@ RatBehaviorAnalyze/
 │   ├── loocv_predictions.csv          Per-fold per-target predictions
 │   ├── model_comparison.csv           Per-model accuracy / F1 across targets
 │   ├── ovr_binary_f1.csv              One-vs-rest F1 per cohort
+│   ├── cohort_kruskal_wallis.csv      Per-feature KW (H, p_perm, ε², q_bh)
+│   ├── cohort_dunn_posthoc.csv        Pairwise Dunn z + p (within-feature BH)
+│   ├── cohort_permanova.csv           Multivariate pseudo-F + R² + p_perm
 │   └── figures/                       SHAP + confusion-matrix PNGs (per target)
 │
 ├── docs/
@@ -287,6 +309,8 @@ All outputs land next to the input CSV.
 | 05    | `src/features.py`                        | Feature engineering — 20+ metrics per subject | done |
 | 06    | `src/train_baseline.py`                  | LOOCV training — logistic / RF / SVM / XGBoost across 4 targets | done |
 | 07    | `src/visualize_reports.py` + `docs/final_report.md` | Confusion matrices, SHAP, OvR F1, written report | done |
+| 06.1  | `analysis/cohort_stats.py`               | Non-parametric cohort effect — Kruskal-Wallis + Dunn + PERMANOVA (replaces failed cohort classifier) | done |
+| 06.2  | `docs/window_classifier_plan.md`         | Window-level behaviour classifier — 7-phase plan (replaces rule-based detector at inference time) | planned |
 | —     | `docs/tmaze_keypoints_and_layout.md`     | T-maze keypoint plan + repo layout (5-point DLC project, separate from OFT) | planned |
 | 02-T  | `src/dlc/tmaze/*` (planned)              | T-maze DLC project — separate model, 5 keypoints | planned |
 | 02B-T | `src/behavior_detection.py` (refactor)   | Make detector keypoint-profile aware so the same code serves both arenas | planned |
@@ -382,6 +406,7 @@ per-behaviour metric mapping in
 - [`OUTPUTS.md`](OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
 - [`docs/final_report.md`](docs/final_report.md) — **consolidated OFT thesis chapter + ML inference roadmap**
 - [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md) — **T-maze keypoint plan + repo layout (5-point DLC project)**
+- [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md) — **window-level behaviour classifier — 7-phase implementation plan**
 - [`docs/behavior_detection_documentation.md`](docs/behavior_detection_documentation.md) — behaviour-detector design (algorithmic)
 - [`docs/behavior_comparison.md`](docs/behavior_comparison.md) — cohort-vs-cohort behavioural comparison
 - [`docs/yapilanlar.md`](docs/yapilanlar.md) — running progress log (Turkish)
@@ -407,7 +432,9 @@ per-behaviour metric mapping in
 | 03A.1 — Speed pipeline + cohort summary                          | done |
 | 03A.2 — Cross-validation vs. professor's HSV-blob pipeline       | done (~14% mean-speed bias, uniform across cohorts) |
 | 05 — Feature engineering (20+ metrics per subject)               | done |
-| 06 — ML classifier (LOOCV, 4 model families × 4 targets, SHAP)   | done |
+| 06 — ML classifier (LOOCV, 4 model families × 4 targets, SHAP)   | done (label-leakage caveat — see final_report) |
+| 06.1 — Cohort statistics (`analysis/cohort_stats.py`, KW + Dunn + PERMANOVA) | done — `center_zone_entries` survives within-feature FDR |
+| 06.2 — Window-level behaviour classifier (`docs/window_classifier_plan.md`) | **planning (2026-05-05)** — 7 phases, replaces rule-based detector |
 | 07 — Cross-cohort reporting (`docs/final_report.md`)             | done |
 
 ### T-maze arm
