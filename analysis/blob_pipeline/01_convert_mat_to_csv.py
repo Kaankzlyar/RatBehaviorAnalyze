@@ -86,8 +86,25 @@ def load_xy_from_dlc(dlc_csv: pathlib.Path) -> tuple[np.ndarray, np.ndarray] | N
     return df["body_center_x"].values, df["body_center_y"].values
 
 
+# Canonical cohort folders — anything outside these (e.g. KareFinal/) is
+# treated as a duplicate or non-canonical variant and skipped.  The cohort
+# folders are the source of truth after commit 982d9c3 reorganised them.
+CANONICAL_FOLDERS = ["control", "ASP", "Greyfurt", "ASP ve Greyfurt"]
+
+
 def find_all_mats() -> list[pathlib.Path]:
-    return sorted((DLCFILT / "Kare").rglob("MA*-*_res.mat"))
+    mats: list[pathlib.Path] = []
+    for folder in CANONICAL_FOLDERS:
+        d = DLCFILT / "Kare" / folder
+        if d.exists():
+            mats.extend(sorted(d.glob("MA*-*_res.mat")))
+    return mats
+
+
+# Tracking quality threshold (pixels) — if blob xc OR yc 1-99 percentile
+# range is below this, the tracking likely failed and the subject should
+# be flagged for manual review.
+MIN_TRACKING_RANGE = 100
 
 
 def percentile_range(arr: np.ndarray) -> tuple[float, float]:
@@ -174,16 +191,25 @@ def main() -> None:
                 paired_offsets_x.append(offset_x)
                 paired_offsets_y.append(offset_y)
 
+        x_range = bx_high - bx_low
+        y_range = by_high - by_low
+        tracking_ok = (x_range >= MIN_TRACKING_RANGE
+                       and y_range >= MIN_TRACKING_RANGE)
+
         rows.append({
-            "subject":     f"{cohort}_{run}",
-            "cohort":      cohort,
-            "n_frames":    len(xc),
-            "blob_x_low":  bx_low,  "blob_x_high":  bx_high,
-            "blob_y_low":  by_low,  "blob_y_high":  by_high,
-            "dlc_x_low":   dlc_x_low,  "dlc_x_high": dlc_x_high,
-            "dlc_y_low":   dlc_y_low,  "dlc_y_high": dlc_y_high,
-            "offset_x":    offset_x,
-            "offset_y":    offset_y,
+            "subject":      f"{cohort}_{run}",
+            "cohort":       cohort,
+            "source_folder": COHORT_FOLDER[cohort],
+            "n_frames":     len(xc),
+            "blob_x_low":   bx_low,  "blob_x_high":  bx_high,
+            "blob_y_low":   by_low,  "blob_y_high":  by_high,
+            "blob_x_range": x_range,
+            "blob_y_range": y_range,
+            "tracking_ok":  tracking_ok,
+            "dlc_x_low":    dlc_x_low,  "dlc_x_high": dlc_x_high,
+            "dlc_y_low":    dlc_y_low,  "dlc_y_high": dlc_y_high,
+            "offset_x":     offset_x,
+            "offset_y":     offset_y,
         })
 
     df = pd.DataFrame(rows).sort_values("subject")
@@ -193,8 +219,9 @@ def main() -> None:
 
     # ── 2. Per-subject report ─────────────────────────────────────────────────
     print(f"{'subject':<10} {'frames':>6}  {'blob x range':<13}  {'blob y range':<13}  "
-          f"{'dlc x range':<13}  {'dlc y range':<13}  {'Δx':>6}  {'Δy':>6}")
-    print("-" * 96)
+          f"{'dlc x range':<13}  {'dlc y range':<13}  {'Δx':>6}  {'Δy':>6}  {'track':<6}")
+    print("-" * 104)
+    bad_tracking: list[str] = []
     for r in df.itertuples():
         bx = f"{r.blob_x_low:>4.0f}-{r.blob_x_high:<4.0f}"
         by = f"{r.blob_y_low:>4.0f}-{r.blob_y_high:<4.0f}"
@@ -205,8 +232,17 @@ def main() -> None:
             dy_str = f"{r.dlc_y_low:>4.0f}-{r.dlc_y_high:<4.0f}"
             off_x  = f"{r.offset_x:+5.1f}"
             off_y  = f"{r.offset_y:+5.1f}"
+        track = "OK" if r.tracking_ok else "BAD"
+        if not r.tracking_ok:
+            bad_tracking.append(r.subject)
         print(f"{r.subject:<10} {r.n_frames:>6}  {bx:<13}  {by:<13}  "
-              f"{dx_str:<13}  {dy_str:<13}  {off_x:>6}  {off_y:>6}")
+              f"{dx_str:<13}  {dy_str:<13}  {off_x:>6}  {off_y:>6}  {track:<6}")
+
+    if bad_tracking:
+        print()
+        print(f"[!] Bad tracking detected (xc OR yc range < {MIN_TRACKING_RANGE} px): "
+              f"{', '.join(bad_tracking)}")
+        print("    These subjects will be SKIPPED during conversion.")
 
     # ── 3. Verdict ────────────────────────────────────────────────────────────
     print()
@@ -262,9 +298,16 @@ def main() -> None:
 
     print("Converting MA2/4/6/8 _res.mat → DLC-style CSV...")
     n_converted = 0
+    n_skipped_bad = 0
+    bad_set = set(bad_tracking)
     for mat in find_all_mats():
         cohort, run = parse_subject(mat)
         if cohort not in {"MA2", "MA4", "MA6", "MA8"}:
+            continue
+        subject = f"{cohort}_{run}"
+        if subject in bad_set:
+            print(f"  [skip] {mat.name}: bad tracking, manual review needed")
+            n_skipped_bad += 1
             continue
         try:
             xc, yc = load_xy_from_mat(mat)
@@ -278,7 +321,7 @@ def main() -> None:
         n_converted += 1
         print(f"  {mat.name}  →  {out_csv.relative_to(ROOT)}  ({len(xc)} frames)")
 
-    print(f"\nConverted {n_converted} subjects.")
+    print(f"\nConverted {n_converted} subjects ({n_skipped_bad} skipped due to bad tracking).")
 
 
 if __name__ == "__main__":
