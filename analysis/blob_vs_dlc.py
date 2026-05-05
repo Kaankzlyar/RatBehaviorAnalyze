@@ -93,14 +93,23 @@ CLASSES = ["other", "rearing", "grooming"]
 # ── Loaders ────────────────────────────────────────────────────────────────────
 def load_blob_mat(path: pathlib.Path) -> dict:
     m = loadmat(str(path))
+    xc = np.asarray(m["xc"]).flatten().astype(float)
+    if "t" in m:
+        t = np.asarray(m["t"]).flatten().astype(float)
+    else:
+        # Older _res.mat versions do not save `t`; assume the recording
+        # starts at frame 0 of the source video and synthesise a uniform
+        # FPS-spaced timestamp axis.  Alignment offset becomes 0.
+        print(f"  [warn] {path.name}: no `t` field — assuming start at 0, fps={FPS:.0f}")
+        t = np.arange(len(xc)) / FPS
     return {
-        "xc":  np.asarray(m["xc"]).flatten().astype(float),
+        "xc":  xc,
         "yc":  np.asarray(m["yc"]).flatten().astype(float),
         "amn": np.asarray(m["amn"]).flatten().astype(float),
         "amx": np.asarray(m["amx"]).flatten().astype(float),
         "bmn": np.asarray(m["bmn"]).flatten().astype(float),
         "bmx": np.asarray(m["bmx"]).flatten().astype(float),
-        "t":   np.asarray(m["t"]).flatten().astype(float),
+        "t":   t,
     }
 
 
