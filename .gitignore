@@ -30,6 +30,12 @@ models/dlc_model/
 data/heatmaps/
 data/features/
 
+# Generated synthetic CSVs (experimental/synthetic-keypoints branch only)
+data/synthetic_DLCfiltered/*/
+data/synthetic_DLCfiltered/synthesis_log.csv
+!data/synthetic_DLCfiltered/README.md
+models/anxiety_demo/
+
 # OS
 .DS_Store
 Thumbs.db
