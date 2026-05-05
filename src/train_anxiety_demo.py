@@ -1,9 +1,5 @@
 """
-Train a binary anxiety classifier for the educational demo.
-
-Combines:
-  - Real DLC subjects:  data/DLCfiltered/<group>/OpenField*/<subject>.csv
-  - Synthetic subjects: data/synthetic_DLCfiltered/<group>/<subject>/<subject>.csv
+Train a binary anxiety classifier on the OFT subjects under data/DLCfiltered/.
 
 For each subject, computes the 4 anxiety-axis features
 (pct_time_center, pct_time_periphery, center_zone_entries, pct_time_freeze),
@@ -39,16 +35,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from src._metrics_minimal import compute_anxiety_features, load_dlc, ANXIETY_FEATURES
 
-REAL_DIR = ROOT / "data" / "DLCfiltered"
-SYNTH_DIR = ROOT / "data" / "synthetic_DLCfiltered"
+DLC_DIR = ROOT / "data" / "DLCfiltered"
 MODEL_DIR = ROOT / "models" / "anxiety_demo"
 
 
 def collect_subjects() -> pd.DataFrame:
     rows: list[dict] = []
-
-    # real DLC subjects (skip Kare, only canonical pose CSVs)
-    for csv in REAL_DIR.glob("*/*/*.csv"):
+    for csv in DLC_DIR.glob("*/*/*.csv"):
         if "Kare" in csv.parts:
             continue
         if csv.stem != csv.parent.name:
@@ -59,25 +52,10 @@ def collect_subjects() -> pd.DataFrame:
             dlc = load_dlc(csv)
             feats = compute_anxiety_features(dlc)
         except Exception as exc:
-            print(f"  err real {csv.name}: {exc}")
+            print(f"  err {csv.name}: {exc}")
             continue
         feats.update({"subject_id": csv.parent.name, "n_frames": len(dlc)})
         rows.append(feats)
-
-    # synthetic subjects (if available)
-    if SYNTH_DIR.exists():
-        for csv in SYNTH_DIR.glob("*/*/*.csv"):
-            if csv.stem != csv.parent.name:
-                continue
-            try:
-                dlc = load_dlc(csv)
-                feats = compute_anxiety_features(dlc)
-            except Exception as exc:
-                print(f"  err synth {csv.name}: {exc}")
-                continue
-            feats.update({"subject_id": csv.parent.name, "n_frames": len(dlc)})
-            rows.append(feats)
-
     return pd.DataFrame(rows)
 
 
@@ -91,7 +69,6 @@ def main() -> None:
 
     X = df[ANXIETY_FEATURES].to_numpy(dtype=float)
 
-    # binary anxiety label from anxiety_score sign
     means = X.mean(axis=0)
     stds = X.std(axis=0, ddof=1)
     z = (X - means) / np.where(stds > 0, stds, 1.0)
