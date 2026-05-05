@@ -1,2 +1,2 @@
 subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
-MA7_3,MA7,Aspartame+Grapefruit,176.6,5297,True,6608.7,37.6,530.84,37.18,62.82,14,21,17.27,9.78,0.7929,15,16.42,9.3,8,5.04,2.85
+MA7_3,MA7,Aspartame+Grapefruit,176.6,5297,True,6608.7,37.6,530.84,36.19,63.81,17,21,17.27,9.78,0.7823,15,16.42,9.3,8,5.04,2.85

@@ -739,7 +739,7 @@ axes(handles.axes5);
 plot(t,sgolayfilt(xc,1,51),'b',t,sgolayfilt(yc,1,51),'r')
 
 save([handles.filename,'_res.mat'],'Center','Sides',...
-    'amn','amx','bmn','bmx','xc','yc')
+    'amn','amx','bmn','bmx','xc','yc', 't')
 % Choose default command line output for TMaze_v1
 handles.output = hObject;
 

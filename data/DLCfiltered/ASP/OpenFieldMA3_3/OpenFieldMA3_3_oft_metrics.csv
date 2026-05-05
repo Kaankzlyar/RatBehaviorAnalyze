@@ -1,2 +1,2 @@
 subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
-MA3_3,MA3,Aspartame,160.1,4803,True,4720.1,29.5,1100.37,11.04,88.96,11,16,13.67,8.54,0.7378,9,11.47,7.16,1,0.7,0.44
+MA3_3,MA3,Aspartame,160.1,4803,True,4720.1,29.5,1100.37,15.79,84.21,7,16,13.67,8.54,0.7232,19,24.74,15.45,22,26.45,16.52
