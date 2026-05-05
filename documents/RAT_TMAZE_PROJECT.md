@@ -1,6 +1,16 @@
 # Rat Behavioral Analysis System
 ## Project Documentation & Roadmap
 
+> **⚠️ Partially superseded (2026-05-05).**
+> This roadmap originally assumed a **single shared DeepLabCut model** for both
+> arenas. That assumption has been replaced: the T-maze arm now uses a
+> **separate, lighter 5-keypoint DLC project** distinct from the OFT 9-point
+> model. Reasons (small subjects, corridor wall occlusion, top-down-only
+> camera) and the new repo layout for T-maze data/code live in
+> [`docs/tmaze_keypoints_and_layout.md`](../docs/tmaze_keypoints_and_layout.md).
+> Treat that doc as the canonical reference for T-maze keypoints and file
+> organisation; everything else here still applies.
+
 ---
 
 ## Project Overview
