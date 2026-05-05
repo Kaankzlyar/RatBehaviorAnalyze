@@ -1,0 +1,17 @@
+feature,H,p_asymptotic,p_permutation,epsilon_sq,effect_size_label,q_bh
+center_zone_entries,8.5556,0.0358,0.0085,0.6944,large,0.1360
+spatial_entropy_norm,6.2821,0.0987,0.0868,0.4103,large,0.6495
+pct_time_center,4.8462,0.1834,0.1848,0.2308,large,0.6495
+pct_time_periphery,4.8462,0.1834,0.1975,0.2308,large,0.6495
+groom_bout_count,4.7628,0.1900,0.2030,0.2203,large,0.6495
+total_freeze_s,3.9744,0.2642,0.2795,0.1218,medium,0.6607
+pct_time_freeze,3.9744,0.2642,0.2891,0.1218,medium,0.6607
+freeze_bout_count,3.5112,0.3193,0.3516,0.0639,medium,0.6654
+total_distance_px,3.3590,0.3395,0.3743,0.0449,small,0.6654
+rear_bout_count,2.7402,0.4334,0.4721,-0.0325,negligible,0.7143
+mean_speed_px_s,2.6923,0.4415,0.4911,-0.0385,negligible,0.7143
+rear_pct_time,1.9231,0.5885,0.6365,-0.1346,negligible,0.7845
+rear_total_s,1.9231,0.5885,0.6374,-0.1346,negligible,0.7845
+max_speed_px_s,0.8974,0.8260,0.8529,-0.2628,negligible,0.9748
+groom_total_s,0.4359,0.9327,0.9559,-0.3205,negligible,0.9855
+groom_pct_time,0.2308,0.9725,0.9855,-0.3462,negligible,0.9855
