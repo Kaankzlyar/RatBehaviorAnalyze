@@ -165,6 +165,7 @@ Examples:
         args.min_bout_frames = 1 if _n < 200 else 10
 
     # Common arguments for all scripts
+    csv_dir = os.path.dirname(os.path.abspath(args.csv))
     common_args = [
         "--csv", args.csv,
         "--arena", *[str(x) for x in arena],
@@ -172,6 +173,7 @@ Examples:
         "--likelihood", str(args.likelihood),
         "--jump-thresh", str(args.jump_thresh),
         "--smooth", str(args.smooth),
+        "--out-dir", csv_dir,
     ]
 
     # Track success

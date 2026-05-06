@@ -246,6 +246,11 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         draw_trajectory(ax, x, y, color)
         draw_arena_zones(ax, arena, inner_zone)
 
+        # Pin to arena so all subplots share the same scale
+        _pad = 20
+        _xmn, _xmx, _ymn, _ymx = arena
+        ax.set_xlim(_xmn - _pad, _xmx + _pad)
+        ax.set_ylim(_ymn - _pad, _ymx + _pad)
         ax.invert_yaxis()
         ax.set_title(
             bp,
@@ -313,6 +318,10 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     ax.scatter(xv[~in_border], yv[~in_border], color="#4488FF",
                s=4, alpha=0.5, zorder=3, label="centre zone")
 
+    # Pin axis to arena bounds so all subjects share the same canvas size
+    pad = 20
+    ax.set_xlim(x_min - pad, x_max + pad)
+    ax.set_ylim(y_min - pad, y_max + pad)
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=11)
@@ -387,7 +396,7 @@ def main():
     if REF_BP not in tracking:
         REF_BP = list(tracking.keys())[0]
     ref_rate = thigmotaxis_rate(tracking[REF_BP]["x"], tracking[REF_BP]["y"], inner_zone)
-    bar = "█" * int(ref_rate * 20) if not np.isnan(ref_rate) else ""
+    bar = "#" * int(ref_rate * 20) if not np.isnan(ref_rate) else ""
     print(f"\nThigmotaxis rate [{REF_BP}]: {ref_rate*100:.1f}%  {bar}")
 
     print("\nRendering plots...")
