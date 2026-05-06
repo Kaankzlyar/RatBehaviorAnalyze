@@ -30,6 +30,9 @@ models/dlc_model/
 data/heatmaps/
 data/features/
 
+
+models/anxiety_demo/
+
 # OS
 .DS_Store
 Thumbs.db
