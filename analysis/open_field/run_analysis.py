@@ -1,4 +1,4 @@
-"""
+﻿"""
 run_analysis.py
 ---------------
 Master automation script for complete open-field analysis.
@@ -37,7 +37,7 @@ import os
 
 # --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV = "../data/DLCfiltered/Greyfurt/OpenFieldMA5_3/OpenFieldMA5_3.csv"
+DEFAULT_CSV = "../../data/DLCfiltered/Greyfurt/OpenFieldMA5_3/OpenFieldMA5_3.csv"
 DEFAULT_MARGIN = 0.20  # 20% margin = thigmotaxis zone
 DEFAULT_FPS = 30  # video frame rate
 
@@ -81,10 +81,10 @@ def run_command(script: str, args: list, description: str) -> bool:
 
     try:
         result = subprocess.run(cmd, check=True, text=True)
-        print(f"[OK] {description} — COMPLETE\n")
+        print(f"[OK] {description} â€” COMPLETE\n")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] {description} — FAILED")
+        print(f"[ERROR] {description} â€” FAILED")
         print(f"Error: {e}\n")
         return False
 
@@ -196,7 +196,7 @@ Examples:
             "--min-bout-frames", str(args.min_bout_frames),
         ]
         results["behavior"] = run_command(
-            "../src/behavior_detection.py",
+            "../../src/behavior_detection.py",
             behavior_args,
             "Step 0/4: Behavior Detection (Rearing & Grooming)"
         )
@@ -221,7 +221,7 @@ Examples:
         results["heatmap"] = run_command(
             "activity_heatmap.py",
             heatmap_args,
-            "Step 2/4: Activity Heatmap (KDE) — THESIS PRIMARY"
+            "Step 2/4: Activity Heatmap (KDE) â€” THESIS PRIMARY"
         )
     else:
         print("\n[skip] Skipping activity_heatmap.py")
@@ -265,7 +265,7 @@ Examples:
 
     if results.get("bodypart") is True:
         print("[OK] Per-bodypart heatmap grid generated")
-        print("   -> *_bodypart_heatmaps.png (4×3 grid)")
+        print("   -> *_bodypart_heatmaps.png (4Ã—3 grid)")
 
     if skipped > 0:
         print(f"\n[skip] {skipped} script(s) skipped")
@@ -280,3 +280,4 @@ Examples:
 
 if __name__ == "__main__":
     main()
+

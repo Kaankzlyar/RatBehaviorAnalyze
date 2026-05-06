@@ -1,11 +1,11 @@
-"""
+﻿"""
 orbit_plot.py
 -------------
 Creates per-bodypart orbit visualizations from a DLC filtered CSV.
 
 Outputs two files:
-  1. <name>_orbit_grid.png  — all body parts as individual subplots in a grid
-  2. <name>_thigmotaxis.png — body_center only, with arena + thigmotaxis zone overlay
+  1. <name>_orbit_grid.png  â€” all body parts as individual subplots in a grid
+  2. <name>_thigmotaxis.png â€” body_center only, with arena + thigmotaxis zone overlay
 
 Arena edges and inner zone can be set manually (recommended) using
 show_frame_coords.py, or auto-detected from the data.
@@ -16,8 +16,6 @@ Usage:
     python orbit_plot.py --csv data/DLCfiltered/OpenFieldMA1_2.csv \\
         --arena 397 775 158 532 \\
         --inner-zone 460 710 220 470
-        
-        PYTHONIOENCODING=utf-8 python orbit_plot.py --arena 396 776 153 530 --inner-zone 422 747 177 502
 """
 
 import argparse
@@ -29,10 +27,10 @@ import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
 
-# ─── DEFAULTS ─────────────────────────────────────────────────────────────────
+# --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV       = "data/DLCfiltered/OpenFieldMA1_2.csv"
-DEFAULT_OUT_DIR   = "data/DLCfiltered"
+DEFAULT_CSV       = "../../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR   = "../../data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
 THIGMO_MARGIN     = 0.20   # outer 20% of arena width/height = thigmotaxis zone
 
@@ -50,7 +48,7 @@ BODYPART_COLORS = {
     "tail_base":     "#AAAAAA",
 }
 
-# ─── DATA LOADING ─────────────────────────────────────────────────────────────
+# --- DATA LOADING -------------------------------------------------------------
 
 def apply_arena_filter(x: np.ndarray, y: np.ndarray, arena: tuple) -> tuple:
     """Set points outside arena bounds to NaN."""
@@ -98,18 +96,13 @@ def load_dlc_csv(csv_path: str, likelihood_thresh: float,
         y   = df[bp]["y"].values.astype(float)
         lkh = df[bp]["likelihood"].values.astype(float)
 
-        # Step 1: likelihood filter
         x[lkh < likelihood_thresh] = np.nan
         y[lkh < likelihood_thresh] = np.nan
 
-        # Step 2: arena bounds filter (set outside to NaN)
         if arena is not None:
             x, y = apply_arena_filter(x, y, arena)
 
-        # Step 3: jump threshold (temporal consistency)
         x, y = apply_jump_threshold(x, y, jump_thresh)
-
-        # Step 4: rolling median smoothing
         x, y = apply_rolling_median(x, y, smooth_window)
 
         pct = np.sum(~np.isnan(x)) / len(x) * 100
@@ -118,7 +111,7 @@ def load_dlc_csv(csv_path: str, likelihood_thresh: float,
     return tracking
 
 
-# ─── ARENA & THIGMOTAXIS ──────────────────────────────────────────────────────
+# --- ARENA & THIGMOTAXIS ------------------------------------------------------
 
 def detect_arena(tracking: dict, percentile: float = 0.5) -> tuple:
     """
@@ -166,7 +159,7 @@ def thigmotaxis_rate(x: np.ndarray, y: np.ndarray, inner_zone: tuple) -> float:
     return float(in_border.sum() / len(xv))
 
 
-# ─── COLORMAP ─────────────────────────────────────────────────────────────────
+# --- COLORMAP -----------------------------------------------------------------
 
 def make_temporal_cmap(base_hex: str) -> mcolors.LinearSegmentedColormap:
     base = mcolors.to_rgb(base_hex)
@@ -226,7 +219,7 @@ def draw_arena_zones(ax, arena, inner_zone, arena_color="#FFFFFF", zone_color="#
     ))
 
 
-# ─── PLOT 1: GRID OF ALL BODY PARTS ───────────────────────────────────────────
+# --- PLOT 1: GRID OF ALL BODY PARTS -------------------------------------------
 
 def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
               video_name: str, out_path: str) -> None:
@@ -253,6 +246,11 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         draw_trajectory(ax, x, y, color)
         draw_arena_zones(ax, arena, inner_zone)
 
+        # Pin to arena so all subplots share the same scale
+        _pad = 20
+        _xmn, _xmx, _ymn, _ymx = arena
+        ax.set_xlim(_xmn - _pad, _xmx + _pad)
+        ax.set_ylim(_ymn - _pad, _ymx + _pad)
         ax.invert_yaxis()
         ax.set_title(
             bp,
@@ -267,19 +265,19 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         axes[idx].set_visible(False)
 
     fig.suptitle(
-        f"Per-Bodypart Orbit — {video_name}\n"
+        f"Per-Bodypart Orbit â€” {video_name}\n"
         f"(dashed white = arena wall  |  dotted orange = manually selected inner boundary)\n"
-        f"circle = start  |  diamond = end  |  pale→dark = early→late",
+        f"circle = start  |  diamond = end  |  pale->dark = early->late",
         color="#DDDDDD", fontsize=11, y=1.01,
     )
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Grid saved  → {out_path}")
+    print(f"Grid saved  -> {out_path}")
 
 
-# ─── PLOT 2: BODY_CENTER THIGMOTAXIS DETAIL ───────────────────────────────────
+# --- PLOT 2: BODY_CENTER THIGMOTAXIS DETAIL -----------------------------------
 
 def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
                             video_name: str, out_path: str) -> None:
@@ -320,11 +318,15 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     ax.scatter(xv[~in_border], yv[~in_border], color="#4488FF",
                s=4, alpha=0.5, zorder=3, label="centre zone")
 
+    # Pin axis to arena bounds so all subjects share the same canvas size
+    pad = 20
+    ax.set_xlim(x_min - pad, x_max + pad)
+    ax.set_ylim(y_min - pad, y_max + pad)
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_title(
-        f"Thigmotaxis Detail — {video_name}  [{bp}]\n"
+        f"Thigmotaxis Detail â€” {video_name}  [{bp}]\n"
         f"Thigmotaxis rate: {rate_str}  (orange = border zone, blue = centre zone)",
         color="white", fontsize=12, pad=10,
     )
@@ -334,10 +336,10 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
-    print(f"Thigmo saved → {out_path}")
+    print(f"Thigmo saved -> {out_path}")
 
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+# --- MAIN ---------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="DLC orbit + thigmotaxis plot")
@@ -373,28 +375,28 @@ def main():
                             jump_thresh=args.jump_thresh,
                             smooth_window=args.smooth)
 
-    # ── Arena bounds ─────────────────────────────────────────────────────────
+    # -- Arena bounds ---------------------------------------------------------
     if args.arena:
         arena = tuple(args.arena)
-        print(f"\nArena bounds (manual):        X {arena[0]:.0f}–{arena[1]:.0f}  Y {arena[2]:.0f}–{arena[3]:.0f}")
+        print(f"\nArena bounds (manual):        X {arena[0]:.0f}-{arena[1]:.0f}  Y {arena[2]:.0f}-{arena[3]:.0f}")
     else:
         arena = detect_arena(tracking)
-        print(f"\nArena bounds (auto-detected): X {arena[0]:.0f}–{arena[1]:.0f}  Y {arena[2]:.0f}–{arena[3]:.0f}")
+        print(f"\nArena bounds (auto-detected): X {arena[0]:.0f}-{arena[1]:.0f}  Y {arena[2]:.0f}-{arena[3]:.0f}")
 
-    # ── Inner zone ───────────────────────────────────────────────────────────
+    # -- Inner zone -----------------------------------------------------------
     if args.inner_zone:
         inner_zone = tuple(args.inner_zone)
-        print(f"Inner zone   (manual):        X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
+        print(f"Inner zone   (manual):        X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
     else:
         inner_zone = compute_inner_zone(arena, args.margin)
-        print(f"Inner zone   (auto {args.margin*100:.0f}% margin): X {inner_zone[0]:.0f}–{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}–{inner_zone[3]:.0f}")
+        print(f"Inner zone   (auto {args.margin*100:.0f}% margin): X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
 
-    # ── Thigmotaxis summary (reference: body_center only) ───────────────────
+    # -- Thigmotaxis summary (reference: body_center only) -------------------
     REF_BP = "body_center"
     if REF_BP not in tracking:
         REF_BP = list(tracking.keys())[0]
     ref_rate = thigmotaxis_rate(tracking[REF_BP]["x"], tracking[REF_BP]["y"], inner_zone)
-    bar = "█" * int(ref_rate * 20) if not np.isnan(ref_rate) else ""
+    bar = "#" * int(ref_rate * 20) if not np.isnan(ref_rate) else ""
     print(f"\nThigmotaxis rate [{REF_BP}]: {ref_rate*100:.1f}%  {bar}")
 
     print("\nRendering plots...")
@@ -410,3 +412,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

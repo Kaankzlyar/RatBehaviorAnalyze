@@ -1,4 +1,4 @@
-"""
+﻿"""
 bodypart_heatmaps.py
 --------------------
 Per-bodypart activity density heatmaps in grid layout.
@@ -20,8 +20,8 @@ import pandas as pd
 
 # --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
-DEFAULT_OUT_DIR   = "../data/DLCfiltered"
+DEFAULT_CSV       = "../../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR   = "../../data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
 
 BODYPART_COLORS = {
@@ -178,7 +178,7 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         axes[idx].set_visible(False)
 
     fig.suptitle(
-        f"Per-Bodypart Activity Heatmaps — {video_name}\n"
+        f"Per-Bodypart Activity Heatmaps â€” {video_name}\n"
         f"(2D histogram density, dashed white = arena wall, dotted orange = inner boundary)",
         color="#DDDDDD", fontsize=11, y=1.01,
     )
@@ -238,3 +238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

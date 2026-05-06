@@ -1,4 +1,4 @@
-"""
+﻿"""
 activity_heatmap.py
 -------------------
 Spatial density heatmap showing where the animal spent most time.
@@ -21,8 +21,8 @@ from scipy.ndimage import gaussian_filter
 
 # --- DEFAULTS -----------------------------------------------------------------
 
-DEFAULT_CSV       = "../data/DLCfiltered/OpenFieldMA1_2.csv"
-DEFAULT_OUT_DIR   = "../data/DLCfiltered"
+DEFAULT_CSV       = "../../data/DLCfiltered/OpenFieldMA1_2.csv"
+DEFAULT_OUT_DIR   = "../../data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
 
 
@@ -126,7 +126,7 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Heatmap — {video_name}\n"
+        f"Activity Heatmap â€” {video_name}\n"
         f"(body_center density, {len(xv)} valid frames)",
         color="white", fontsize=13, pad=10,
     )
@@ -145,7 +145,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     Uses arena-resolution histogram + heavy gaussian blur + log scale.
     Produces pixel-artifact-free density maps consistent with trajectory plots.
 
-    sigma: blur radius in pixels (default 15 ≈ ~4% of arena width).
+    sigma: blur radius in pixels (default 15 â‰ˆ ~4% of arena width).
            Lower = sharper paths, higher = smoother blobs.
     """
     valid = ~(np.isnan(x) | np.isnan(y))
@@ -165,11 +165,11 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
         range=[[x_min, x_max], [y_min, y_max]]
     )
 
-    # Step 2: heavy gaussian blur — football-heatmap smoothness
+    # Step 2: heavy gaussian blur â€” football-heatmap smoothness
     # hist.T: rows=Y, cols=X (imshow convention)
     hist_smooth = gaussian_filter(hist.T, sigma=sigma)
 
-    # Step 3: log scale — keeps traversed paths visible without washing out hotspots
+    # Step 3: log scale â€” keeps traversed paths visible without washing out hotspots
     hist_log = np.log1p(hist_smooth)
 
     # Step 4: normalize 0->1 so colormap uses full dynamic range
@@ -197,8 +197,8 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Density — {video_name}\n"
-        f"(body_center, {len(xv)} frames, σ={sigma}px)",
+        f"Activity Density â€” {video_name}\n"
+        f"(body_center, {len(xv)} frames, Ïƒ={sigma}px)",
         color="white", fontsize=13, pad=10,
     )
     ax.tick_params(colors="#666666", labelsize=9)
@@ -269,3 +269,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
