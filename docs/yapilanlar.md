@@ -2,7 +2,7 @@
 
 **Proje:** Rat Behavioral Analysis System (Sıçan Davranışsal Analiz Sistemi)  
 **Tez konusu:** Yaygın diyet katkı maddelerinin sıçanlarda açık alan (OFT) davranışlarına etkisi  
-**Son güncelleme:** 2026-05-04 (Aşama 05 + 06 tamamlandı, rapor görselleri üretildi)
+**Son güncelleme:** 2026-05-07 (Aşama 03C — Plus maze (4 kollu) analizi tamamlandı, 12 sıçan)
 
 ---
 
@@ -15,11 +15,12 @@
 5. [Aşama 02 — DeepLabCut Pose Tahmini](#5-aşama-02--deeplabcut-pose-tahmini)
 6. [Aşama 02B — Kural Tabanlı Davranış Tespiti](#6-aşama-02b--kural-tabanlı-davranış-tespiti)
 7. [Aşama 03A — Açık Alan Testi (OFT) Uzamsal Analizi](#7-aşama-03a--açık-alan-testi-oft-uzamsal-analizi)
-8. [Üretilen Çıktı Dosyaları](#8-üretilen-çıktı-dosyaları)
-9. [Gruplar Arası Temel Bulgular](#9-gruplar-arası-temel-bulgular)
-10. [Profesör MATLAB Pipeline ile Çapraz Doğrulama](#10-profesör-matlab-pipeline-ile-çapraz-doğrulama)
-11. [Mevcut Durum Özeti](#11-mevcut-durum-özeti)
-12. [Planlanan Çalışmalar](#12-planlanan-çalışmalar)
+8. [Aşama 03C — Plus Maze (4 Kollu) Analizi](#7b-aşama-03c--plus-maze-4-kollu-analizi)
+9. [Üretilen Çıktı Dosyaları](#8-üretilen-çıktı-dosyaları)
+10. [Gruplar Arası Temel Bulgular](#9-gruplar-arası-temel-bulgular)
+11. [Profesör MATLAB Pipeline ile Çapraz Doğrulama](#10-profesör-matlab-pipeline-ile-çapraz-doğrulama)
+12. [Mevcut Durum Özeti](#11-mevcut-durum-özeti)
+13. [Planlanan Çalışmalar](#12-planlanan-çalışmalar)
 
 ---
 
@@ -31,7 +32,7 @@ Bu proje, sıçanların açık alan (OFT) arenasında gerçekleştirilen kayıt 
 
 **Çalışmanın kapsamı:**
 - 4 tedavi grubu × 3 sıçan = 12 sıçan
-- **12 açık alan videosu** (OFT) — tez kapsamı bu videolara odaklanmaktadır
+- **12 açık alan videosu** (OFT) + **12 plus maze videosu** = 24 oturum
 - Tüm videolar **30 fps** hızında çekilmiştir
 
 ---
@@ -52,6 +53,7 @@ Greyfurt kolu, greyfurt etkisini aspartam + greyfurt kombinasyonundan ayırt etm
 | Arena | Video Sayısı | Amaç |
 |-------|-------------|-------|
 | Açık alan (dikdörtgen) | 12 | Keşif, kaygı, lokomotor aktivite, rearing, grooming |
+| Plus maze (4 kollu) | 12 | Çalışma belleği (alternation), kol tercihi, esneklik, persiverasyon |
 
 ---
 
@@ -279,6 +281,98 @@ ML eğitimi gerektirmeyen kural tabanlı dedektör. Postüral özellikler üzeri
 
 ---
 
+<a id="7b-aşama-03c--plus-maze-4-kollu-analizi"></a>
+## 7B. Aşama 03C — Plus Maze (4 Kollu) Analizi
+
+**Durum: Tamamlandı — tüm 4 kohort × 3 sıçan = 12 sıçan**
+**Klasör:** `analysis/tmaze/` (script adları korundu, çıktılar `_plus_maze_*` olarak)
+
+### Genel Bakış
+
+Sıçanlar T-maze değil, **4 kollu plus/cross maze**te kayıt edilmiştir (alt + sol + sağ + üst kol, ortada bir junction). Aşama 03A açık alan boru hattıyla aynı temizleme adımları (likelihood, jump, smoothing) kullanıldı. DLC kaynak CSV'leri **filtresiz** sürüm (yumuşatılmamış raw output) — Aşama 03A ile tutarlı, çift filtreleme önlendi.
+
+### Maze Yapısı
+
+```
+              [TOP ARM]
+                  ||
+[LEFT ARM] == JUNCTION == [RIGHT ARM]
+                  ||
+              [BOTTOM ARM]
+```
+
+Sıçanlar deney başında **bottom arm** (start) içine bırakılır.
+
+### İş Akışı
+
+| Adım | Script | Amaç |
+|------|--------|------|
+| 1 | `show_frame_coords.py` | İnteraktif 4-fazlı arena seçimi (her kol için 4 köşe) |
+| 2 | `tmaze_metrics.py` | Sıçan başına nicel metrikler |
+| 3 | `orbit_plot.py` | Bölge renkli trajektori (ana + 4 panel bodypart grid) |
+| 4 | `activity_heatmap.py` | KDE + 2D histogram yoğunluk haritaları |
+| 5 | `run_analysis.py` | Yukarıdaki 4 adımı zincirleyen master script |
+
+**Tek koordinat seti** kullanıldı (Part1 ve Part2 videolarında kamera konumu özdeş):
+- bottom-arm: 544 605 404 717
+- left-arm: 258 551 348 403
+- right-arm: 604 893 345 404
+- top-arm: 544 608 39 348
+
+### Veri / Klasör Adlandırma
+
+| Eski | Yeni |
+|------|------|
+| `data/DLCfiltered/<kohort>/TmazeMA*_n/` | `data/DLCfiltered/<kohort>/PlusMazeMA*_n/` |
+| `*_tmaze_metrics.csv` | `*_plus_maze_metrics.csv` |
+| `*_tmaze_orbit.png` | `*_plus_maze_orbit.png` |
+| `*_tmaze_bodyparts.png` | `*_plus_maze_bodyparts.png` |
+
+### Plus Maze Metrikleri (`*_plus_maze_metrics.csv`)
+
+| Kategori | Metrikler | Davranışsal Anlam |
+|----------|-----------|-------------------|
+| Bölge işgali | `pct_time_bottom/left/right/top/junction`, `time_*_s` | Mekânsal tercih, kol seçimi |
+| Kol girişleri | `total_entries`, `bottom/left/right/top_entries` | Genel keşif aktivitesi |
+| Alternasyon | `successive_alternation_pct` (her giriş öncekinden farklı), `tetrad_alternation_pct` (4'lü grup tüm 4 kolu kapsar) | Çalışma belleği, esneklik |
+| Persiverasyon | `perseveration_count`, `perseveration_rate_pct` (üst üste aynı kol) | Bilişsel katılık |
+| Kol tercihi | `most_visited_arm`, `arm_preference_index` (en çok ziyaret / toplam) | Lateralizasyon, alışkanlık |
+| Locomotion | `mean_speed_px_s`, `total_distance_px` | Hareket aktivitesi |
+| Sequence | `entry_sequence` (örn. `R->L->T->B->...`) | Davranış zamanlaması analizi için ham dizi |
+
+### Üretilen Çıktılar (Her Sıçan için 5 Dosya)
+
+```
+PlusMazeMA1_2/
+├── PlusMazeMA1_2.csv                       ← DLC filtresiz raw girdi
+├── PlusMazeMA1_2_plus_maze_metrics.csv     ← 30 sütunluk metrik
+├── PlusMazeMA1_2_plus_maze_orbit.png       ← Bölge renkli trajektori
+├── PlusMazeMA1_2_plus_maze_bodyparts.png   ← 4 panel bodypart grid (nose, head, body_center, tail_base)
+├── PlusMazeMA1_2_heatmap_kde.png           ← KDE yoğunluk haritası
+└── PlusMazeMA1_2_heatmap_histogram.png     ← 2D histogram
+```
+
+### Grup Düzeyinde Çıktı
+
+| Dosya | İçerik |
+|-------|--------|
+| `data/plus_maze_metrics_all.csv` | 12 sıçan × 30 sütunluk birleştirilmiş tablo |
+
+### Önemli Bulgular (İlk Bakış, n=12)
+
+- **Kontrol (MA1):** Aşırı bottom/top tercihi (örn. MA1_1 %98 top, MA1_2 %87 bottom). Yan kollara minimal giriş.
+- **Aspartam (MA3):** Yüksek thigmotaxis benzeri pattern — MA3_3 %97 bottom, neredeyse hareketsiz.
+- **Greyfurt (MA5):** Bottom + top dengesi, sınırlı keşif (5–10 toplam giriş).
+- **ASP+Greyfurt (MA7):** En yüksek varyans — MA7_3 dengeli 4-kol kullanımı (`R->L->R->R->L->L->T->R...`), MA7_1 ise %50 top dominansı.
+
+### Bilinen Düzeltmeler
+
+1. **`activity_heatmap.py` histogram düzeltmesi:** `hist2d` veri aralığına otomatik fit ediyordu; veri küçük bir alanda yoğunlaşınca grafik köşeye sıkışıyordu. `auto_extent(zones)` ile sabit `range` ve `xlim/ylim` belirlendi.
+2. **CSV tipi:** `_filtered.csv` (DLC'nin pre-smoothed çıktısı) yerine **raw CSV** kullanıldı — analiz scriptleri kendi yumuşatmasını uyguladığı için çift filtreleme engellendi.
+3. **Klasör/script ayrımı:** `analysis/` altındaki scriptler `analysis/open_field/` ve `analysis/tmaze/` olarak ayrıldı; `speed_analysis.py` paylaşılan ortak script olarak `analysis/` kökünde kaldı.
+
+---
+
 ## 8. Üretilen Çıktı Dosyaları
 
 Her `data/DLCfiltered/<KOHORT>_<N>/` klasörü şu 9 dosyayı içermektedir:
@@ -378,9 +472,11 @@ Bu sapma **sistematik ve uniform** — tüm kohortlarda aynı yönde. Muhtemelen
 | 02 — DeepLabCut pose tahmini | **Tamamlandı** (tüm 12 OFT videosu filtrelenmiş) |
 | 02B — Kural tabanlı davranış tespiti | **Tamamlandı**, MA1_2 / MA5_1 üzerinde doğrulandı |
 | 03A — OFT uzamsal analizi — tüm kohortlar (MA1, MA3, MA5, MA7) | **Tamamlandı** |
-| 05 — Özellik mühendisliği | **Tamamlandı** |
+| 03C — Plus maze (4 kollu) analizi — 12 sıçan | **Tamamlandı** (2026-05-07) |
+| 05 — Özellik mühendisliği (yalnızca OFT) | **Tamamlandı** |
 | 06 — ML modeli eğitimi + SHAP analizi | **Tamamlandı** |
 | 06B — Rapor görselleştirme (CSV → PNG) | **Tamamlandı** |
+| 05B — OFT + Plus Maze özellik birleştirmesi | **Sıradaki** |
 | 07 — Gruplar arası raporlama | **Planlandı** |
 
 ---
@@ -544,15 +640,35 @@ reports/
 | 4 model × 4 hedef LOOCV eğitimi | **Tamamlandı** — `src/train_baseline.py` |
 | SHAP analizi (çok-sınıflı + One-vs-Rest) | **Tamamlandı** — `src/train_baseline.py` |
 | CSV çıktılarının PNG görselleştirmesi | **Tamamlandı** — `src/visualize_reports.py` |
+| Plus maze pipeline (4 kollu metrikler + heatmap + orbit) | **Tamamlandı** — `analysis/tmaze/` |
+| 12 sıçanın plus maze metriklerinin birleştirilmesi (`plus_maze_metrics_all.csv`) | **Tamamlandı** |
 
-### Sıradaki Görev — Aşama 07: Gruplar Arası Raporlama
+### Sıradaki Görev — Aşama 05B: OFT + Plus Maze Özellik Birleştirmesi
+
+`src/features.py` güncellenecek. İki arenanın metrikleri sıçan ID üzerinden birleştirilip ML pipeline'ına bağlanacak.
+
+1. **ID normalleştirme:** `subject_id` formatları farklı — OFT `MA1_1`, plus maze `PlusMazeMA1_1`. Plus maze ID'lerinden `PlusMaze` prefix kaldırılarak ortak `MA1_1` formatına indirgenecek.
+2. **Sütun çakışmaları:** `mean_speed_px_s`, `total_distance_px`, `session_duration_s` her iki arenada da var. Plus maze sütunlarına `pm_` prefix eklenecek (`pm_mean_speed_px_s` vb).
+3. **Yeni özellikler eklenecek:**
+   - `pm_pct_time_bottom/left/right/top/junction` (5)
+   - `pm_total_entries`, `pm_*_entries` (5)
+   - `pm_arm_preference_index` (1)
+   - `pm_successive_alternation_pct`, `pm_tetrad_alternation_pct` (2 — çalışma belleği)
+   - `pm_perseveration_rate_pct` (1 — esneklik)
+   - `pm_total_distance_px`, `pm_mean_speed_px_s` (2)
+   - **Toplam +16 özellik** → mevcut 26 OFT özelliğine eklenir = **42 özellik**
+4. **Yeniden eğitim:** 4 model × 4 hedef LOOCV ile yeniden eğitilecek; SHAP analizinde plus maze özelliklerinin grup ayrımına katkısı incelenecek.
+5. **Yeni etiket önerisi:** `cognitive_flexibility` — `pm_successive_alternation_pct` ve `pm_perseveration_rate_pct` üzerinden tanımlanan üçlü etiket (low/moderate/high).
+
+### Aşama 07: Gruplar Arası Raporlama
 
 Tüm pipeline çıktılarını yapılandırılmış bir tez raporu haline getirmek:
 
-1. **Kruskal-Wallis + Dunn post-hoc istatistik testi** — her özellik için grup karşılaştırması (p-değeri ve etki büyüklüğü tablosu)
-2. **Violin / kutu grafikleri** — rearing ve grooming bout istatistikleri grup bazında
-3. **KDE heatmap galerisi** — 4 grup yan yana (occupancy, rearing, grooming)
-4. **Sıçan başına profil sayfaları** — her kohort için özet görsel
+1. **Kruskal-Wallis + Dunn post-hoc istatistik testi** — her özellik için grup karşılaştırması (p-değeri ve etki büyüklüğü tablosu) — **OFT + plus maze metrikleri ayrı ayrı**
+2. **Violin / kutu grafikleri** — rearing, grooming, alternation, perseveration istatistikleri grup bazında
+3. **KDE heatmap galerisi** — 4 grup yan yana (OFT occupancy + plus maze occupancy)
+4. **Sıçan başına profil sayfaları** — her kohort için özet görsel (OFT heatmap + plus maze trajektori + ML tahminleri)
+5. **Plus maze sequence analizi** — `entry_sequence` üzerinden Markov geçiş matrisleri (gruplar arası karşılaştırma)
 
 ### Örneklem Kısıtı Notu
 
