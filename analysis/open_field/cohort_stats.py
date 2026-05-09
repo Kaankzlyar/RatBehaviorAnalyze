@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 INPUT = ROOT / "data" / "oft_metrics_all.csv"
 OUT = ROOT / "reports"
 OUT.mkdir(parents=True, exist_ok=True)
