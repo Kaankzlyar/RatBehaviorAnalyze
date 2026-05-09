@@ -14,24 +14,27 @@ Metrics computed
 
 Biological context
 ------------------
-  Group       Treatment                   Expected profile
+  Cohort      Treatment                   Expected profile
   -------     --------                    ----------------
-  MA1         Control (vehicle)           Balanced exploration, moderate rearing/grooming
-  MA3         Aspartame                   Manik: high distance, low thigmotaxis
+  MA1, MA2    Control (vehicle)           Balanced exploration, moderate rearing/grooming
+  MA3, MA4    Aspartame                   Manik: high distance, low thigmotaxis
                                           Depresif: low distance, high thigmotaxis/freeze
-  MA5         Aspartame + Grapefruit      Intermediate (interaction arm)
-  MA7         Grapefruit only             Anxiolytic-like: higher center time,
+  MA5, MA6    Grapefruit only             Anxiolytic-like: higher center time,
                                           less freezing vs MA3
+  MA7, MA8    Aspartame + Grapefruit      Intermediate (interaction arm)
+
+  Each treatment group has two batches (MA1/2, MA3/4, MA5/6, MA7/8) sharing
+  the same folder under data/DLCfiltered/.
 
 Usage — single subject
 ----------------------
-  python analysis/oft_metrics.py \\
-      --csv data/DLCfiltered/OpenFieldMA1_1/OpenFieldMA1_1.csv \\
+  python analysis/open_field/oft_metrics.py \\
+      --csv data/DLCfiltered/control/OpenFieldMA1_1/OpenFieldMA1_1.csv \\
       --arena 396 776 153 530
 
 Usage — batch (all subjects under a parent folder)
 --------------------------------------------------
-  python analysis/oft_metrics.py \\
+  python analysis/open_field/oft_metrics.py \\
       --batch-dir data/DLCfiltered \\
       --arena 396 776 153 530 \\
       --out data/oft_metrics_all.csv
@@ -66,10 +69,16 @@ FREEZE_MIN_FRAMES    = 15     # frames — minimum length to count as a bout (0.
 ENTROPY_GRID_N       = 10     # 10 × 10 cells
 
 COHORT_MAP = {
-    "MA1": ("MA1", "Control"),
-    "MA3": ("MA3", "Aspartame"),
+    # First batch (MA1/3/5/7) and second batch (MA2/4/6/8) share the same
+    # biological groups; folders in data/DLCfiltered/ hold both batches.
+    "MA1": ("MA1", "Control"),              # folder: data/DLCfiltered/control/
+    "MA2": ("MA2", "Control"),              # folder: data/DLCfiltered/control/
+    "MA3": ("MA3", "Aspartame"),            # folder: data/DLCfiltered/ASP/
+    "MA4": ("MA4", "Aspartame"),            # folder: data/DLCfiltered/ASP/
     "MA5": ("MA5", "Grapefruit"),           # folder: data/DLCfiltered/Greyfurt/
+    "MA6": ("MA6", "Grapefruit"),           # folder: data/DLCfiltered/Greyfurt/
     "MA7": ("MA7", "Aspartame+Grapefruit"), # folder: data/DLCfiltered/ASP ve Greyfurt/
+    "MA8": ("MA8", "Aspartame+Grapefruit"), # folder: data/DLCfiltered/ASP ve Greyfurt/
 }
 
 
@@ -366,12 +375,12 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   # Single subject
-  python analysis/oft_metrics.py \\
-      --csv data/DLCfiltered/OpenFieldMA1_1/OpenFieldMA1_1.csv \\
+  python analysis/open_field/oft_metrics.py \\
+      --csv data/DLCfiltered/control/OpenFieldMA1_1/OpenFieldMA1_1.csv \\
       --arena 396 776 153 530
 
-  # All subjects — saves combined CSV
-  python analysis/oft_metrics.py \\
+  # All subjects (MA1-MA8) — saves combined CSV
+  python analysis/open_field/oft_metrics.py \\
       --batch-dir data/DLCfiltered \\
       --arena 396 776 153 530 \\
       --out data/oft_metrics_all.csv
