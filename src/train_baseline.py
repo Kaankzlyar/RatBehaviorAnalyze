@@ -368,15 +368,22 @@ for i, (grp, short, color) in enumerate(zip(unique_groups, group_short, colors))
 
     # SHAP — tüm veri üzerinde fit edilmiş modelden
     xgb_bin.fit(X, y_bin)
-    # XGBoost >= 2.0 stores base_score as '[0.5]' or '[a,b,c,d]' in the model
-    # JSON; SHAP reads model params (not config), so patch via save_raw/load_model
-    _booster = xgb_bin.get_booster()
-    _raw = json.loads(_booster.save_raw('json'))
-    _bs = _raw['learner']['learner_model_param']['base_score']
-    if isinstance(_bs, str) and (_bs.startswith('[') or _bs.endswith(']')):
-        _raw['learner']['learner_model_param']['base_score'] = _bs.strip('[]').split(',')[0]
-        _booster.load_model(bytearray(json.dumps(_raw).encode()))
-    explainer = shap.TreeExplainer(_booster)
+    # XGBoost >= 2.0 serializes base_score as a vector string like '[0.5]'.
+    # SHAP's XGBTreeModelLoader does float(base_score) and crashes on the
+    # brackets. Patching the JSON dump doesn't help (xgb keeps the vector
+    # form internally), so we briefly wrap builtins.float during the
+    # TreeExplainer call to strip brackets before conversion.
+    import builtins as _builtins
+    _orig_float = _builtins.float
+    def _bracket_safe_float(x):
+        if isinstance(x, str) and x.startswith('['):
+            x = x.strip('[]').split(',')[0]
+        return _orig_float(x)
+    _builtins.float = _bracket_safe_float
+    try:
+        explainer = shap.TreeExplainer(xgb_bin.get_booster())
+    finally:
+        _builtins.float = _orig_float
     sv = explainer.shap_values(X)
     # ikili sınıf: sv şeklinde (n, features) veya list[2]
     if isinstance(sv, list):
