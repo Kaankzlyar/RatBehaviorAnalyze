@@ -1,0 +1,11 @@
+rank,feature,global_mean_abs_shap,shap_high,shap_low,shap_moderate
+1,groom_total_s,2.50951,3.64901,0.67881,3.20072
+2,groom_pct_time,0.80756,0.76904,0.55643,1.09721
+3,groom_max_s,0.33959,0.04712,0.67337,0.29827
+4,groom_mean_s,0.24261,0.0016,0.52673,0.19951
+5,rear_bout_count,0.09924,0.0,0.06832,0.22942
+6,spatial_entropy_norm,0.0628,0.00135,0.09591,0.09113
+7,groom_frag_idx,0.04989,0.00017,0.07136,0.07812
+8,groom_bout_count,0.04184,0.05944,0.00027,0.06582
+9,total_freeze_s,0.04061,0.00022,0.07593,0.04568
+10,groom_per_min,0.03598,0.02012,0.06563,0.02218
