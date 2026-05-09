@@ -75,9 +75,13 @@ DEFAULT_MAX_GAP     = 10     # frames; longer NaN gaps stay NaN
 
 COHORT_MAP = {
     "MA1": ("MA1", "Control"),
+    "MA2": ("MA2", "Control"),
     "MA3": ("MA3", "Aspartame"),
+    "MA4": ("MA4", "Aspartame"),
     "MA5": ("MA5", "Grapefruit"),
+    "MA6": ("MA6", "Grapefruit"),
     "MA7": ("MA7", "Aspartame+Grapefruit"),
+    "MA8": ("MA8", "Aspartame+Grapefruit"),
 }
 
 GROUP_COLORS = {
