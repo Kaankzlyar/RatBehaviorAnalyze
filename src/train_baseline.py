@@ -11,6 +11,7 @@ import json
 import pathlib
 import pickle
 import warnings
+from functools import partial
 
 import matplotlib
 matplotlib.use("Agg")
@@ -21,11 +22,19 @@ import shap
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from sklearn.model_selection import LeaveOneOut
+from sklearn.model_selection import LeaveOneOut, LeaveOneGroupOut
 from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
+from sklearn.feature_selection import SelectKBest, mutual_info_classif
+from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
+
+try:
+    from lightgbm import LGBMClassifier
+    HAS_LIGHTGBM = True
+except ImportError:
+    HAS_LIGHTGBM = False
 
 warnings.filterwarnings("ignore")
 
@@ -69,11 +78,14 @@ GROUP_ORDER = {
 }
 
 SUBJECT_IDS = feat_norm["subject_id"].values
+COHORTS     = feat_norm["cohort"].values
 
 # ── Model tanımları ───────────────────────────────────────────────────────────
 
 def make_models(n_classes):
-    return {
+    n_features = len(FEATURE_COLS)
+    k_top = min(8, n_features)
+    models = {
         "LogisticReg": LogisticRegression(
             penalty="l1", solver="saga", C=0.5,
             max_iter=2000, random_state=42,
@@ -90,17 +102,36 @@ def make_models(n_classes):
         ),
         "SVM": SVC(kernel="rbf", C=1.0, gamma="scale",
                    probability=True, random_state=42),
+        # SelectKBest fits inside CV → no leakage; partial pins the seed
+        # so mutual_info_classif's k-NN is reproducible.
+        "LogReg_L1_MI8": Pipeline([
+            ("select", SelectKBest(
+                partial(mutual_info_classif, random_state=42),
+                k=k_top,
+            )),
+            ("clf", LogisticRegression(
+                penalty="l1", solver="saga", C=0.1,
+                max_iter=4000, random_state=42,
+            )),
+        ]),
     }
+    if HAS_LIGHTGBM:
+        models["LightGBM"] = LGBMClassifier(
+            n_estimators=200, max_depth=3, num_leaves=7,
+            learning_rate=0.05, subsample=0.8, colsample_bytree=0.8,
+            min_child_samples=2, random_state=42, verbosity=-1,
+        )
+    return models
 
-# ── LOOCV eğitim fonksiyonu ───────────────────────────────────────────────────
+# ── CV eğitim fonksiyonu (LOOCV veya LeaveOneGroupOut) ───────────────────────
 
-def loocv_evaluate(model, X, y_enc, le, subject_ids):
-    loo = LeaveOneOut()
+def cv_evaluate(model, X, y_enc, le, subject_ids, splitter, groups=None):
     y_true, y_pred = [], []
     subjects_out = []
     n_classes = len(le.classes_)
 
-    for train_idx, test_idx in loo.split(X):
+    split_args = (X, y_enc, groups) if groups is not None else (X, y_enc)
+    for train_idx, test_idx in splitter.split(*split_args):
         X_tr, X_te = X[train_idx], X[test_idx]
         y_tr = y_enc[train_idx]
 
@@ -112,10 +143,10 @@ def loocv_evaluate(model, X, y_enc, le, subject_ids):
                 y_tr = np.append(y_tr, cls)
 
         model.fit(X_tr, y_tr)
-        pred = model.predict(X_te)[0]
-        y_pred.append(pred)
-        y_true.append(y_enc[test_idx][0])
-        subjects_out.append(subject_ids[test_idx][0])
+        preds = model.predict(X_te)
+        y_pred.extend(preds.tolist())
+        y_true.extend(y_enc[test_idx].tolist())
+        subjects_out.extend(subject_ids[test_idx].tolist())
 
     all_labels = list(range(len(le.classes_)))
     f1  = f1_score(y_true, y_pred, average="macro",
@@ -127,6 +158,11 @@ def loocv_evaluate(model, X, y_enc, le, subject_ids):
     true_labels = le.inverse_transform(y_true)
 
     return f1, acc, cm, true_labels, pred_labels, subjects_out
+
+
+# Backward-compat shim
+def loocv_evaluate(model, X, y_enc, le, subject_ids):
+    return cv_evaluate(model, X, y_enc, le, subject_ids, LeaveOneOut())
 
 
 # ── Karışıklık matrisi grafiği ────────────────────────────────────────────────
@@ -236,16 +272,18 @@ for target_name, y_raw in TARGETS.items():
     xgb_model_final = None
 
     for model_name, model in models.items():
-        f1, acc, cm, true_lbl, pred_lbl, subs = loocv_evaluate(
-            model, X, y_enc, le, SUBJECT_IDS
+        # ── LOOCV ──
+        f1_loo, acc_loo, cm_loo, true_lbl, pred_lbl, subs = cv_evaluate(
+            model, X, y_enc, le, SUBJECT_IDS, LeaveOneOut()
         )
-        print(f"  {model_name:<15}  F1={f1:.3f}  Acc={acc:.3f}")
+        print(f"  {model_name:<15}  LOOCV   F1={f1_loo:.3f}  Acc={acc_loo:.3f}")
 
         results.append({
             "target":     target_name,
             "model":      model_name,
-            "f1_macro":   round(f1, 4),
-            "accuracy":   round(acc, 4),
+            "cv":         "LOOCV",
+            "f1_macro":   round(f1_loo, 4),
+            "accuracy":   round(acc_loo, 4),
             "n_classes":  n_classes,
         })
 
@@ -259,11 +297,27 @@ for target_name, y_raw in TARGETS.items():
                 "correct":   tl == pl,
             })
 
-        if f1 > best_f1:
-            best_f1 = f1
-            best_cm = cm
+        # ── LOGOCV (cohort dışarıda bırak) — gerçek genelleme testi ──
+        f1_g, acc_g, _, _, _, _ = cv_evaluate(
+            model, X, y_enc, le, SUBJECT_IDS,
+            LeaveOneGroupOut(), groups=COHORTS,
+        )
+        print(f"  {' '*15}  LOGOCV  F1={f1_g:.3f}  Acc={acc_g:.3f}")
+        results.append({
+            "target":     target_name,
+            "model":      model_name,
+            "cv":         "LOGOCV",
+            "f1_macro":   round(f1_g, 4),
+            "accuracy":   round(acc_g, 4),
+            "n_classes":  n_classes,
+        })
 
-        # modeli kaydet
+        # Görsellerde LOOCV en-iyi confusion matrix kullanılıyor
+        if f1_loo > best_f1:
+            best_f1 = f1_loo
+            best_cm = cm_loo
+
+        # modeli kaydet (tüm veriyle eğitilmiş)
         model.fit(X, y_enc)
         pkl_path = MODELS / f"{model_name.lower()}_{target_name}.pkl"
         with open(pkl_path, "wb") as f_pkl:
@@ -297,7 +351,16 @@ for target_name, y_raw in TARGETS.items():
 # ── Karşılaştırma tablosu ─────────────────────────────────────────────────────
 
 df_results = pd.DataFrame(results)
-df_results.to_csv(REPORTS / "model_comparison.csv", index=False)
+
+# Geriye dönük uyumluluk: model_comparison.csv yalnız LOOCV (cv sütunu olmadan)
+df_loocv = df_results[df_results["cv"] == "LOOCV"].drop(columns=["cv"])
+df_loocv.to_csv(REPORTS / "model_comparison.csv", index=False)
+
+df_logocv = df_results[df_results["cv"] == "LOGOCV"].drop(columns=["cv"])
+df_logocv.to_csv(REPORTS / "model_comparison_logocv.csv", index=False)
+
+# Birleşik tablo (cv sütunlu)
+df_results.to_csv(REPORTS / "model_comparison_all.csv", index=False)
 
 df_details = pd.DataFrame(loocv_details)
 df_details.to_csv(REPORTS / "loocv_predictions.csv", index=False)
@@ -307,9 +370,65 @@ df_details.to_csv(REPORTS / "loocv_predictions.csv", index=False)
 print(f"\n{'='*55}")
 print("SONUÇ TABLOSU — F1 Macro (LOOCV)")
 print(f"{'='*55}")
-pivot = df_results.pivot(index="model", columns="target", values="f1_macro")
-print(pivot.to_string())
+pivot_loo = df_loocv.pivot(index="model", columns="target", values="f1_macro")
+print(pivot_loo.to_string())
 
+print(f"\n{'='*55}")
+print("SONUÇ TABLOSU — F1 Macro (LOGOCV — cohort hold-out)")
+print(f"{'='*55}")
+pivot_log = df_logocv.pivot(index="model", columns="target", values="f1_macro")
+print(pivot_log.to_string())
+
+# ── CV stratejisi karşılaştırma grafiği ──────────────────────────────────────
+
+target_list = list(TARGETS.keys())
+n_targets = len(target_list)
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+axes = axes.flatten()
+
+bar_colors = {"LOOCV": "#4C72B0", "LOGOCV": "#DD8452"}
+bar_width = 0.38
+
+for ax, target in zip(axes, target_list):
+    df_t = df_results[df_results["target"] == target]
+    pivot = df_t.pivot(index="model", columns="cv", values="f1_macro")
+    # Sıralı sütunlar
+    cv_cols = [c for c in ["LOOCV", "LOGOCV"] if c in pivot.columns]
+    pivot = pivot[cv_cols]
+
+    model_names = list(pivot.index)
+    x = np.arange(len(model_names))
+    for j, cv_name in enumerate(cv_cols):
+        offset = (j - (len(cv_cols) - 1) / 2) * bar_width
+        vals = pivot[cv_name].values
+        bars = ax.bar(x + offset, vals, width=bar_width,
+                      color=bar_colors[cv_name], label=cv_name, alpha=0.9)
+        for bar, v in zip(bars, vals):
+            if not np.isnan(v):
+                ax.text(bar.get_x() + bar.get_width() / 2, v + 0.015,
+                        f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+
+    n_cls = int(df_t["n_classes"].iloc[0])
+    chance = 1.0 / n_cls
+    ax.axhline(chance, color="gray", linestyle="--", linewidth=1, alpha=0.7,
+               label=f"şans (1/{n_cls})")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(model_names, rotation=25, ha="right", fontsize=9)
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("F1 Macro", fontsize=10)
+    ax.set_title(target, fontsize=11, fontweight="bold")
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.3)
+
+fig.suptitle("CV Stratejisi Karşılaştırması — LOOCV (denek hold-out) vs "
+             "LOGOCV (cohort hold-out)",
+             fontsize=13, fontweight="bold", y=1.00)
+plt.tight_layout()
+fig.savefig(FIGS / "cv_strategy_comparison.png", dpi=150, bbox_inches="tight")
+plt.close(fig)
+
+print(f"\n[OK] cv_strategy_comparison.png kaydedildi")
 print(f"\nRaporlar: {REPORTS}")
 print(f"Modeller: {MODELS}")
 print(f"Görseller: {FIGS}")
