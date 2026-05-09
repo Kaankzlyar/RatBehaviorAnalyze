@@ -51,9 +51,13 @@ import pandas as pd
 # ── cohort metadata ────────────────────────────────────────────────────────────
 COHORT_MAP = {
     "MA1": "Control",
+    "MA2": "Control",
     "MA3": "Aspartame",
+    "MA4": "Aspartame",
     "MA5": "Grapefruit",
+    "MA6": "Grapefruit",
     "MA7": "Aspartame+\nGrapefruit",
+    "MA8": "Aspartame+\nGrapefruit",
 }
 
 GROUP_COLORS = {
