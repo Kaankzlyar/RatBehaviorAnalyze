@@ -1,0 +1,5 @@
+group,n,mean,median,sd,ci_lo,ci_hi
+Control,5,2.11,0.813,4.026,-0.759,5.223
+Aspartame,8,-0.233,-0.231,2.071,-1.56,1.153
+Aspartame+Grapefruit,8,-0.507,-0.407,1.425,-1.439,0.396
+Grapefruit,8,-0.579,-1.884,3.927,-2.445,2.326

@@ -1,0 +1,4 @@
+model,r2,rmse,mae,pearson_r,pearson_p
+Ridge,1.0,0.013,0.009,1.0,0.0
+RandomForest,0.842,1.126,0.731,0.947,0.0
+SVR-RBF,0.435,2.13,1.042,0.757,0.0
