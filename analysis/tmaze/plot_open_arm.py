@@ -1,19 +1,20 @@
+# -*- coding: utf-8 -*-
 """
 plot_open_arm.py
 ----------------
-EPM cohort karsilastirmasi gorsellerini uretir.
+EPM kohort karşılaştırması görsellerini üretir.
 
-Grafik 1 — Box + strip: pct_open_arm (acik kol % suresi) kohort bazinda
-Grafik 2 — Box + strip: pct_open_arm_entries (acik kol % girisi)
-Grafik 3 — Grouped bar: 4 kohort x 5 kol (bottom/left/right/top/junction) yuzdeleri
-Grafik 4 — Scatter: pct_open_arm vs total_entries (lokomotor kovariat)
+Grafik 1 — Box + strip: pct_open_arm (açık kol % süresi) kohort bazında
+Grafik 2 — Box + strip: pct_open_arm_entries (açık kol % girişi)
+Grafik 3 — Grouped bar: 4 kohort x 5 kol (bottom/left/right/top/junction) yüzdeleri
+Grafik 4 — Scatter: pct_open_arm vs total_entries (lokomotor kovaryat)
 
-Ciktilar:
+Çıktılar:
   reports/figures/epm_open_arm_by_cohort.png
   reports/figures/epm_arm_distribution.png
   reports/figures/epm_locomotor_covariate.png
 
-Kullanim:
+Kullanım:
   python analysis/tmaze/plot_open_arm.py
 """
 
@@ -25,6 +26,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
+
+# ── Türkçe karakter desteği için Calibri ──────────────────────────────────────
+matplotlib.rcParams["font.family"]        = "Calibri"
+matplotlib.rcParams["axes.unicode_minus"] = False
+matplotlib.rcParams["figure.dpi"]         = 150
 
 ROOT     = pathlib.Path(__file__).resolve().parent.parent.parent
 DATA     = ROOT / "data" / "plus_maze_metrics_all.csv"
@@ -42,176 +48,185 @@ COHORT_COLORS = {
 
 
 def strip_jitter(ax, data_by_group, colors, x_positions, jitter=0.08):
-    """Her grubun noktalarini hafif kaydirarak ciz."""
     rng = np.random.default_rng(42)
     for xi, (grp, vals) in zip(x_positions, data_by_group.items()):
         jit = rng.uniform(-jitter, jitter, size=len(vals))
         ax.scatter(xi + jit, vals,
                    color=colors[grp], edgecolors="white",
-                   linewidths=0.6, s=60, zorder=5, alpha=0.9)
+                   linewidths=0.8, s=70, zorder=5, alpha=0.95)
 
 
 def p_stars(p: float) -> str:
-    if p < 0.001:
-        return "***"
-    if p < 0.01:
-        return "**"
-    if p < 0.05:
-        return "*"
-    if p < 0.10:
-        return "~"
+    if p < 0.001: return "***"
+    if p < 0.01:  return "**"
+    if p < 0.05:  return "*"
+    if p < 0.10:  return "~"
     return "ns"
 
 
-def add_significance_bar(ax, x1, x2, y, p, h=0.5):
-    """Iki grup arasina anlamlilik cubugu ekle."""
-    ax.plot([x1, x1, x2, x2], [y, y + h, y + h, y],
-            lw=1.2, color="black")
-    ax.text((x1 + x2) / 2, y + h + 0.1, p_stars(p),
-            ha="center", va="bottom", fontsize=11)
-
-
-# ─── Grafik 1+2: Open arm % suresi ve giris ───────────────────────────────────
+# ─── Grafik 1+2: Açık kol % süresi ve giriş ──────────────────────────────────
 
 def plot_open_arm_box():
     df = pd.read_csv(DATA)
     kw = pd.read_csv(KW_PATH).set_index("feature") if KW_PATH.exists() else None
 
     metrics = [
-        ("pct_open_arm",         "% Acik Kol Suresi",  "Acik kol (left + right)"),
-        ("pct_open_arm_entries", "% Acik Kol Girisi",  "Acik kol giriş / toplam giriş"),
+        ("pct_open_arm",
+         "% Açık Kol Süresi",
+         "Açık Kol Süresi (Left + Right)"),
+        ("pct_open_arm_entries",
+         "% Açık Kol Girişi",
+         "Açık Kol Girişi / Toplam Giriş"),
     ]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
+    fig.subplots_adjust(top=0.87, bottom=0.16, left=0.08, right=0.97, wspace=0.32)
 
     for ax, (col, ylabel, title) in zip(axes, metrics):
         data_by_group = {
             g: df.loc[df["cohort"] == g, col].dropna().values
             for g in COHORT_ORDER if g in df["cohort"].values
         }
-        x_pos = list(range(len(data_by_group)))
+        x_pos  = list(range(len(data_by_group)))
         groups = list(data_by_group.keys())
 
-        # Boxplot
         bp = ax.boxplot(
             [data_by_group[g] for g in groups],
             positions=x_pos,
-            widths=0.45,
+            widths=0.48,
             patch_artist=True,
-            medianprops=dict(color="black", linewidth=2),
-            whiskerprops=dict(linewidth=1.2),
-            capprops=dict(linewidth=1.2),
+            medianprops=dict(color="black", linewidth=2.2),
+            whiskerprops=dict(linewidth=1.4),
+            capprops=dict(linewidth=1.4),
             flierprops=dict(marker="", linestyle="none"),
         )
         for patch, grp in zip(bp["boxes"], groups):
             patch.set_facecolor(COHORT_COLORS[grp])
-            patch.set_alpha(0.6)
+            patch.set_alpha(0.55)
 
         strip_jitter(ax, data_by_group, COHORT_COLORS, x_pos)
 
-        # p degeri annotation
         if kw is not None and col in kw.index:
             p_val = kw.loc[col, "p_permutation"]
             ep2   = kw.loc[col, "epsilon_sq"]
-            ax.set_title(
-                f"{title}\n"
-                f"KW p={p_val:.3f} {p_stars(p_val)}   "
-                f"ε²={ep2:.3f}",
-                fontsize=11, fontweight="bold"
+            subtitle = (
+                f"KW p = {p_val:.3f}  {p_stars(p_val)}     "
+                f"ε² = {ep2:.3f}"
             )
         else:
-            ax.set_title(title, fontsize=11, fontweight="bold")
+            subtitle = ""
 
+        ax.set_title(f"{title}\n{subtitle}", fontsize=12, fontweight="bold", pad=8)
         ax.set_xticks(x_pos)
-        ax.set_xticklabels(groups, fontsize=10)
+        ax.set_xticklabels(groups, fontsize=11)
         ax.set_ylabel(ylabel, fontsize=11)
         ax.set_ylim(bottom=-1)
-        ax.grid(axis="y", alpha=0.3)
+        ax.grid(axis="y", alpha=0.25, linestyle="--")
         ax.spines[["top", "right"]].set_visible(False)
 
-        # Referans cizgisi: chance = 50% (eger tum kollar esit kullanilsaydi)
-        ax.axhline(50 / 2, color="gray", linestyle="--",
-                   linewidth=1, alpha=0.5, label="Esit kol kullanimi (50%)")
+        ax.axhline(25, color="#888888", linestyle="--",
+                   linewidth=1, alpha=0.6, label="Eşit kol kullanımı (25%)")
+        ax.legend(fontsize=8, frameon=False, loc="upper left")
 
+    # Kohort legend — figürün altında, x eksen etiketlerinin altında
     legend_patches = [
-        mpatches.Patch(facecolor=COHORT_COLORS[g], alpha=0.7, label=g)
+        mpatches.Patch(facecolor=COHORT_COLORS[g], alpha=0.80, label=g)
         for g in COHORT_ORDER
     ]
-    fig.legend(handles=legend_patches, loc="upper center",
-               ncol=4, fontsize=9, frameon=False, bbox_to_anchor=(0.5, 1.02))
+    fig.legend(
+        handles=legend_patches,
+        loc="lower center",
+        ncol=4,
+        fontsize=11,
+        frameon=False,
+        bbox_to_anchor=(0.52, 0.01),
+    )
 
     fig.suptitle(
-        "Plus Maze — EPM Acik Kol Analizi (n=3/grup)\n"
-        "Dikey kollar = kapali kol | Yatay kollar = acik kol",
-        fontsize=13, fontweight="bold", y=1.05
+        "Plus Maze — EPM Açık Kol Analizi  (n = 3 / grup)\n"
+        "Dikey kollar = kapalı kol  |  Yatay kollar = açık kol",
+        fontsize=13, fontweight="bold", y=0.99,
     )
-    plt.tight_layout()
+
     out = FIGS / "epm_open_arm_by_cohort.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[ok] {out}")
 
 
-# ─── Grafik 3: Kol dagilimi stacked bar ───────────────────────────────────────
+# ─── Grafik 3: Kol dağılımı stacked bar ──────────────────────────────────────
 
 def plot_arm_distribution():
     df = pd.read_csv(DATA)
-    arm_cols = ["pct_time_bottom", "pct_time_left",
-                "pct_time_right", "pct_time_top", "pct_time_junction"]
-    arm_labels = ["Bottom\n(kapali)", "Left\n(acik)", "Right\n(acik)",
-                  "Top\n(kapali)", "Junction"]
-    arm_colors = ["#607D8B", "#FF9800", "#FF5722", "#607D8B", "#9E9E9E"]
+    arm_cols   = ["pct_time_bottom", "pct_time_left",
+                  "pct_time_right",  "pct_time_top", "pct_time_junction"]
+    arm_labels = [
+        "Bottom (kapalı)",
+        "Left (açık)",
+        "Right (açık)",
+        "Top (kapalı)",
+        "Junction",
+    ]
+    arm_colors = ["#607D8B", "#FF9800", "#FF5722", "#455A64", "#9E9E9E"]
 
     means = (df.groupby("cohort")[arm_cols].mean()
                .reindex(COHORT_ORDER)
                .reset_index())
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    x = np.arange(len(COHORT_ORDER))
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    fig.subplots_adjust(right=0.80)
+
+    x      = np.arange(len(COHORT_ORDER))
     bottom = np.zeros(len(COHORT_ORDER))
 
     for col, label, color in zip(arm_cols, arm_labels, arm_colors):
         vals = means[col].values
         ax.bar(x, vals, bottom=bottom, label=label,
-               color=color, edgecolor="white", linewidth=0.5, alpha=0.85)
+               color=color, edgecolor="white", linewidth=0.6, alpha=0.88)
         for xi, (v, b) in enumerate(zip(vals, bottom)):
             if v > 3:
                 ax.text(xi, b + v / 2, f"{v:.0f}%",
-                        ha="center", va="center", fontsize=8,
+                        ha="center", va="center", fontsize=9,
                         color="white", fontweight="bold")
         bottom += vals
 
     ax.set_xticks(x)
-    ax.set_xticklabels(COHORT_ORDER, fontsize=11)
-    ax.set_ylabel("Ortalama Kol Suresi (%)", fontsize=11)
-    ax.set_ylim(0, 105)
-    ax.set_title("Plus Maze Kol Dagilimi — Kohort Ortalamasi\n"
-                 "Acik kollar: Left + Right | Kapali kollar: Top + Bottom",
-                 fontsize=11, fontweight="bold")
-    ax.legend(loc="upper right", fontsize=8, frameon=True,
-              bbox_to_anchor=(1.18, 1))
-    ax.grid(axis="y", alpha=0.3)
+    ax.set_xticklabels(COHORT_ORDER, fontsize=12)
+    ax.set_ylabel("Ortalama Kol Süresi (%)", fontsize=11)
+    ax.set_ylim(0, 108)
+    ax.set_title(
+        "Plus Maze Kol Dağılımı — Kohort Ortalaması\n"
+        "Açık kollar: Left + Right  |  Kapalı kollar: Top + Bottom",
+        fontsize=12, fontweight="bold",
+    )
+    ax.legend(
+        loc="upper left",
+        fontsize=9,
+        frameon=True,
+        bbox_to_anchor=(1.01, 1.0),
+    )
+    ax.grid(axis="y", alpha=0.25, linestyle="--")
     ax.spines[["top", "right"]].set_visible(False)
 
-    plt.tight_layout()
     out = FIGS / "epm_arm_distribution.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[ok] {out}")
 
 
-# ─── Grafik 4: Scatter — acik kol vs lokomotor ────────────────────────────────
+# ─── Grafik 4: Scatter — açık kol vs lokomotor ───────────────────────────────
 
 def plot_locomotor_covariate():
     df = pd.read_csv(DATA)
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+    fig.subplots_adjust(top=0.80, bottom=0.12, wspace=0.30)
 
     pairs = [
         ("total_entries",   "pct_open_arm",
-         "Toplam Giris (lokomotor)", "% Acik Kol Suresi"),
+         "Toplam Giriş (Lokomotor Kovaryat)", "% Açık Kol Süresi"),
         ("mean_speed_px_s", "pct_open_arm",
-         "Ortalama Hiz (px/s)",      "% Acik Kol Suresi"),
+         "Ortalama Hız (px/s)",               "% Açık Kol Süresi"),
     ]
 
     for ax, (xcol, ycol, xlabel, ylabel) in zip(axes, pairs):
@@ -221,35 +236,47 @@ def plot_locomotor_covariate():
                 continue
             ax.scatter(row[xcol], row[ycol],
                        color=COHORT_COLORS[grp],
-                       s=90, edgecolors="white", linewidths=0.8,
-                       zorder=4, alpha=0.9)
-            ax.annotate(row["subject_id"].replace("PlusMaze", ""),
-                        (row[xcol], row[ycol]),
-                        textcoords="offset points", xytext=(5, 3),
-                        fontsize=7, color="gray")
+                       s=95, edgecolors="white", linewidths=0.9,
+                       zorder=4, alpha=0.92)
+            label_txt = str(row["subject_id"]).replace("PlusMaze", "")
+            ax.annotate(
+                label_txt,
+                (row[xcol], row[ycol]),
+                textcoords="offset points", xytext=(6, 3),
+                fontsize=8, color="#555555",
+            )
 
-        # Pearson r
         valid = df[[xcol, ycol]].dropna()
         if len(valid) > 2:
             from scipy.stats import pearsonr
             r, pval = pearsonr(valid[xcol], valid[ycol])
-            ax.set_title(f"r = {r:.2f}  p = {pval:.3f}", fontsize=10)
+            stars = p_stars(pval)
+            ax.set_title(
+                f"Pearson  r = {r:.2f}   p = {pval:.3f}  {stars}",
+                fontsize=11,
+            )
 
         ax.set_xlabel(xlabel, fontsize=10)
         ax.set_ylabel(ylabel, fontsize=10)
-        ax.grid(alpha=0.3)
+        ax.grid(alpha=0.25, linestyle="--")
         ax.spines[["top", "right"]].set_visible(False)
 
     legend_patches = [
-        mpatches.Patch(facecolor=COHORT_COLORS[g], alpha=0.8, label=g)
+        mpatches.Patch(facecolor=COHORT_COLORS[g], alpha=0.85, label=g)
         for g in COHORT_ORDER
     ]
-    fig.legend(handles=legend_patches, loc="upper center",
-               ncol=4, fontsize=9, frameon=False, bbox_to_anchor=(0.5, 1.02))
-    fig.suptitle("Acik Kol Suresi vs Lokomotor Kovariat\n"
-                 "(Cruz 1994: saf anksiyolitik = acik kol artisi + sabit lokomotor)",
-                 fontsize=11, fontweight="bold", y=1.06)
-    plt.tight_layout()
+    fig.legend(
+        handles=legend_patches,
+        loc="upper center",
+        ncol=4, fontsize=10, frameon=False,
+        bbox_to_anchor=(0.5, 0.98),
+    )
+    fig.suptitle(
+        "Açık Kol Süresi vs Lokomotor Kovaryat\n"
+        "(Cruz 1994: saf anksiyolitik etki = açık kol ↑ + lokomotor sabit)",
+        fontsize=12, fontweight="bold", y=1.04,
+    )
+
     out = FIGS / "epm_locomotor_covariate.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -259,8 +286,8 @@ def plot_locomotor_covariate():
 # ─── main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("EPM grafikleri olusturuluyor...\n")
+    print("EPM grafikleri oluşturuluyor...\n")
     plot_open_arm_box()
     plot_arm_distribution()
     plot_locomotor_covariate()
-    print("\n[done] tum grafikleri reports/figures/ altinda")
+    print("\n[done] tüm grafikler reports/figures/ altında")
