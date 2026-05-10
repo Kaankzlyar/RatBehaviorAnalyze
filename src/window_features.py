@@ -224,13 +224,16 @@ def extract_windows(dlc: pd.DataFrame, subject_id: str,
 
 
 def discover_subject_csvs() -> list[Path]:
-    """Return canonical pose CSVs: data/DLCfiltered/<group>/<subject>/<subject>.csv,
-    excluding the Kare reference dir and any per-subject derived CSVs."""
+    """Return canonical pose CSVs for OpenField only: data/DLCfiltered/<group>/<subject>/<subject>.csv,
+    where subject folder starts with 'OpenField', excluding the Kare reference dir."""
     out: list[Path] = []
     for csv in DLC_DIR.glob("*/*/*.csv"):
         if "Kare" in csv.parts:
             continue
-        if csv.stem != csv.parent.name:
+        subject = csv.parent.name
+        if not subject.startswith("OpenField"):
+            continue
+        if csv.stem != subject:
             continue
         out.append(csv)
     return sorted(out)

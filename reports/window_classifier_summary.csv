@@ -1,0 +1,7 @@
+model,cv,f1_macro,f1_weighted,accuracy,n_samples
+RandomForest,GroupKFold-subject,0.7856,0.8881,0.8893,10012
+XGBoost,GroupKFold-subject,0.8255,0.9115,0.9117,10012
+LightGBM,GroupKFold-subject,0.8293,0.9149,0.9161,10012
+RandomForest,LOGOCV-cohort,0.7861,0.8844,0.8851,10012
+XGBoost,LOGOCV-cohort,0.8215,0.9077,0.9075,10012
+LightGBM,LOGOCV-cohort,0.8145,0.9076,0.9086,10012

@@ -21,6 +21,7 @@ CV stratejileri
 """
 from __future__ import annotations
 
+import json
 import pathlib
 import pickle
 import warnings
@@ -178,7 +179,18 @@ def plot_confusion(y_true, y_pred, class_names, title, save_path):
 
 def plot_shap_top(model, X, feature_names, class_names, model_name, save_path):
     """SHAP TreeExplainer; top-15 global + per-class panel."""
-    explainer = shap.TreeExplainer(model)
+    # XGBoost 2.0+ stores base_score as a per-class vector for multi-class models.
+    # SHAP's XGBTreeModelLoader expects a scalar float and crashes on that vector.
+    # Patching the booster config to a scalar 0.5 (neutral prior) before explaining
+    # leaves relative SHAP feature importances intact.
+    if isinstance(model, XGBClassifier):
+        booster = model.get_booster()
+        cfg = json.loads(booster.save_config())
+        cfg["learner"]["learner_model_param"]["base_score"] = "5e-1"
+        booster.load_config(json.dumps(cfg))
+        explainer = shap.TreeExplainer(booster)
+    else:
+        explainer = shap.TreeExplainer(model)
     shap_vals = explainer.shap_values(X)
     if isinstance(shap_vals, list):
         sv_arr = np.stack(shap_vals, axis=-1)        # (n, p, k)
