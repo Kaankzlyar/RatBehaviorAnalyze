@@ -147,9 +147,17 @@ def build_features(metrics: pd.DataFrame) -> pd.DataFrame:
             "groom_mean_bout_s":  float(groom_mean_bout),
             "groom_bout_cv":      extra.get("groo_bout_cv", np.nan),
             "groom_early_frac":   extra.get("groo_early_frac", np.nan),
-            # --- Combined ---
+            # --- Combined / activity-normalized ratios ---
             "rear_groom_ratio":   (float(r_total / g_total)
                                    if g_total > 0 else np.nan),
+            # rearing per unit movement → exploration drive (size/activity-independent)
+            "rear_per_100px":     (float(r_count / float(row["total_distance_px"]) * 100)
+                                   if float(row.get("total_distance_px", 0) or 0) > 0
+                                   else np.nan),
+            # grooming time relative to time spent in safe center → "comfort" proxy
+            "comfort_ratio":      (float(g_total / float(row["pct_time_center"]))
+                                   if float(row.get("pct_time_center", 0) or 0) > 0
+                                   else np.nan),
         }
         rows.append(feat)
         print(f"  {sid:<10s}  group={feat['group']:<22s}  "
@@ -185,20 +193,27 @@ def kruskal_table(df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFrame:
 
 # ── PCA ──────────────────────────────────────────────────────────────────────
 
-def plot_pca(df: pd.DataFrame, feature_cols: list[str], out: Path) -> None:
+def compute_pca(df: pd.DataFrame, feature_cols: list[str]
+                ) -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray]:
+    """Standardize + PCA. Returns (coords, var_ratio_pct, kept_cols, loadings)."""
     X = df[feature_cols].copy()
-    # çok fazla NaN olan sütunları çıkar
-    keep = X.columns[X.isna().mean() < 0.5]
+    keep = list(X.columns[X.isna().mean() < 0.5])
     X = X[keep].fillna(X[keep].mean())
     if X.shape[1] < 2:
-        print("[warn] PCA için yeterli feature yok")
-        return
-
-    scaler = StandardScaler()
-    Xs = scaler.fit_transform(X)
+        return np.empty((len(df), 0)), np.empty(0), keep, np.empty((0, 0))
+    Xs  = StandardScaler().fit_transform(X)
     pca = PCA(n_components=min(3, X.shape[1]))
     coords = pca.fit_transform(Xs)
     var = pca.explained_variance_ratio_ * 100
+    return coords, var, keep, pca.components_
+
+
+def plot_pca(df: pd.DataFrame, kept_cols: list[str],
+             coords: np.ndarray, var: np.ndarray,
+             loadings: np.ndarray, out: Path) -> None:
+    if coords.shape[1] < 2:
+        print("[warn] PCA için yeterli feature yok")
+        return
 
     # gruplar
     all_groups = df["group"].unique()
@@ -237,15 +252,15 @@ def plot_pca(df: pd.DataFrame, feature_cols: list[str], out: Path) -> None:
 
     # loading arrows (PC1 vs PC2 panel)
     ax = axes[0]
-    loadings = pca.components_[:2, :].T
-    feat_names = list(keep)
+    loadings_2d = loadings[:2, :].T
+    feat_names = list(kept_cols)
     scale = 0.35 * np.abs(coords[:, :2]).max()
-    top_idx = np.argsort(np.linalg.norm(loadings[:, :2], axis=1))[-8:]
+    top_idx = np.argsort(np.linalg.norm(loadings_2d[:, :2], axis=1))[-8:]
     for i in top_idx:
-        ax.annotate("", xy=(loadings[i, 0] * scale, loadings[i, 1] * scale),
+        ax.annotate("", xy=(loadings_2d[i, 0] * scale, loadings_2d[i, 1] * scale),
                     xytext=(0, 0),
                     arrowprops=dict(arrowstyle="->", color="#555555", lw=1.2))
-        ax.text(loadings[i, 0] * scale * 1.12, loadings[i, 1] * scale * 1.12,
+        ax.text(loadings_2d[i, 0] * scale * 1.12, loadings_2d[i, 1] * scale * 1.12,
                 feat_names[i].replace("_", "\n"), fontsize=6, color="#333333",
                 ha="center")
 
@@ -313,17 +328,27 @@ def main() -> None:
     print(f"\n[features] her hayvan için özellikler hesaplanıyor...")
     feat_df = build_features(metrics)
 
-    out_csv = ROOT / "data" / "anxiety_features.csv"
-    feat_df.to_csv(out_csv, index=False)
-    print(f"\n[write] {out_csv.relative_to(ROOT)}: "
-          f"{len(feat_df)} hayvan × {feat_df.shape[1]} sütun")
-
     # grup dağılımı
     print("\n[groups]")
     print(feat_df.groupby("group")["subject_id"].apply(list).to_string())
 
     meta_cols    = {"subject_id", "cohort", "group"}
     feature_cols = [c for c in feat_df.columns if c not in meta_cols]
+
+    # PCA — global PC1/PC2, CSV'ye sütun olarak yazılır
+    print("\n[pca] global PC1/PC2 hesaplanıyor...")
+    coords, var, kept_cols, loadings = compute_pca(feat_df, feature_cols)
+    if coords.shape[1] >= 1:
+        feat_df["pc1_score"] = coords[:, 0]
+    if coords.shape[1] >= 2:
+        feat_df["pc2_score"] = coords[:, 1]
+    print(f"  açıklanan varyans: PC1={var[0]:.1f}%  "
+          f"PC2={var[1]:.1f}%" + (f"  PC3={var[2]:.1f}%" if len(var) > 2 else ""))
+
+    out_csv = ROOT / "data" / "anxiety_features.csv"
+    feat_df.to_csv(out_csv, index=False)
+    print(f"\n[write] {out_csv.relative_to(ROOT)}: "
+          f"{len(feat_df)} hayvan × {feat_df.shape[1]} sütun")
 
     print("\n[stats] Kruskal-Wallis testi...")
     stats_df = kruskal_table(feat_df, feature_cols)
@@ -332,8 +357,9 @@ def main() -> None:
     print(stats_df.to_string(index=False))
     print(f"[write] {stats_path.relative_to(ROOT)}")
 
-    print("\n[pca] oluşturuluyor...")
-    plot_pca(feat_df, feature_cols, REPORTS / "anxiety_pca.png")
+    print("\n[plot_pca] oluşturuluyor...")
+    plot_pca(feat_df, kept_cols, coords, var, loadings,
+             REPORTS / "anxiety_pca.png")
 
     print("\n[boxplots] oluşturuluyor...")
     plot_boxplots(feat_df, feature_cols, stats_df,

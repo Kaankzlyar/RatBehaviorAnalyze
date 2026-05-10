@@ -59,7 +59,7 @@ FIGS     = REPORTS / "figures"
 for d in (MODELS, REPORTS, FIGS):
     d.mkdir(parents=True, exist_ok=True)
 
-META_COLS    = {"subject_id", "cohort", "group"}
+META_COLS    = {"subject_id", "cohort", "group", "pc1_score", "pc2_score"}
 NA_THRESHOLD = 0.5   # >%50 NaN olan sütunları at
 RNG_SEED     = 42
 
