@@ -5,62 +5,59 @@
 
 ---
 
-## 1. Plus Maze toplu metrik tablosu (acil)
+## ✅ 1. Plus Maze toplu metrik tablosu — TAMAMLANDI
 
 **Ne:** 12 sıçanın ayrı `*_plus_maze_metrics.csv` dosyalarını tek `data/plus_maze_metrics_all.csv` tablosuna birleştir.  
-**Neden:** Cohort istatistiği ve grafik için ortak tablo yok; her sıçan ayrı klasörde duruyor.  
-**Çözdüğü sorun:** Grup karşılaştırması yapılamıyor.  
-**Nasıl:** `analysis/tmaze/run_analysis.py`'a `--batch-dir` modu ekle veya pandas `concat` ile tek seferlik script yaz.  
-**Beklenen çıktı:** `data/plus_maze_metrics_all.csv` (12 satır × 30 sütun)
+**Çıktı:** `data/plus_maze_metrics_all.csv` (12 satır × 35 sütun)  
+**Script:** `analysis/tmaze/batch_metrics.py`
 
 ---
 
-## 2. EPM anksiyete istatistiği (acil)
+## ✅ 2. EPM anksiyete istatistiği — TAMAMLANDI
 
 **Ne:** Plus Maze açık kol % zamanı ve girişi üzerinde Kruskal-Wallis + Dunn post-hoc + permütasyon testi.  
-**Neden:** OFT için `analysis/cohort_stats.py` var ama Plus Maze için yok; tez için anlamlılık testi şart.  
-**Çözdüğü sorun:** "Hangi kohort daha az kaygılı?" sorusunun istatistiksel kanıtı yok.  
-**Hedef metrikler:** `pct_open_arm` (left+right), `pct_open_arm_entries`, `total_entries` (lokomotor kovariat).  
-**Nasıl:** `analysis/cohort_stats.py`'ı kopyala, Plus Maze feature'larına adapte et → `analysis/tmaze/cohort_stats_epm.py`.  
-**Beklenen çıktı:** `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv`
+**Çıktı:** `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv`, `reports/cohort_epm_permanova.csv`  
+**Script:** `analysis/tmaze/cohort_stats_epm.py`  
+**Bulgular:** pct_open_arm_entries p=0.0488 ε²=0.493 (medium); PERMANOVA R²=0.368 p=0.150
 
 ---
 
-## 3. Açık kol % grafiği (acil)
+## ✅ 3. Açık kol % grafiği — TAMAMLANDI
 
-**Ne:** Kohort bazında açık-kol süresi yüzdesini gösteren box/violin plot.  
-**Neden:** Tezin en önemli görsellerinden biri — hangi maddenin anksiyolitik benzeri etki yaptığını özetliyor.  
-**Çözdüğü sorun:** Sonuç sayısal olarak var ama görselleştirilmemiş, teze alınamıyor.  
-**Beklenen çıktı:** `reports/figures/epm_open_arm_by_cohort.png`
-
----
-
-## 4. Label leakage düzeltmesi (önemli)
-
-**Ne:** `src/train_baseline.py`'da `anxiety_level` hedefini tahmin etmek için kullanılan feature'lar, etiketin kendisini oluşturan formülle örtüşüyor (`pct_time_periphery`, `pct_time_freeze`, `center_zone_entries`).  
-**Neden:** Tezde "model %62 F1 elde etti" demek yanıltıcı — model etiketi ezberliyor.  
-**Çözdüğü sorun:** Savunmada sorgulanacak en kritik metodolojik açık.  
-**Nasıl:** Bu 3 feature'ı X'ten çıkar, LOOCV'yi yeniden çalıştır. Gerçek F1 raporla (muhtemelen 0.10-0.15 düşer ama dürüst olur). Eski ve yeni sonuçları yan yana tablo yap.  
-**Beklenen çıktı:** `reports/model_comparison_no_leakage.csv`
+**Ne:** Kohort bazında açık-kol süresi yüzdesini gösteren box/strip + stacked bar + scatter.  
+**Çıktı:** `reports/figures/epm_open_arm_by_cohort.png`, `epm_arm_distribution.png`, `epm_locomotor_covariate.png`  
+**Script:** `analysis/tmaze/plot_open_arm.py`
 
 ---
 
-## 5. OFT + Plus Maze feature birleştirmesi
+## ✅ 4. Label leakage düzeltmesi — TAMAMLANDI
 
-**Ne:** `src/features.py`'ı güncelle — plus maze metriklerini OFT metriklerine ekle (16 yeni özellik, `pm_` prefix).  
-**Neden:** Şu anki ML modeli sadece OFT verisini görüyor; plus maze ile birlikte kohort ayrımı daha güçlü olabilir.  
-**Çözdüğü sorun:** Tek arena analizi tezin kapsamını daraltıyor; iki arena birlikte daha zengin profil sunuyor.  
-**Önkoşul:** Madde 1 tamamlanmış olmalı.  
-**Beklenen çıktı:** `data/features/features_combined.csv` (12 satır × 42 özellik), yeniden eğitilmiş modeller
+**Ne:** `src/train_baseline.py`'da `anxiety_level` hedefini tahmin etmek için kullanılan feature'lardan etiket bileşenlerini çıkar.  
+**Çıktı:** `reports/model_comparison_no_leakage.csv`  
+**Sonuç:** anxiety_level LOOCV F1 = 0.65 → 0.17-0.26 (dürüst baseline); LEAKAGE_MAP ile 6 feature temizlendi.
 
 ---
 
-## 6. Window classifier için ground-truth etiketleme
+## ✅ 5. OFT + Plus Maze feature birleştirmesi — TAMAMLANDI
+
+**Ne:** `src/features.py`'ı güncelle — plus maze metriklerini OFT metriklerine ekle (16 `pm_` prefix özellik).  
+**Çıktı:** `data/features/features_combined.csv` (12 satır × 42 özellik), `scaler_combined.pkl`  
+**Not:** Eşleştirme: `PlusMazeMA1_1` → `MA1_1` (prefix strip)
+
+---
+
+## 6. Window classifier için ground-truth etiketleme (Manuel İş)
 
 **Ne:** 8+ sıçan için rearing/grooming/locomotion/immobile bout'larını elle etiketle.  
-**Neden:** `src/train_window_classifier.py` hazır ama `data/windows_labeled.parquet` yok — eğitim başlatılamıyor.  
-**Çözdüğü sorun:** Rule-based detector sadece 2 sıçan üzerinde doğrulandı; yeni sıçanlarda hata oranı bilinmiyor.  
-**Araç:** `analysis/open_field/label_bouts.py`  
+**Neden:** `src/train_window_classifier.py` hazır ama `data/behavior_ground_truth.csv` yok — eğitim başlatılamıyor.  
+**Araç (hazır):** `analysis/open_field/label_bouts.py`  
+**Çalıştırma:**
+```bash
+python analysis/open_field/label_bouts.py \
+    --subject OpenFieldMA1_1 \
+    --video /path/to/OpenFieldMA1_1.avi
+```
+**Tuş kılavuzu:** SPACE=oynat | r/g/l/i=etiket | b=başlat | e=bitir | A=tüm zayıf etiketleri kabul | s=kaydet | q=çık  
 **Tahmini süre:** 6-8 saat (8 sıçan × 45 dk)  
 **Beklenen çıktı:** `data/behavior_ground_truth.csv`, ardından `src/train_window_classifier.py` çalıştırılabilir
 
@@ -68,6 +65,6 @@
 
 ## Notlar
 
-- **Madde 1-3** tez savunması için minimum viable set — bunlar bitmeden tez eksik.  
-- **Madde 4** savunmada sorulacak; "bulduk ve raporladık" demek yeterli, düzeltme zorunda değilsin.  
-- **Madde 5-6** zaman kalırsa; kalmazsa sonraki çalışma önerisi olarak yazılabilir.
+- **Madde 1-5** tamamlandı — tez savunması için minimum viable set hazır.  
+- **Madde 6** zaman kalırsa; kalmazsa sonraki çalışma önerisi olarak yazılabilir.
+- **Label leakage:** Savunmada sorulursa — "bulduk, LEAKAGE_MAP ile temizledik, gerçek F1=%17-26 olarak raporladık" — yeterli.
