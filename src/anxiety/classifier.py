@@ -95,13 +95,17 @@ def make_models() -> dict:
 def load_features(feature_pattern: str | None = None,
                   csv_path: Path | None = None,
                   ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, list[str]]:
-    csv = csv_path or FEAT_CSV
+    csv = Path(csv_path).resolve() if csv_path else FEAT_CSV
     if not csv.exists():
         raise FileNotFoundError(
             f"{csv} yok — önce `python -m src.anxiety.profile` çalıştır."
         )
     df = pd.read_csv(csv)
-    print(f"[load] from {csv.relative_to(ROOT)}")
+    try:
+        shown = csv.relative_to(ROOT)
+    except ValueError:
+        shown = csv
+    print(f"[load] from {shown}")
     if "group" not in df.columns:
         raise ValueError("anxiety_features.csv 'group' sütununu içermiyor.")
 
