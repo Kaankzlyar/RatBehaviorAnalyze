@@ -1,8 +1,8 @@
 # Sıçan Davranış Analizi — Yapılanlar ve Proje Durumu
 
 **Proje:** Rat Behavioral Analysis System (Sıçan Davranışsal Analiz Sistemi)  
-**Tez konusu:** Yaygın diyet katkı maddelerinin sıçanlarda açık alan (OFT) davranışlarına etkisi  
-**Son güncelleme:** 2026-05-07 (Aşama 03C — Plus maze (4 kollu) analizi tamamlandı, 12 sıçan)
+**Tez konusu:** Yaygın diyet katkı maddelerinin sıçanlarda açık alan (OFT) ve elevated plus maze (EPM) davranışlarına etkisi  
+**Son güncelleme:** 2026-05-10 (ML sonuçları güncellendi, Plus Maze EPM anksiyete yorumu + iyileştirme yol haritası eklendi)
 
 ---
 
@@ -21,6 +21,8 @@
 11. [Profesör MATLAB Pipeline ile Çapraz Doğrulama](#10-profesör-matlab-pipeline-ile-çapraz-doğrulama)
 12. [Mevcut Durum Özeti](#11-mevcut-durum-özeti)
 13. [Planlanan Çalışmalar](#12-planlanan-çalışmalar)
+14. [Plus Maze EPM Anksiyete Analizi](#13-plus-maze-epm-anksiyete-analizi)
+15. [İyileştirme Yol Haritası ve Literatür](#14-i̇yileştirme-yol-haritası-ve-literatür)
 
 ---
 
@@ -365,6 +367,47 @@ PlusMazeMA1_2/
 - **Greyfurt (MA5):** Bottom + top dengesi, sınırlı keşif (5–10 toplam giriş).
 - **ASP+Greyfurt (MA7):** En yüksek varyans — MA7_3 dengeli 4-kol kullanımı (`R->L->R->R->L->L->T->R...`), MA7_1 ise %50 top dominansı.
 
+### EPM Yorumlaması — Açık Kol vs Kapalı Kol
+
+Plus maze yapısı **Elevated Plus Maze (EPM)** olarak yorumlandığında:
+- **Dikey kollar (top + bottom) = kapalı kollar** (güvenli)
+- **Yatay kollar (left + right) = açık kollar** (aversif — yükseklik + aydınlık)
+
+Açık kolda geçirilen süre/giriş yüzdesi anksiyolitik etkinin **altın standart** ölçütüdür (Pellow et al. 1985; Walf & Frye 2007 *Nat Protoc*).
+
+**Sıçan başına açık kol % zamanı (left + right):**
+
+| Sıçan | Kohort | %Open Arm | %Closed Arm | Toplam Giriş |
+|-------|--------|-----------|-------------|--------------|
+| MA1_1 | Control | 0.00 | 98.83 | 6 |
+| MA1_2 | Control | 0.00 | 92.94 | 4 |
+| MA1_3 | Control | 0.63 | 93.78 | 30 |
+| MA3_1 | Aspartame | 5.93 | 88.47 | 13 |
+| MA3_2 | Aspartame | 0.16 | 95.61 | 17 |
+| MA3_3 | Aspartame | 0.78 | 97.31 | 4 |
+| MA5_1 | Grapefruit | 0.52 | 97.63 | 5 |
+| MA5_2 | Grapefruit | 4.66 | 89.76 | 10 |
+| MA5_3 | Grapefruit | 4.75 | 93.42 | 9 |
+| MA7_1 | ASP+GF | 1.93 | 77.92 | 25 |
+| MA7_2 | ASP+GF | 8.11 | 73.72 | 23 |
+| MA7_3 | ASP+GF | **37.53** | 35.99 | 20 |
+
+**Kohort ortalamaları (n=3/grup):**
+
+| Kohort | Mean %Open Arm | SD | Median | Mean Total Entries |
+|--------|---------------:|----|--------|-------------------:|
+| Control | 0.21 | 0.36 | 0.00 | 13.3 |
+| Aspartame | 2.29 | 3.20 | 0.78 | 11.3 |
+| Grapefruit | 3.31 | 2.41 | 4.66 | 8.0 |
+| **ASP+Greyfurt** | **15.86** | 18.95 | 8.11 | **22.7** |
+
+**Sonuç:** ASP+Greyfurt kombinasyonu açık kol süresini Control'e göre yaklaşık **75× artırıyor**, ancak bu artış MA7_3 outlier'ı (%37.53) tarafından şişirilmiş — median (8.11) daha güvenilir. Kombinasyon kohortu ayrıca **en yüksek lokomotor aktivite**ye sahip (22.7 entries vs Control 13.3).
+
+**Saf anksiyolitik vs lokomotor karıştırıcı:** Cruz, Frei & Graeff (1994) ve Carobrez & Bertoglio (2005) çerçevesine göre:
+- Saf anksiyolitik: %open arm time ↑ **AND** kapalı kol girişi değişmez
+- Karışık etki: ikisinin de değişmesi → ASP+GF tablosu buna uyuyor
+- Bu, naringin'in (greyfurt flavonoidi) bilinen anksiyolitik etkisi (Fernandez et al. 2009) + greyfurtun CYP3A4 inhibisyonuyla aspartam metabolitlerinin temizlenmesini geciktirmesi (Bailey et al. 2013 *CMAJ*) hipoteziyle uyumlu.
+
 ### Bilinen Düzeltmeler
 
 1. **`activity_heatmap.py` histogram düzeltmesi:** `hist2d` veri aralığına otomatik fit ediyordu; veri küçük bir alanda yoğunlaşınca grafik köşeye sıkışıyordu. `auto_extent(zones)` ile sabit `range` ve `xlim/ylim` belirlendi.
@@ -504,17 +547,43 @@ Bu sapma **sistematik ve uniform** — tüm kohortlarda aynı yönde. Muhtemelen
 **Durum: Tamamlandı**
 **Script:** `src/train_baseline.py`
 
-4 model × 4 hedef = 16 model LOOCV (Leave-One-Out) ile eğitildi. Her sıçan tam olarak 1 kez test örneği oldu. XGBoost ile SHAP analizi yapıldı.
+6 model × 4 hedef = 24 model **iki ayrı CV stratejisi** ile eğitildi:
+- **LOOCV** (Leave-One-Out): her sıçan tek başına test edildi (n=12 fold)
+- **LOGOCV** (Leave-One-Group-Out): her kohort tek başına test edildi (n=4 fold) → gerçek genelleme testi
 
-**LOOCV F1-Macro Sonuçları:**
+XGBoost ile SHAP analizi yapıldı. Sonuçlar `reports/model_comparison_all.csv`'de.
+
+**LOOCV F1-Macro Sonuçları (en iyi değerler kalın):**
 
 | Model | group | anxiety_level | rearing_profile | grooming_profile |
 |-------|-------|---------------|-----------------|-----------------|
-| LogisticReg | 0.083 | 0.520 | 0.303 | 0.383 |
-| RandomForest | 0.155 | 0.520 | **0.451** | 0.238 |
-| XGBoost | 0.255 | **0.520** | 0.341 | **0.506** |
-| SVM | 0.267 | 0.196 | 0.316 | 0.196 |
+| LogisticReg-L1 | 0.310 | **0.646** | 0.408 | 0.574 |
+| RandomForest | **0.317** | 0.621 | 0.408 | 0.771 |
+| XGBoost | 0.297 | 0.621 | **0.460** | 0.923 |
+| SVM | 0.275 | 0.621 | 0.295 | 0.602 |
+| LogReg+MI8 | 0.056 | 0.227 | 0.295 | 0.237 |
+| LightGBM | 0.227 | 0.609 | 0.313 | **1.000** |
 | *Rastgele baz* | *0.250* | *0.333* | *0.333* | *0.333* |
+
+**LOGOCV F1-Macro Sonuçları (cohort hold-out — daha gerçekçi):**
+
+| Model | group | anxiety_level | rearing_profile | grooming_profile |
+|-------|-------|---------------|-----------------|-----------------|
+| LogisticReg-L1 | 0.067 | 0.597 | 0.408 | 0.715 |
+| RandomForest | 0.160 | 0.597 | 0.408 | 0.771 |
+| XGBoost | 0.163 | **0.621** | **0.467** | 0.798 |
+| SVM | 0.072 | 0.597 | 0.295 | 0.547 |
+| LogReg+MI8 | 0.000 | 0.195 | 0.295 | 0.237 |
+| LightGBM | **0.165** | 0.621 | 0.431 | **0.896** |
+
+**Dürüst yorum (kritik):**
+
+| Hedef | Yorum |
+|-------|-------|
+| **group** | LOGOCV F1=0.16 → şans seviyesi (1/4=0.25). n=12 ile cohort tahmini **çürük**. Cohort istatistiği için `analysis/cohort_stats.py` (KW + Dunn + PERMANOVA) kullanılmalı. |
+| **anxiety_level** | LOOCV/LOGOCV F1=0.62 — yüksek görünüyor ama **label-leakage var**: etiket `pct_time_periphery + pct_time_freeze − center_entries` formülünden üretiliyor ve aynı feature'lar input'ta. §13.3 (final_report) drop-the-leakage-feature sanity check şart. |
+| **rearing_profile** | F1=0.46-0.47 — sınırda; rearing fragmentation bir feature'dan ezbere yakın çalışıyor. |
+| **grooming_profile** | F1=0.92-1.00 — çok yüksek; **Greyfurt'un grooming'i 8× artırması** sayesinde tek feature (`groom_pct_time`) hedefin neredeyse tamamını anlatıyor. Tautoloji riski yüksek. |
 
 **One-vs-Rest SHAP — Her Grubun Ayırt Edici Özellikleri:**
 
@@ -676,4 +745,141 @@ Mevcut n=12 (3/grup) ile 4-sınıf grup tahmini güvenilir değildir. Gelecek ç
 
 ---
 
-*Bu dosya, `docs/behavior_comparison.md`, `docs/final_report.md`, `analysis/WORKFLOW_SUMMARY.md` ve `documents/plans/` altındaki aşama planlarından derlenerek hazırlanmıştır.*
+<a id="13-plus-maze-epm-anksiyete-analizi"></a>
+## 13. Plus Maze EPM Anksiyete Analizi
+
+**Durum:** Plus maze metrikleri tüm 12 sıçan için hesaplanmış (Aşama 03C). EPM çerçevesine göre **anksiyete-spesifik istatistik henüz yapılmadı** — sıradaki iş.
+
+### 13.1 EPM Endpoint Hiyerarşisi
+
+EPM literatüründe (Pellow et al. 1985; Walf & Frye 2007 *Nat Protoc*) altın standart birincil endpoint'ler:
+
+| Endpoint | Formül | Anksiyolitik etki |
+|----------|--------|-------------------|
+| **% açık kol süresi** | (açık kol süresi / toplam test süresi) × 100 | ↑ |
+| **% açık kol girişi** | (açık kol girişi / toplam giriş) × 100 | ↑ |
+| **Toplam giriş** veya **kapalı kol girişi** | locomotion göstergesi (kovariat olarak) | nötr olmalı |
+| **Korumasız head-dip** | açık kol kenarından aşağı bakış | ↑ |
+| **Stretch-attend posture (SAP)** | risk-değerlendirme postürü | ↓ |
+
+### 13.2 Cruz 1994 İki Faktör Modeli
+
+Cruz, Frei & Graeff (1994 *Pharmacol Biochem Behav*) faktör analizi ile EPM ölçütlerinin iki ortogonal faktöre yüklendiğini gösterdi:
+
+| Faktör 1 — Anksiyete | Faktör 2 — Lokomotor |
+|----------------------|----------------------|
+| % open arm time | closed arm entries |
+| % open arm entries | total distance |
+| Korumasız head-dip | mean speed |
+| SAP (negatif yön) | — |
+
+**Yorum kuralı:** Bir madde sadece Faktör 1'i değiştiriyorsa **saf anksiyolitik**; her iki faktörü değiştiriyorsa **karışık etki** (motor karıştırıcı dahil).
+
+### 13.3 Sizin Verinizde Beklenen İstatistik (Yapılacak)
+
+Plus maze'in `analysis/cohort_stats.py` (KW + Dunn + PERMANOVA) eşdeğeri **henüz yazılmadı**. OFT için var; Plus Maze'e port edilmeli. Beklenen pipeline:
+
+```python
+# Yeni: analysis/tmaze/cohort_stats_epm.py
+features = ["pct_open_arm", "pct_open_arm_entries",
+            "total_entries", "closed_arm_entries",
+            "mean_speed_px_s", "successive_alternation_pct"]
+# Kruskal-Wallis (4 grup) + permütasyon p
+# Dunn post-hoc (BH-FDR within-feature)
+# PERMANOVA (multivariate)
+# ANCOVA: open_arm % ~ cohort, kovariat=closed_arm_entries
+```
+
+### 13.4 Etolojik Feature'lar (DLC Pose'dan Türetilebilir)
+
+Mevcut Plus Maze metrikleri **sadece spasiyo-temporal**. Anksiyete spesifikliği için etolojik feature'lar eklenmeli (Rodgers & Johnson 1995):
+
+| Feature | Pose'dan tespiti |
+|---------|------------------|
+| **Korumasız head-dip** | nose y-koordinatı arena kenarı eşiğinin altında + body merkezde |
+| **Stretch-attend posture (SAP)** | body uzunluğu (nose-tail mesafesi) %120+ + low velocity |
+| **Risk assessment** | kapalı→açık kol geçişinde yarım kalan giriş (junction'a girip geri dönme) |
+| **Rearing on EPM** | OFT detector'ından port |
+| **Defecation/grooming** | mevcut OFT detector'dan port (Plus Maze keypoint set'ine adapte) |
+
+### 13.5 Madde-Spesifik Beklenen Yön (Literatür)
+
+| Madde | Klasik beklenen EPM etkisi | Sizin verinizdeki gözlem |
+|-------|--------------------------|--------------------------|
+| **Aspartame** | Anksiyojenik (Ashok & Sheeladevi 2015; Onaolapo 2017; Jones et al. 2022 *PNAS*) — open arm ↓ | %open=2.3 (Control'den biraz yüksek, beklentinin tersi yönünde) |
+| **Naringin/Greyfurt** | Anksiyolitik (Fernandez et al. 2009; Viswanatha et al. 2017) — open arm ↑ | %open=3.3 (hafif artış) |
+| **Greyfurt × ilaç** | CYP3A4 inhibisyonu, psikotropikler 1.5-3× plazma artışı (Bailey 2013) | ASP+GF kombinasyonunda en güçlü açık kol artışı (median 8.11) — etkileşim hipoteziyle uyumlu |
+| **Pozitif kontrol önerisi** | Diazepam 1 mg/kg i.p. (30 dk önce) | Yapılmadı — sonraki deney için öneri |
+
+---
+
+<a id="14-i̇yileştirme-yol-haritası-ve-literatür"></a>
+## 14. İyileştirme Yol Haritası ve Literatür
+
+### 14.1 Acil Düzeltmeler (1-2 gün)
+
+| # | İş | Dosya | Çıktı |
+|---|----|-------|-------|
+| 1 | **Plus maze toplu metrik tablosu üret** | `analysis/tmaze/run_analysis.py` (`--batch-dir` ekle) | `data/plus_maze_metrics_all.csv` (12 satır) |
+| 2 | **EPM cohort istatistiği** | `analysis/tmaze/cohort_stats_epm.py` (yeni — OFT'tan port) | `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv` |
+| 3 | **Açık kol % box/violin** | grafik scripti | `reports/figures/epm_open_arm_by_cohort.png` |
+| 4 | **Label-leakage caveat'ini netleştir** | `src/train_baseline.py`'a drop-the-leakage-feature varyantı | yeni LOOCV F1 değerleri (genelde 0.10-0.15 düşer ama dürüst) |
+
+### 14.2 Orta Vade (1-2 hafta)
+
+| # | İş | Beklenen Sonuç |
+|---|----|----------------|
+| 5 | **OFT + Plus Maze feature birleştirmesi** (Aşama 05B) | 42 feature × 12 sıçan; LOGOCV F1 ~0.20-0.30 olabilir |
+| 6 | **Etolojik feature'lar** (head-dip, SAP, risk-assessment) | Plus Maze'de saf anksiyete sinyali |
+| 7 | **Window classifier'ı çalıştır** (`src/train_window_classifier.py`) — ground-truth genişletme şart | Rule-based detector'ın yerine, F1=0.70+ |
+| 8 | **anxiety_score regresyon** (sınıflandırma yerine) | n=12 için Pearson r + RMSE rapor — F1'den dürüst |
+
+### 14.3 Uzun Vade (>1 ay, opsiyonel)
+
+| # | İş | Not |
+|---|----|----|
+| 9 | **Veri büyütme** — grup başına +2-3 sıçan | n=20+ → cohort F1 0.5+ olabilir |
+| 10 | **Pozitif kontrol deneyi** (diazepam 1 mg/kg) | Pipeline'ın gerçek anksiyolitik sinyali yakaladığını doğrular |
+| 11 | **SimBA / B-SOiD entegrasyonu** | Sosyal/ etolojik davranış sınıflandırma (Goodwin et al. 2024) |
+| 12 | **Multi-modal fusion**: heatmap CNN embedding + tabular | Layer 3-4 (final_report §9) |
+
+### 14.4 Literatür Referansları
+
+#### EPM Metodoloji
+- Pellow S, et al. (1985). *J Neurosci Methods* — EPM validasyonu
+- Pellow S & File SE (1986) PMID 2864480 — Anksiyolitik/anksiyojenik iki yönlü duyarlılık
+- Cruz APM, Frei F & Graeff FG (1994). *Pharmacol Biochem Behav* — Faktör analizi (anksiyete vs lokomotor)
+- Rodgers RJ & Johnson NJT (1995). *Pharmacol Biochem Behav* — Etolojik analiz (head-dip, SAP)
+- Carobrez AP & Bertoglio LJ (2005). *Neurosci Biobehav Rev* — EPM 20 yıl sonra
+- File SE (2001). *Behav Brain Res* — Yorumlama tuzakları
+- Walf AA & Frye CA (2007). *Nat Protoc* PMC3623971 — Standart protokol
+
+#### Aspartam
+- Ashok I & Sheeladevi R (2015) — Wistar sıçanlarda uzun süreli aspartam → anksiyojenik
+- Onaolapo OJ et al. (2017). *Pathophysiology* — Subkronik aspartam nörodavranışı
+- Jones BL et al. (2022). *PNAS* PMC9894161 — Transgenerasyonel aspartam anksiyetesi (amigdala glu/GABA)
+- Christian B et al. (2004). *Pharmacol Biochem Behav* — Aspartam + etanol farede anksiyete
+
+#### Naringin / Naringenin (Greyfurt Flavonoidleri)
+- Fernandez SP et al. (2009). *Neurochem Res* — Naringin anksiyolitik etkisi
+- Viswanatha GL et al. (2017) — Naringin doz-cevap (25-100 mg/kg)
+- Nouri Z et al. (2019). *Biomed Pharmacother* — Naringenin Parkinson modelinde anksiyolitik
+
+#### Greyfurt × CYP3A4 İlaç Etkileşimi
+- Bailey DG et al. (2013). *CMAJ* PMC3589309 — Greyfurt-ilaç etkileşimleri review
+- Hanley MJ et al. (2024). *Expert Opin Drug Metab Toxicol* — Greyfurt + psikotropikler güncel
+
+#### DLC + Davranış Sınıflandırma
+- Sturman O et al. (2020). *Neuropsychopharmacology* — DLC tabanlı EPM/OFT/FST otomatik analiz
+- Goodwin NL et al. (2024). *Front Behav Neurosci* — DLC + SimBA etolojik analiz pipeline
+- Hsu AI & Yttri EA (2021). *Nat Commun* — B-SOiD unsupervised davranış kümeleme
+- Bohnslav JP et al. (2021). *eLife* — DeepEthogram supervised davranış
+- SimBA: github.com/sgoldenlab/simba (Golden Lab, RandomForest tabanlı)
+
+#### Türkçe Kaynaklar
+- YÖK Ulusal Tez Merkezi — tez.yok.gov.tr ("elevated plus labirent", "sıçan anksiyete", "DeepLabCut" anahtar kelimeleri)
+- Marmara Medical Journal — "Anksiyete araştırmalarında kullanılan sıçan davranış modelleri" derlemesi (TR metodolojik referans)
+
+---
+
+*Bu dosya, `docs/behavior_comparison.md`, `docs/final_report.md`, `docs/window_classifier_plan.md`, `docs/tmaze_keypoints_and_layout.md`, `analysis/WORKFLOW_SUMMARY.md`, `reports/model_comparison_all.csv`, `reports/cohort_*.csv` ve `documents/plans/` altındaki aşama planlarından derlenerek hazırlanmıştır.*
