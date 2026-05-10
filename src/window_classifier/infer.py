@@ -34,7 +34,8 @@ import pandas as pd
 
 from src.window_classifier.features import (
     DEFAULT_WINDOW, DEFAULT_STRIDE, DEFAULT_LONG_WINDOW, LIKELIHOOD_THRESH,
-    extract_windows, load_dlc_flat,
+    apply_likelihood_mask, compute_rule_signals, extract_windows,
+    load_dlc_flat_raw,
 )
 
 ROOT     = Path(__file__).resolve().parent.parent.parent
@@ -116,12 +117,15 @@ def predict_one(csv: Path, bundle: dict, window: int, stride: int,
                 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     subject = csv.parent.name
     print(f"[load] {csv.relative_to(ROOT) if csv.is_relative_to(ROOT) else csv}")
-    dlc = load_dlc_flat(csv, lik_thresh)
+    raw = load_dlc_flat_raw(csv)
+    dlc = apply_likelihood_mask(raw, lik_thresh)
+    rule_sig = compute_rule_signals(raw, dlc, fps=fps)
     n_frames = len(dlc)
     print(f"  frames = {n_frames}  (~{n_frames/fps:.1f} s @ {fps:.0f} fps)")
 
     win_df = extract_windows(dlc, subject, window, stride,
-                             long_window_size=long_window, fps=fps)
+                             long_window_size=long_window, fps=fps,
+                             rule_signals=rule_sig)
     print(f"  windows = {len(win_df)}  (window={window}, stride={stride}, "
           f"long_window={long_window})")
 

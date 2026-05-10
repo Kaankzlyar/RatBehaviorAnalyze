@@ -40,6 +40,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.behavior_detection import (
+    compute_features as _rule_compute_features,
+    REAR_COMPACT_HTDIST, REAR_EXTEND_FPHP, REAR_NOSE_Y_MAX,
+    REAR_BOTTOM_STRONG_FPHP, REAR_BOTTOM_COMPACT_FPHP,
+    REAR_BOTTOM_HTDIST, REAR_BOTTOM_NOSE_Y,
+    GROOM_NOSE2FP_TIGHT, GROOM_NOSE2FP, GROOM_MAX_FPHP, GROOM_MAX_VEL,
+    ARENA_X_LEFT, ARENA_X_RIGHT, ARENA_Y_TOP, ARENA_Y_BOTTOM,
+    BODY_INSIDE_MARGIN,
+)
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 DLC_DIR = ROOT / "data" / "DLCfiltered"
 OUT_DEFAULT = ROOT / "data" / "windows_all.parquet"
@@ -54,22 +64,29 @@ GROOMING_BAND_HZ = (4.0, 8.0)  # rat forepaw oscillation during grooming
 
 # ── load + mask ──────────────────────────────────────────────────────────────
 
-def load_dlc_flat(csv_path: Path, lik_thresh: float) -> pd.DataFrame:
+def load_dlc_flat_raw(csv_path: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path, header=[0, 1, 2], index_col=0)
     df.columns = [f"{bp}_{coord}" for _, bp, coord in df.columns]
+    return df
 
-    # mask (x, y) where likelihood < threshold
-    bps = discover_keypoints(df)
+
+def apply_likelihood_mask(df: pd.DataFrame, lik_thresh: float) -> pd.DataFrame:
+    out = df.copy()
+    bps = discover_keypoints(out)
     for bp in bps:
         lik_col = f"{bp}_likelihood"
-        if lik_col not in df.columns:
+        if lik_col not in out.columns:
             continue
-        bad = df[lik_col] < lik_thresh
-        if f"{bp}_x" in df.columns:
-            df.loc[bad, f"{bp}_x"] = np.nan
-        if f"{bp}_y" in df.columns:
-            df.loc[bad, f"{bp}_y"] = np.nan
-    return df
+        bad = out[lik_col] < lik_thresh
+        if f"{bp}_x" in out.columns:
+            out.loc[bad, f"{bp}_x"] = np.nan
+        if f"{bp}_y" in out.columns:
+            out.loc[bad, f"{bp}_y"] = np.nan
+    return out
+
+
+def load_dlc_flat(csv_path: Path, lik_thresh: float) -> pd.DataFrame:
+    return apply_likelihood_mask(load_dlc_flat_raw(csv_path), lik_thresh)
 
 
 def discover_keypoints(df: pd.DataFrame) -> list[str]:
@@ -341,12 +358,140 @@ def long_window_features(dlc: pd.DataFrame, start: int, end_inclusive: int,
     return feats
 
 
+# ── rule-derived per-frame signals ──────────────────────────────────────────
+# Mirrors the building blocks of behavior_detection.classify_frames so the
+# classifier can see the same evidence the rule-based detector uses (htdist,
+# fp_hp_vert, body_still, arena-aware nose/body inside masks, and each
+# disjunctive component rule for grooming / rearing). Pencere-seviyesinde
+# bunları aggregate ediyoruz: continuous → mean/std/min/max/p10/p90, boolean
+# → fraction of frames True.
+
+_RULE_CONTINUOUS_COLS = ("htdist", "fp_hp_vert", "nose_y", "nose2fp",
+                          "htd_y", "body_vel")
+_RULE_BOOL_COLS = (
+    "nose_inside", "body_inside", "body_still",
+    "groom_tight", "groom_loose", "groom_upright", "groom_nose_occluded",
+    "rear_compact_pre", "rear_top_wall", "rear_bot_strong", "rear_bot_compact",
+)
+
+
+def compute_rule_signals(raw_df: pd.DataFrame, masked_df: pd.DataFrame,
+                         fps: float = DEFAULT_FPS) -> pd.DataFrame:
+    """Per-frame DataFrame with the rule detector's continuous features and
+    the disjunctive component-rule masks (pre-interlock).
+
+    Final rearing/grooming labels are intentionally not exposed here — those
+    are the labels we are training against. We give the model the same raw
+    evidence and let it (re-)combine it.
+    """
+    feat = _rule_compute_features(raw_df, masked_df, fps=fps)
+
+    nose_inside = (
+        (feat["nose_x"] > ARENA_X_LEFT) & (feat["nose_x"] < ARENA_X_RIGHT)
+        & (feat["nose_y"] > ARENA_Y_TOP) & (feat["nose_y"] < ARENA_Y_BOTTOM)
+    )
+    body_inside = (
+        (feat["body_x"] > ARENA_X_LEFT + BODY_INSIDE_MARGIN)
+        & (feat["body_x"] < ARENA_X_RIGHT - BODY_INSIDE_MARGIN)
+        & (feat["body_y"] > ARENA_Y_TOP + BODY_INSIDE_MARGIN)
+        & (feat["body_y"] < ARENA_Y_BOTTOM - BODY_INSIDE_MARGIN)
+    )
+
+    groom_tight = (
+        (feat["nose2fp"] < GROOM_NOSE2FP_TIGHT)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+        & nose_inside
+    )
+    groom_loose = (
+        (feat["nose2fp"] < GROOM_NOSE2FP)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] < GROOM_MAX_FPHP)
+        & nose_inside
+    )
+    groom_upright = (
+        (feat["nose2fp"] < GROOM_NOSE2FP)
+        & (feat["body_vel"] < GROOM_MAX_VEL)
+        & (feat["fp_hp_vert"] > GROOM_MAX_FPHP)
+        & (feat["nose_y"] > REAR_NOSE_Y_MAX)
+        & nose_inside
+    )
+    groom_nose_occluded = (
+        feat["nose_y"].isna() & feat["body_still"] & body_inside
+        & (feat["fp_hp_vert"] > GROOM_MAX_FPHP)
+    )
+
+    rear_top_wall = (
+        (feat["fp_hp_vert"] > REAR_EXTEND_FPHP)
+        & (feat["nose_y"] < REAR_NOSE_Y_MAX)
+    )
+    rear_bot_strong = (
+        (feat["fp_hp_vert"] < REAR_BOTTOM_STRONG_FPHP)
+        & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y)
+    )
+    rear_bot_compact = (
+        (feat["fp_hp_vert"] < REAR_BOTTOM_COMPACT_FPHP)
+        & (feat["nose_y"] > REAR_BOTTOM_NOSE_Y)
+        & (feat["htdist"] < REAR_BOTTOM_HTDIST)
+    )
+    rear_compact_pre = feat["htdist"] < REAR_COMPACT_HTDIST
+
+    sig = pd.DataFrame(index=feat.index)
+    for c in _RULE_CONTINUOUS_COLS:
+        sig[c] = feat[c]
+    sig["nose_inside"]         = nose_inside
+    sig["body_inside"]         = body_inside
+    sig["body_still"]          = feat["body_still"]
+    sig["groom_tight"]         = groom_tight
+    sig["groom_loose"]         = groom_loose
+    sig["groom_upright"]       = groom_upright
+    sig["groom_nose_occluded"] = groom_nose_occluded
+    sig["rear_compact_pre"]    = rear_compact_pre
+    sig["rear_top_wall"]       = rear_top_wall
+    sig["rear_bot_strong"]     = rear_bot_strong
+    sig["rear_bot_compact"]    = rear_bot_compact
+    return sig
+
+
+def rule_window_features(sig: pd.DataFrame, start: int, end: int) -> dict:
+    """Aggregate per-frame rule signals over [start, end) into window features.
+
+    Continuous columns → mean/std/min/max/p10/p90 (NaN-safe).
+    Boolean columns    → fraction of frames True (NaN treated as False).
+    """
+    feats: dict = {}
+    if end <= start or sig is None or len(sig) == 0:
+        return feats
+    win = sig.iloc[start:end]
+    if len(win) == 0:
+        return feats
+
+    for col in _RULE_CONTINUOUS_COLS:
+        if col not in win.columns:
+            continue
+        arr = win[col].to_numpy(dtype=float)
+        feats[f"rule_{col}_mean"] = _safe(np.nanmean, arr)
+        feats[f"rule_{col}_std"]  = _safe(np.nanstd, arr)
+        feats[f"rule_{col}_min"]  = _safe(np.nanmin, arr)
+        feats[f"rule_{col}_max"]  = _safe(np.nanmax, arr)
+        feats[f"rule_{col}_p10"]  = _safe(np.nanpercentile, arr, 10)
+        feats[f"rule_{col}_p90"]  = _safe(np.nanpercentile, arr, 90)
+
+    for col in _RULE_BOOL_COLS:
+        if col not in win.columns:
+            continue
+        m = win[col].fillna(False).to_numpy(dtype=bool)
+        feats[f"rule_{col}_frac"] = float(m.mean()) if len(m) else np.nan
+    return feats
+
+
 # ── window driver ────────────────────────────────────────────────────────────
 
 def extract_windows(dlc: pd.DataFrame, subject_id: str,
                     window_size: int, stride: int,
                     long_window_size: int = DEFAULT_LONG_WINDOW,
-                    fps: float = DEFAULT_FPS) -> pd.DataFrame:
+                    fps: float = DEFAULT_FPS,
+                    rule_signals: pd.DataFrame | None = None) -> pd.DataFrame:
     keypoints = discover_keypoints(dlc)
     n_frames = len(dlc)
     rows: list[dict] = []
@@ -362,6 +507,8 @@ def extract_windows(dlc: pd.DataFrame, subject_id: str,
         feats.update(cross_keypoint_features(win, keypoints))
         feats.update(long_window_features(
             dlc, start, end - 1, keypoints, long_window_size, fps))
+        if rule_signals is not None:
+            feats.update(rule_window_features(rule_signals, start, end))
         rows.append(feats)
     return pd.DataFrame(rows)
 
@@ -412,9 +559,12 @@ def main() -> None:
     parts: list[pd.DataFrame] = []
     for csv in csvs:
         subject = csv.parent.name
-        dlc = load_dlc_flat(csv, args.likelihood_thresh)
+        raw = load_dlc_flat_raw(csv)
+        dlc = apply_likelihood_mask(raw, args.likelihood_thresh)
+        rule_sig = compute_rule_signals(raw, dlc, fps=args.fps)
         df = extract_windows(dlc, subject, args.window, args.stride,
-                             long_window_size=args.long_window, fps=args.fps)
+                             long_window_size=args.long_window, fps=args.fps,
+                             rule_signals=rule_sig)
         print(f"  {subject:24s} -> {len(df):5d} windows × {df.shape[1]:3d} cols  (n_frames={len(dlc)})")
         parts.append(df)
 
