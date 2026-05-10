@@ -18,7 +18,7 @@ Kaynaklar
 
 Kullanım
 --------
-    python -m src.anxiety_profile
+    python -m src.anxiety.profile
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
-ROOT     = Path(__file__).resolve().parent.parent
+ROOT     = Path(__file__).resolve().parent.parent.parent
 DLC_DIR  = ROOT / "data" / "DLCfiltered"
 REPORTS  = ROOT / "reports"
 REPORTS.mkdir(parents=True, exist_ok=True)
