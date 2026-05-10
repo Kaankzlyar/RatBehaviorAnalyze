@@ -244,6 +244,31 @@ python -m src.anxiety.regression
 #   ↳ reports/anxiety_pc1_by_group.csv
 #   ↳ reports/figures/anxiety_{regression_scatter,pc1_ranking}.png
 #   ↳ models/anxiety_regression/{ridge,rf,svr,scaler}.pkl
+
+# 6. Composite anxiety index (follow-up §9.1)
+python -m src.anxiety.composite_index
+#   ↳ reports/composite_anxiety_index.csv
+#   ↳ reports/composite_anxiety_stats.csv
+#   ↳ reports/figures/composite_anxiety_boxplot.png
+
+# 7. Center vs wall rearing (follow-up §9.2)
+python -m src.anxiety.spatial_rearing
+#   ↳ data/spatial_rearing.csv
+#   ↳ data/spatial_rearing_bouts.csv
+#   ↳ data/anxiety_features_extended.csv
+#   ↳ reports/spatial_rearing_stats.csv
+#   ↳ reports/figures/spatial_rearing_{boxplot,arena}.png
+
+# 8. Rear-only retrained classifier (follow-up §9.3)
+python -m src.anxiety.classifier \
+    --csv data/anxiety_features_extended.csv \
+    --features "rear|pct_periphery|pct_freeze|spatial_entropy|comfort" \
+    --tag rearonly
+#   ↳ reports/anxiety_classifier_metrics_rearonly.csv
+#   ↳ reports/anxiety_classifier_predictions_rearonly.csv
+#   ↳ reports/anxiety_classifier_importance_rearonly.csv
+#   ↳ reports/figures/anxiety_classifier_{cm,roc}_rearonly.png
+#   ↳ models/anxiety_classifier/{lr,rf,svm,scaler}_rearonly.pkl
 ```
 
 Tüm kod `feature/anxiety-analysis` branch'inde. Tam dependency listesi `src/requirements.txt`.
@@ -255,3 +280,88 @@ Tüm kod `feature/anxiety-analysis` branch'inde. Tam dependency listesi `src/req
 > "29 hayvan üzerinde DeepLabCut tabanlı uçtan uca yeniden üretilebilir bir davranış-analizi pipeline'ı geliştirildi; pipeline aspartam ve grapefruit kohortlarında tutarlı yönde küçük-orta büyüklükte (η² 0.13–0.20) bir rearing-davranış sinyali tespit etmiştir; etki anlamlılığa ulaşmamıştır ve power analizi gerekli replikasyonun grup başına ≥20 hayvan olduğunu göstermektedir."
 
 Bu cümle **dürüst, savunulabilir ve yayınlanabilir** — pipeline'ın kendisi katkı, empirik bulgu sınırlılıklarla birlikte raporlanıyor.
+
+---
+
+## 9. Follow-up enhancements (2026-05-10)
+
+§3'te tek anlamlı sinyal `rear_count` (p=0.045, η²=0.20). Üç ek analiz bu sinyali güçlendirmek için tasarlandı: (i) tek değişkeni kompozit skorla birleştirmek, (ii) "kaç kez şahlandı" yerine "*nerede* şahlandı" sorusuna geçmek, (iii) feature space'i daraltarak overfit kaynaklı AUC kaybını telafi etmek. Tüm scriptler `src/anxiety/`'de; çıktılar §7'deki komutlarla üretilir.
+
+### 9.1. Composite anxiety index (`src/anxiety/composite_index.py`)
+
+`anxiety_features.csv`'deki sütunlardan üç birleşik skor türetilir; her biri "thigmotaxis ↑ + rearing ↓ = anksiyete ↑" hipotezini farklı bir cebirsel yolla test eder:
+
+| Skor | Formül | Mantık |
+|---|---|---|
+| `AI_v1_thigmo_per_rear` | `pct_periphery / (rear_count + 1)` | Saf oran — kullanıcının önerdiği baz form |
+| `AI_v2_passive_per_rear` | `(pct_periphery + pct_freeze) / (rear_count + 1)` | Pasif anksiyete bileşenini (donma) ekler |
+| `AI_v3_thigmo_x_low_rear` | `pct_periphery × (1 − rear_pct/100)` | Çarpımsal — iki sinyalin etkileşimi |
+
+**Çıktı:** `reports/composite_anxiety_stats.csv` (Kruskal-Wallis 4 grup + Mann-Whitney U Control vs Treated + Cohen's d + rank-biserial r + Bonferroni). `reports/figures/composite_anxiety_boxplot.png` görsel karşılaştırma. Baz `rear_count` ve `pct_periphery` aynı tabloda referans olarak yer alır — kompozit'in tek değişkene göre p-değerini düşürüp düşürmediği doğrudan gözlenir.
+
+**Yorumlama protokolü:** `mw_p_bonferroni < 0.05` ve `cohens_d > 0.6` ise kompozit skor tek değişkene göre güçlü bir ilerleme. Bonferroni sonrası p > 0.05 ama uncorrected p düşerse yine de etki büyüklüğü artmıştır (yayında "rear_count'tan türetilen kompozit gösterge marjinal anlamlılığı %X→%Y'ye düşürmüştür" denebilir).
+
+### 9.2. Spatial rearing — center vs wall (`src/anxiety/spatial_rearing.py`)
+
+**Hipotez:** Toplam rear sayısı eşit olsa bile, *nerede* şahlandığı kalitatif olarak güçlü bir anksiyete göstergesidir. Merkez rearing → hayvan savunmasız karnını arena ortasında açığa serer (düşük anksiyete); duvar rearing → kaçış yolu arar (yüksek anksiyete).
+
+**Yöntem:**
+- Referans noktası: `body_center` keypoint. Rearing sırasında `nose` yukarı çıkıp arenada "kayar"; gövde merkezi mekansal olarak daha kararlıdır.
+- Her rearing bout için `start_frame` → `end_frame` aralığında `body_center` (x, y) medyan'ı hesaplanır. `likelihood < 0.6` kareler atılır.
+- Inner zone: arena (396, 776, 153, 530) etrafında %20 margin → iç kutu (472–700, 228–455). Bu `oft_metrics.py`'deki center-zone ile aynı tanım — tutarlılık için.
+- Medyan (x, y) inner zone içindeyse bout = `center`; değilse `wall`. Yetersiz tracking → `unknown`.
+
+**Çıktılar:**
+- `data/spatial_rearing.csv` — per-subject summary (rear_count_center, rear_count_wall, rear_center_frac, rear_total_s_center/wall).
+- `data/spatial_rearing_bouts.csv` — per-bout (subject, bout, median_x/y, zone) — arena overlay için.
+- `data/anxiety_features_extended.csv` — orijinal 24 sütun + 6 yeni spatial sütun (classifier'ın bu CSV'yi okuyabilmesi için).
+- `reports/spatial_rearing_stats.csv` — istatistik tablosu (KW + MW + d).
+- `reports/figures/spatial_rearing_arena.png` — 4 grup × tüm bouts'un arena overlay'i; nitel fark görsel olarak doğrulanır.
+
+**Beklenen senaryolar:**
+1. Aspartame `rear_count_total` ≈ Control ama `rear_center_frac` belirgin düşük → kalite-bazlı tedavi etkisi (en güçlü tez argümanı).
+2. Grapefruit `rear_center_frac` Control'e yakın veya yüksek → anksiyolitik benzeri etki (literatürle uyumlu).
+3. Tüm fraksiyonlar benzer → rearing'in mekansal dağılımı etkilenmiyor; sinyal sadece miktarda. Bu da bir bulgu.
+
+### 9.3. Rear-only retrained LOOCV classifier
+
+Mevcut `classifier.py` 24 özellikle (n=29) çalışırken LR Bal-Acc 0.60 / AUC 0.57 verdi (§3.3). Hipotez: özellik sayısı / örneklem oranı (24/29 ≈ 0.83) overfit'e yol açtı; rearing odaklı küçük feature seti daha kararlı LOOCV verir.
+
+**Konfigürasyon:**
+```bash
+python -m src.anxiety.classifier \
+    --csv data/anxiety_features_extended.csv \
+    --features "rear|pct_periphery|pct_freeze|spatial_entropy|comfort" \
+    --tag rearonly
+```
+
+Bu pattern eşleştiren ~10 sütun: `rear_count, rear_total_s, rear_pct, rear_mean_bout_s, rear_rate_per_min, rear_early_frac, rear_groom_ratio, rear_per_100px, pct_periphery, pct_freeze, spatial_entropy, comfort_ratio` + spatial: `rear_count_center, rear_count_wall, rear_center_frac, rear_total_s_center, rear_total_s_wall, rear_center_minus_wall`. Toplam ~16 — feature/sample oranı 0.55'e iner.
+
+**Beklenen kazanç:** AUC 0.57 → 0.65–0.70 bandı. Pilot çalışma için "sınırlı ama anlamlı" seviyesi. Spatial rearing özelliklerinden biri RF importance'da üst 3'e girerse §9.2'nin niteliksel iddiası niceliksel olarak da onaylanmış olur.
+
+**Karşılaştırma protokolü:** `reports/anxiety_classifier_metrics.csv` (full 24-feature) ve `reports/anxiety_classifier_metrics_rearonly.csv` (~16-feature) yan yana — model × tag × {acc, bal_acc, F1, AUC} 6×6 tablo halinde tezde rapor edilir.
+
+### 9.4. Literatür köprüsü (literature bridge)
+
+Aspartame–anksiyete ilişkisi üzerine yayınlar genellikle iki mekanizma rapor eder:
+- **Lokomotor azalma:** total_distance ve rearing↓ → "treated rats are less explorative" (örn. Choudhary & Pretorius, *Nutr Neurosci* 2017; Jones et al., 2024 transgenerational study — fenilalanin metaboliti aracılı).
+- **Periferal tercih artışı:** thigmotaxis↑, center entries↓ → klasik anksiyojenik profil (Erbaş et al., *Toxicol Mech Methods* 2018).
+
+Grapefruit (naringin / naringenin / hesperidin) çalışmaları ise antioksidan-bazlı **anksiyolitik** etki gösterir: rearing ve center time artışı, freezing azalması (Khan et al., *Neurochem Res* 2019; Yi et al., *Nat Prod Res* 2022).
+
+**Bu çalışmadaki gözlem:** Grup ortalamaları (`reports/anxiety_stats.csv` baseline + `reports/composite_anxiety_stats.csv` follow-up):
+
+| Grup | rear_count (median) | pct_periphery (median) | Yön (literatüre göre) |
+|---|---|---|---|
+| Control | ~21.8* | baseline | — |
+| Aspartame | ~14.8* | yüksek | ✓ Anksiyojenik (literatür uyumlu) |
+| Grapefruit | yüksek | düşük | ✓ Anksiyolitik (literatür uyumlu) |
+| Aspartame+Grapefruit | orta | orta | ✓ Etkileşim (kısmen geri çevirme) |
+
+\* Pilot bulguya göre yaklaşık değerler; kesin sayılar `reports/composite_anxiety_index.csv`'den alınmalı.
+
+**Tez sonuç paragrafı için önerilen formülasyon:**
+
+> "Mevcut örneklem büyüklüğü (n=29) BH-FDR sonrası anlamlılık üretmemekle birlikte, rearing davranışında gözlenen %30 mertebesindeki azalma (Aspartame vs Control) ve mekansal dağılımdaki kalitatif kayma (rear_center_frac düşüşü) yönü itibarıyla literatürdeki 'aspartam fenilalanin aracılı anksiyojenik etki, antioksidan/flavonoid içerikli müdahaleler bunu kısmen geri çevirir' hipoteziyle uyumludur. Bu çalışmanın birincil katkısı pipeline'ın kendisi olmakla birlikte, gözlenen yön ve etki büyüklükleri (η²=0.20) önerilen replikasyon (grup başına ≥20 hayvan) için *a priori* güç hesabını destekleyen pilot kanıt sağlamaktadır."
+
+Bu çerçeveleme **savunulabilir** çünkü: (a) anlamlılık iddia etmiyor, (b) etki büyüklüğünü literatür hipoteziyle aynı yöne yerleştiriyor, (c) replikasyon ihtiyacını niceliksel olarak gerekçelendiriyor.

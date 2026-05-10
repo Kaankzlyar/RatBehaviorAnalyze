@@ -20,11 +20,19 @@ Doğrulama: LeaveOneOut (n=29). class_weight="balanced" — kontrol grubu
 
 Kullanım
 --------
+    # Tüm 24 özellikle (default)
     python -m src.anxiety.classifier
+
+    # Sadece rearing türevleriyle — overfit'i azaltmak için feature subset
+    python -m src.anxiety.classifier \
+        --features "rear|pct_periphery|pct_freeze|spatial_entropy" \
+        --tag rearonly
 """
 from __future__ import annotations
 
+import argparse
 import pickle
+import re
 import warnings
 from pathlib import Path
 
@@ -84,12 +92,16 @@ def make_models() -> dict:
 
 # ── Veri ──────────────────────────────────────────────────────────────────────
 
-def load_features() -> tuple[pd.DataFrame, np.ndarray, np.ndarray, list[str]]:
-    if not FEAT_CSV.exists():
+def load_features(feature_pattern: str | None = None,
+                  csv_path: Path | None = None,
+                  ) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, list[str]]:
+    csv = csv_path or FEAT_CSV
+    if not csv.exists():
         raise FileNotFoundError(
-            f"{FEAT_CSV} yok — önce `python -m src.anxiety.profile` çalıştır."
+            f"{csv} yok — önce `python -m src.anxiety.profile` çalıştır."
         )
-    df = pd.read_csv(FEAT_CSV)
+    df = pd.read_csv(csv)
+    print(f"[load] from {csv.relative_to(ROOT)}")
     if "group" not in df.columns:
         raise ValueError("anxiety_features.csv 'group' sütununu içermiyor.")
 
@@ -97,6 +109,15 @@ def load_features() -> tuple[pd.DataFrame, np.ndarray, np.ndarray, list[str]]:
     # NaN ağırlıklı sütunları at
     na_frac = df[feature_cols].isna().mean()
     feature_cols = [c for c in feature_cols if na_frac[c] < NA_THRESHOLD]
+
+    if feature_pattern:
+        rx = re.compile(feature_pattern)
+        kept = [c for c in feature_cols if rx.search(c)]
+        if not kept:
+            raise ValueError(f"Pattern '{feature_pattern}' hiçbir sütunu eşleştirmedi. "
+                             f"Mevcut: {feature_cols}")
+        print(f"[filter] pattern='{feature_pattern}'  -> {len(kept)} feature: {kept}")
+        feature_cols = kept
 
     X = df[feature_cols].values.astype(float)
     y = (df["group"].astype(str).str.lower() != "control").astype(int).values
@@ -201,25 +222,28 @@ def plot_roc(results: dict, y: np.ndarray, out: Path) -> None:
 # ── Tam veri ile yeniden eğitim + feature importance ──────────────────────────
 
 def fit_full_and_save(X: np.ndarray, y: np.ndarray,
-                      feature_cols: list[str]) -> pd.DataFrame:
+                      feature_cols: list[str], tag: str | None = None) -> pd.DataFrame:
     """Tüm veride yeniden eğit, pickle olarak kaydet, önemleri döner."""
+    sfx = f"_{tag}" if tag else ""
     imp = SimpleImputer(strategy="median")
     X_i = imp.fit_transform(X)
     sc  = StandardScaler()
     X_s = sc.fit_transform(X_i)
 
-    with open(MODELS / "scaler.pkl", "wb") as f:
+    scaler_path = MODELS / f"scaler{sfx}.pkl"
+    with open(scaler_path, "wb") as f:
         pickle.dump({"imputer": imp, "scaler": sc, "features": feature_cols}, f)
-    print(f"[write] models/anxiety_classifier/scaler.pkl")
+    print(f"[write] {scaler_path.relative_to(ROOT)}")
 
     importances = {}
     for name, model in make_models().items():
         m = model.__class__(**model.get_params())
         m.fit(X_s, y)
         slug = {"LogisticReg": "lr", "RandomForest": "rf", "SVM-RBF": "svm"}[name]
-        with open(MODELS / f"{slug}.pkl", "wb") as f:
+        model_path = MODELS / f"{slug}{sfx}.pkl"
+        with open(model_path, "wb") as f:
             pickle.dump(m, f)
-        print(f"[write] models/anxiety_classifier/{slug}.pkl")
+        print(f"[write] {model_path.relative_to(ROOT)}")
 
         if name == "RandomForest":
             importances["rf_importance"] = m.feature_importances_
@@ -234,8 +258,31 @@ def fit_full_and_save(X: np.ndarray, y: np.ndarray,
 
 # ── Ana ──────────────────────────────────────────────────────────────────────
 
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="LOOCV anxiety classifier (Control vs Treated)")
+    p.add_argument("--features", default=None,
+                   help="Feature seçim regex (örn. 'rear|pct_periphery'). "
+                        "Boşsa tüm sütunlar.")
+    p.add_argument("--csv", default=None, type=Path,
+                   help="Feature CSV yolu (default data/anxiety_features.csv). "
+                        "Spatial rearing için anxiety_features_extended.csv kullan.")
+    p.add_argument("--tag", default=None,
+                   help="Çıktı dosya soneki (örn. 'rearonly'). Boşsa sade isimle yazar.")
+    p.add_argument("--no-refit", action="store_true",
+                   help="Tam-veri yeniden eğitim ve pickle kaydı atla.")
+    return p
+
+
+def _suffix(tag: str | None) -> str:
+    return f"_{tag}" if tag else ""
+
+
 def main() -> None:
-    df, X, y, feature_cols = load_features()
+    args = build_parser().parse_args()
+    tag  = args.tag
+    sfx  = _suffix(tag)
+
+    df, X, y, feature_cols = load_features(args.features, csv_path=args.csv)
 
     print("\n[loocv] LOOCV başlıyor...")
     results: dict[str, dict] = {}
@@ -251,9 +298,10 @@ def main() -> None:
               f"AUC={metrics['auc']:.2f}")
 
     # metrics CSV
-    metrics_rows = [{"model": n, **r["metrics"]} for n, r in results.items()]
+    metrics_rows = [{"model": n, "tag": tag or "full", "n_features": len(feature_cols),
+                     **r["metrics"]} for n, r in results.items()]
     metrics_df = pd.DataFrame(metrics_rows)
-    metrics_path = REPORTS / "anxiety_classifier_metrics.csv"
+    metrics_path = REPORTS / f"anxiety_classifier_metrics{sfx}.csv"
     metrics_df.to_csv(metrics_path, index=False)
     print(f"[write] {metrics_path.relative_to(ROOT)}")
 
@@ -266,16 +314,21 @@ def main() -> None:
                               "true": int(true), "pred": int(pred),
                               "proba_treated": round(float(prob), 3)})
     pred_df = pd.DataFrame(pred_rows)
-    pred_path = REPORTS / "anxiety_classifier_predictions.csv"
+    pred_path = REPORTS / f"anxiety_classifier_predictions{sfx}.csv"
     pred_df.to_csv(pred_path, index=False)
     print(f"[write] {pred_path.relative_to(ROOT)}")
 
-    plot_confusion_grid(results, FIGS / "anxiety_classifier_cm.png")
-    plot_roc(results, y, FIGS / "anxiety_classifier_roc.png")
+    plot_confusion_grid(results, FIGS / f"anxiety_classifier_cm{sfx}.png")
+    plot_roc(results, y, FIGS / f"anxiety_classifier_roc{sfx}.png")
+
+    if args.no_refit:
+        print("\n[skip] --no-refit verildi; pickle yazılmıyor.")
+        print("\n[done]")
+        return
 
     print("\n[refit] tam veri üzerinde yeniden eğitim + pickle...")
-    imp_df = fit_full_and_save(X, y, feature_cols)
-    imp_path = REPORTS / "anxiety_classifier_importance.csv"
+    imp_df = fit_full_and_save(X, y, feature_cols, tag=tag)
+    imp_path = REPORTS / f"anxiety_classifier_importance{sfx}.csv"
     imp_df.to_csv(imp_path, index=False)
     print(f"[write] {imp_path.relative_to(ROOT)}")
 
