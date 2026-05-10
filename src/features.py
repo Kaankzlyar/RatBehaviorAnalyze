@@ -153,3 +153,50 @@ print("\n=== SINIF DAGILIMI ===")
 for col in ["anxiety_level", "rearing_profile", "grooming_profile"]:
     print(f"\n{col}:")
     print(labels.groupby("group")[col].value_counts().to_string())
+
+# ── 7. OFT + Plus Maze birleşik feature tablosu ──────────────────────────────
+
+PM_CSV = DATA / "plus_maze_metrics_all.csv"
+
+PM_FEATURE_COLS = [
+    "pct_open_arm", "pct_closed_arm",
+    "pct_open_arm_entries", "pct_closed_arm_entries",
+    "anxiety_index_epm",
+    "total_entries", "mean_speed_px_s", "total_distance_px",
+    "arm_preference_index",
+    "successive_alternation_pct", "perseveration_rate_pct",
+    "pct_time_left", "pct_time_right",
+    "pct_time_top", "pct_time_bottom", "pct_time_junction",
+]
+
+if PM_CSV.exists():
+    pm = pd.read_csv(PM_CSV)
+    # subject_id eslestirmesi: "PlusMazeMA1_1" -> "MA1_1"
+    pm["subject_id"] = pm["subject_id"].str.replace("PlusMaze", "", regex=False)
+    pm_feats = pm[["subject_id"] + PM_FEATURE_COLS].copy()
+    pm_feats = pm_feats.rename(
+        columns={c: f"pm_{c}" for c in PM_FEATURE_COLS}
+    )
+
+    combined = features_raw.merge(pm_feats, on="subject_id", how="inner")
+    all_feat_cols = FEATURE_COLS + [f"pm_{c}" for c in PM_FEATURE_COLS]
+
+    combined[ID_COLS + all_feat_cols].to_csv(OUT / "features_combined.csv", index=False)
+    print(f"\n[OK] features_combined.csv  — {len(combined)} satir, {len(all_feat_cols)} ozellik")
+
+    scaler_comb = StandardScaler()
+    scaled_comb = scaler_comb.fit_transform(combined[all_feat_cols])
+    features_comb_norm = combined[ID_COLS].copy()
+    features_comb_norm[all_feat_cols] = scaled_comb
+    features_comb_norm.to_csv(OUT / "features_combined_normalized.csv", index=False)
+
+    with open(ROOT / "models" / "classifier" / "scaler_combined.pkl", "wb") as f:
+        pickle.dump(scaler_comb, f)
+
+    print(f"[OK] features_combined_normalized.csv + scaler_combined.pkl")
+    print(f"\nKohort dagilimi (combined):")
+    print(combined.groupby("cohort")[["pct_time_center", "pct_time_freeze",
+                                       "pm_pct_open_arm",
+                                       "pm_anxiety_index_epm"]].mean().round(2).to_string())
+else:
+    print(f"\n[skip] {PM_CSV} bulunamadi — combined tablo atlanıyor")
