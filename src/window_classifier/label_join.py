@@ -15,8 +15,8 @@ Output
 Usage
 -----
     python -m src.window_classifier.label_join
-    python -m src.window_classifier.label_join --in data/windows_all.parquet \\
-                                               --out data/windows_labeled.parquet
+    python -m src.window_classifier.label_join --in data/windows_all.parquet --out data/windows_labeled.parquet
+                                               
 """
 from __future__ import annotations
 
