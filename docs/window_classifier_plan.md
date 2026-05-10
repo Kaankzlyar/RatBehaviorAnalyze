@@ -40,9 +40,9 @@ A'nın çıktısı **rule-based detector'ın yerine geçer**; aşağı akımdaki
 ```mermaid
 flowchart TD
     GT["Ground truth bouts<br/>data/behavior_ground_truth.csv<br/>(8+ subjects, manual + weak labels)"] --> WL["Window labelling<br/>src/window_labeling.py"]
-    DLC["DLC filtered CSVs<br/>data/DLCfiltered/&lt;group&gt;/&lt;subject&gt;/"] --> WF["Window features<br/>src/window_features.py<br/>~80-120 feat/window"]
+    DLC["DLC filtered CSVs<br/>data/DLCfiltered/&lt;group&gt;/&lt;subject&gt;/"] --> WF["Window features<br/>src/window_classifier/features.py<br/>~80-120 feat/window"]
     WF --> WL
-    WL --> TR["Trainer<br/>src/train_window_classifier.py<br/>GroupKFold(subject), class-weighted"]
+    WL --> TR["Trainer<br/>src/window_classifier/train.py<br/>GroupKFold(subject), class-weighted"]
     TR --> M["models/window_classifier/<br/>{rf,xgb}_window.pkl"]
     TR --> RP["reports/<br/>window_classifier_loso_metrics.csv<br/>figures/window_confusion_matrix.png"]
     M --> INF["Inference<br/>src/inference.py<br/>new CSV → predictions + bouts + metrics"]
@@ -82,7 +82,7 @@ subject_id, start_frame, end_frame, label, source  (manual / weak)
 
 ## 5. Faz 2 — Window feature extractor
 
-**Yeni dosya:** `src/window_features.py`
+**Yeni dosya:** `src/window_classifier/features.py`
 
 ```python
 input  : DLC CSV + window_size + stride + keypoint_profile
@@ -132,7 +132,7 @@ output : DataFrame(subject_id, window_start, window_end, feat_1..feat_N)
 
 ## 7. Faz 4 — Trainer
 
-**Yeni dosya:** `src/train_window_classifier.py` (mevcut `src/train_baseline.py`'ı baz al, üç şey değiştir).
+**Yeni dosya:** `src/window_classifier/train.py` (mevcut `src/train_baseline.py`'ı baz al, üç şey değiştir).
 
 1. **CV strategy:** `GroupKFold(n_splits=12, groups=subject_id)` — subject-grouped LOSO
 2. **Class weights:** `class_weight='balanced'` veya custom (rare class'lara 5-10× ağırlık)
@@ -170,7 +170,7 @@ python -m src.inference --csv path/to/<subject>.csv --output report/
 
 **Akış:**
 1. DLC CSV oku
-2. `stride=1` ile pencere feature'larını çıkar (`window_features.py`)
+2. `stride=1` ile pencere feature'larını çıkar (`window_classifier/features.py`)
 3. Trained model `predict_proba` → her frame için 5-class olasılık
 4. Olasılıkları smooth et (median filter ~15 frame) — gürültü azalt
 5. Bout merging: aynı sınıf ardışık frame'leri birleştir, `gap ≤ 15 frame` → merge, `duration < 10 frame` → at (mevcut `behavior_detection.py` ile aynı kural)
@@ -194,7 +194,7 @@ python -m src.inference --csv path/to/<subject>.csv --output report/
 1. **LOSO metrik tablosu** — her cohort'tan en az 1 subject test edilmiş, rare class F1'leri kabul edilebilir mi
 2. **Rule-based baseline karşılaştırma** — `MA1_2` ve `MA5_1` ground truth'larına karşı her iki yaklaşımın F1'i; trained > rule-based mı?
 3. **Görsel spot-check** — random 3 subject için inference timeline'ı orijinal video ile yan yana, ~5 dk gözle bak
-4. **T-maze hazırlığı** — `window_features.py` keypoint listesini parametrize ederek yazılırsa T-maze 5-keypoint setiyle aynı kod çalışır
+4. **T-maze hazırlığı** — `window_classifier/features.py` keypoint listesini parametrize ederek yazılırsa T-maze 5-keypoint setiyle aynı kod çalışır
 
 **Tahmini süre:** **0.5-1 gün**.
 
@@ -267,9 +267,9 @@ Mevcut `*_behavior_timeline.png` ile aynı görünüm, altta olasılık eğrisi 
 |---|---|---|---|
 | 1 | `analysis/label_bouts.py` etiketleme aracı | 1 saat | etiketleyebilir hâle gelmek |
 | 2 | 8 subject etiketle (Faz 1) | 6 saat | `data/behavior_ground_truth.csv` |
-| 3 | `src/window_features.py` (Faz 2) | 2-3 saat | `data/windows_all.parquet` |
+| 3 | `src/window_classifier/features.py` (Faz 2) | 2-3 saat | `data/windows_all.parquet` |
 | 4 | `src/window_labeling.py` (Faz 3) | 1 saat | `data/windows_labeled.parquet` |
-| 5 | `src/train_window_classifier.py` (Faz 4) | 3-4 saat + 30 dk training | model pickle + LOSO metrik raporu |
+| 5 | `src/window_classifier/train.py` (Faz 4) | 3-4 saat + 30 dk training | model pickle + LOSO metrik raporu |
 | 6 | `src/inference.py` (Faz 5) | 2-3 saat | CSV-in → result-out |
 | 7 | Doğrulama + thesis yazımı (Faz 6-7) | 1 gün | `docs/final_report.md` yeni bölüm |
 
@@ -282,11 +282,12 @@ Mevcut `*_behavior_timeline.png` ile aynı görünüm, altta olasılık eğrisi 
 ## 15. Dosya/dizin haritası (planlanan eklemeler)
 
 ```
-src/
-├── window_features.py              # Faz 2 — keypoint-profile aware
-├── window_labeling.py              # Faz 3
-├── train_window_classifier.py      # Faz 4
-└── inference.py                    # Faz 5
+src/window_classifier/
+├── __init__.py
+├── features.py                     # Faz 2 — keypoint-profile aware
+├── label_join.py                   # Faz 3
+├── train.py                        # Faz 4
+└── infer.py                        # Faz 5
 
 analysis/
 └── label_bouts.py                  # Faz 1 — interaktif etiketleme aracı

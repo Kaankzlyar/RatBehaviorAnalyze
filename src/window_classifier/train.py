@@ -3,7 +3,7 @@ Aşama 07 — Pencere-seviyesi Davranış Sınıflandırıcı
 
 Inputs
 ------
-    data/windows_labeled.parquet   (src/window_label_join.py)
+    data/windows_labeled.parquet   (src/window_classifier/label_join.py)
 
 Çıktılar
 --------
@@ -51,7 +51,7 @@ except ImportError:
 
 warnings.filterwarnings("ignore")
 
-ROOT     = pathlib.Path(__file__).resolve().parent.parent
+ROOT     = pathlib.Path(__file__).resolve().parent.parent.parent
 DATA     = ROOT / "data"
 MODELS   = ROOT / "models" / "window_classifier"
 REPORTS  = ROOT / "reports"
@@ -74,7 +74,7 @@ def load_labeled(path: pathlib.Path) -> pd.DataFrame:
     if csv.exists():
         return pd.read_csv(csv)
     raise FileNotFoundError(
-        f"{path} bulunamadı — önce src/window_label_join.py'yi çalıştır."
+        f"{path} bulunamadı — önce src/window_classifier/label_join.py'yi çalıştır."
     )
 
 

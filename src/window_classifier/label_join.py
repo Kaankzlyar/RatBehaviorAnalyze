@@ -3,7 +3,7 @@ Window label join — birleştir window features + rule-based frame labels.
 
 Inputs
 ------
-    data/windows_all.parquet                              (src/window_features.py)
+    data/windows_all.parquet                              (src/window_classifier/features.py)
     data/DLCfiltered/.../<subject>_behavior_frames.csv    (rule-based detector)
 
 Output
@@ -14,9 +14,9 @@ Output
 
 Usage
 -----
-    python -m src.window_label_join
-    python -m src.window_label_join --in data/windows_all.parquet \\
-                                    --out data/windows_labeled.parquet
+    python -m src.window_classifier.label_join
+    python -m src.window_classifier.label_join --in data/windows_all.parquet \\
+                                               --out data/windows_labeled.parquet
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT     = Path(__file__).resolve().parent.parent
+ROOT     = Path(__file__).resolve().parent.parent.parent
 DLC_DIR  = ROOT / "data" / "DLCfiltered"
 WIN_PATH = ROOT / "data" / "windows_all.parquet"
 OUT_PATH = ROOT / "data" / "windows_labeled.parquet"
@@ -42,7 +42,8 @@ def load_windows(path: Path) -> pd.DataFrame:
     if csv_path.exists():
         return pd.read_csv(csv_path)
     raise FileNotFoundError(
-        f"{path} (or {csv_path}) bulunamadı — önce src/window_features.py'yi çalıştır."
+        f"{path} (or {csv_path}) bulunamadı — önce "
+        "src/window_classifier/features.py'yi çalıştır."
     )
 
 

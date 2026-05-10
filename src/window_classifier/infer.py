@@ -4,9 +4,9 @@ davranış tahminleri ve bout listesi üretir.
 
 Usage
 -----
-    python -m src.inference_window --csv data/DLCfiltered/.../<subject>.csv
-    python -m src.inference_window --csv <path> --model lightgbm \\
-                                   --out-dir results/predictions/
+    python -m src.window_classifier.infer --csv data/DLCfiltered/.../<subject>.csv
+    python -m src.window_classifier.infer --csv <path> --model lightgbm \\
+                                          --out-dir results/predictions/
 
 Output
 ------
@@ -32,12 +32,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.window_features import (
-    DEFAULT_WINDOW, DEFAULT_STRIDE, LIKELIHOOD_THRESH,
+from src.window_classifier.features import (
+    DEFAULT_WINDOW, DEFAULT_STRIDE, DEFAULT_LONG_WINDOW, LIKELIHOOD_THRESH,
     extract_windows, load_dlc_flat,
 )
 
-ROOT     = Path(__file__).resolve().parent.parent
+ROOT     = Path(__file__).resolve().parent.parent.parent
 MODELS   = ROOT / "models" / "window_classifier"
 DEFAULT_FPS = 30.0
 
@@ -48,7 +48,7 @@ def load_model_bundle(model_name: str) -> dict:
         avail = sorted(p.stem for p in MODELS.glob("*.pkl"))
         raise FileNotFoundError(
             f"{pkl} bulunamadı. Mevcut modeller: {avail or 'yok — '}"
-            "önce src/train_window_classifier.py'yi çalıştır."
+            "önce src/window_classifier/train.py'yi çalıştır."
         )
     with open(pkl, "rb") as f:
         return pickle.load(f)
@@ -111,15 +111,19 @@ def runs_to_bouts(frame_labels: np.ndarray, fps: float) -> pd.DataFrame:
 
 
 def predict_one(csv: Path, bundle: dict, window: int, stride: int,
-                lik_thresh: float, fps: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+                lik_thresh: float, fps: float,
+                long_window: int = DEFAULT_LONG_WINDOW
+                ) -> tuple[pd.DataFrame, pd.DataFrame]:
     subject = csv.parent.name
     print(f"[load] {csv.relative_to(ROOT) if csv.is_relative_to(ROOT) else csv}")
     dlc = load_dlc_flat(csv, lik_thresh)
     n_frames = len(dlc)
     print(f"  frames = {n_frames}  (~{n_frames/fps:.1f} s @ {fps:.0f} fps)")
 
-    win_df = extract_windows(dlc, subject, window, stride)
-    print(f"  windows = {len(win_df)}  (window={window}, stride={stride})")
+    win_df = extract_windows(dlc, subject, window, stride,
+                             long_window_size=long_window, fps=fps)
+    print(f"  windows = {len(win_df)}  (window={window}, stride={stride}, "
+          f"long_window={long_window})")
 
     # feature matrix — eğitim sırasında kullanılan kolon sırasına göre hizala
     feature_cols = bundle["feature_cols"]
@@ -163,6 +167,10 @@ def main() -> None:
                    help="Model adı: randomforest | xgboost | lightgbm")
     p.add_argument("--window", type=int, default=DEFAULT_WINDOW)
     p.add_argument("--stride", type=int, default=DEFAULT_STRIDE)
+    p.add_argument("--long-window", type=int, default=DEFAULT_LONG_WINDOW,
+                   dest="long_window",
+                   help="Co-centred slow-context window size in frames; "
+                        "must match training (default keeps in sync)")
     p.add_argument("--likelihood-thresh", type=float,
                    default=LIKELIHOOD_THRESH, dest="lik_thresh")
     p.add_argument("--fps", type=float, default=DEFAULT_FPS)
@@ -179,6 +187,7 @@ def main() -> None:
         args.csv, bundle,
         window=args.window, stride=args.stride,
         lik_thresh=args.lik_thresh, fps=args.fps,
+        long_window=args.long_window,
     )
 
     out_dir = args.out_dir or args.csv.parent

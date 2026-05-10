@@ -180,10 +180,11 @@ RatBehaviorAnalyze/
 │   ├── features.py                    Stage 05: feature engineering (20+ metrics/subject)
 │   ├── train_baseline.py              Stage 06: LOOCV across 4 targets, 4 model families
 │   ├── visualize_reports.py           Stage 07: confusion matrices, SHAP, OvR F1
-│   ├── window_features.py             (planned) Stage 06.2: pose-window feature extractor
-│   ├── window_labeling.py             (planned) Stage 06.2: bind ground-truth to windows
-│   ├── train_window_classifier.py     (planned) Stage 06.2: subject-grouped LOSO trainer
-│   ├── inference.py                   (planned) Stage 06.2: CSV-in → bouts + metrics
+│   ├── window_classifier/             Stage 06.2 — pose-window behavior classifier pipeline
+│   │   ├── features.py                window-level feature extraction (1 s + 3 s context)
+│   │   ├── label_join.py              join window features with rule-based frame labels
+│   │   ├── train.py                   GroupKFold + LOGOCV trainer (RF / XGBoost / LightGBM)
+│   │   └── infer.py                   DLC CSV-in → frame predictions + bout list
 │   ├── orbit_plot.py                  Trajectory plotting
 │   ├── show_frame_coords.py           Arena-boundary picker (interactive)
 │   ├── requirements.txt
