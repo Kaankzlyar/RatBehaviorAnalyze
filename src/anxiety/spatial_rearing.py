@@ -281,7 +281,7 @@ def plot_arena(bouts_df: pd.DataFrame, inner: tuple, out: Path) -> None:
         ax.set_xlabel("x (px)")
         ax.legend(loc="upper right", fontsize=8)
         ax.invert_yaxis()
-        ax.set_aspect("equal", adjustable="datalim")
+        ax.set_aspect("equal", adjustable="box")
     axes[0].set_ylabel("y (px)")
     fig.suptitle("Rearing Locations Across Arena (median body_center per bout)",
                  fontsize=12, fontweight="bold")
