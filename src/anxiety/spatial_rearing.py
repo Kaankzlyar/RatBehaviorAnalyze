@@ -18,9 +18,9 @@ Yöntem
     kayar; body_center daha kararlı).
   - DLC likelihood < 0.6 olan kareler atılır.
   - Her bout için frame'lerin body_center medyan (x,y)'si hesaplanır.
-  - Arena ve inner zone: src/anxiety/config.py'den. Manuel olarak video
-    anotasyonundan tanımlı (iç bölge 422–748, 182–506 px) — auto %margin
-    formülünden değil; run_kare_batch.py ile aynı koordinatları paylaşır.
+  - Arena ve inner zone: src/anxiety/config.py'den. Arena (397, 777, 156, 535)
+    etrafında %20 margin → iç bölge ~(473, 701, 232, 459) px. Klasik OFT
+    "center" tanımına uygun, run_kare_batch.py ile aynı kaynaktan gelir.
   - Medyan (x,y) inner zone içindeyse bout = center, değilse wall.
 
 Çıktılar
