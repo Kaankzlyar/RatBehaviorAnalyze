@@ -47,13 +47,16 @@ COHORT_COLORS = {
 }
 
 
-def strip_jitter(ax, data_by_group, colors, x_positions, jitter=0.08):
+def strip_jitter(ax, data_by_group, colors, x_positions, jitter=0.10):
+    """Her nokta = 1 sıçan. X ve Y yönünde hafif kaydırma ile örtüşme önlenir."""
     rng = np.random.default_rng(42)
     for xi, (grp, vals) in zip(x_positions, data_by_group.items()):
-        jit = rng.uniform(-jitter, jitter, size=len(vals))
-        ax.scatter(xi + jit, vals,
+        jit_x = rng.uniform(-jitter, jitter, size=len(vals))
+        # Aynı y değerindeki noktaları ayırt etmek için küçük y jitter
+        jit_y = rng.uniform(-0.15, 0.15, size=len(vals))
+        ax.scatter(xi + jit_x, vals + jit_y,
                    color=colors[grp], edgecolors="white",
-                   linewidths=0.8, s=70, zorder=5, alpha=0.95)
+                   linewidths=0.8, s=75, zorder=5, alpha=0.95)
 
 
 def p_stars(p: float) -> str:
@@ -147,6 +150,8 @@ def plot_open_arm_box():
         "Dikey kollar = kapalı kol  |  Yatay kollar = açık kol",
         fontsize=13, fontweight="bold", y=0.99,
     )
+    fig.text(0.52, 0.085, "● Her nokta = 1 sıçan  |  Aynı değerdeki noktalar hafifçe kaydırılmıştır",
+             ha="center", va="center", fontsize=9, color="#666666", style="italic")
 
     out = FIGS / "epm_open_arm_by_cohort.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
@@ -173,22 +178,57 @@ def plot_arm_distribution():
                .reindex(COHORT_ORDER)
                .reset_index())
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.subplots_adjust(right=0.80)
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    fig.subplots_adjust(right=0.78, top=0.88)
 
     x      = np.arange(len(COHORT_ORDER))
     bottom = np.zeros(len(COHORT_ORDER))
 
+    # Küçük segmentler için sonradan ok+etiket eklemek üzere sakla
+    small_annotations = []  # (xi, seg_mid_y, value_str, color)
+
     for col, label, color in zip(arm_cols, arm_labels, arm_colors):
         vals = means[col].values
         ax.bar(x, vals, bottom=bottom, label=label,
-               color=color, edgecolor="white", linewidth=0.6, alpha=0.88)
+               color=color, edgecolor="white", linewidth=0.8, alpha=0.88)
         for xi, (v, b) in enumerate(zip(vals, bottom)):
-            if v > 3:
-                ax.text(xi, b + v / 2, f"{v:.0f}%",
+            seg_mid = b + v / 2
+            if v >= 3:
+                # Büyük segment: etiket içeride
+                ax.text(xi, seg_mid, f"{v:.0f}%",
                         ha="center", va="center", fontsize=9,
                         color="white", fontweight="bold")
+            elif v >= 0.3:
+                # Küçük segment: ok ile bar dışında göster
+                small_annotations.append((xi, seg_mid, f"{v:.1f}%", color))
         bottom += vals
+
+    # Küçük segmentler için annotate — ok bar'dan dışarı çıkıyor
+    # Sağ tarafta yığılma yapmamak için xi'ye göre offset seç
+    used_y = []  # çakışma önleme
+    for xi, y_mid, txt, color in small_annotations:
+        # Ok ucunun x konumu: barın sağ kenarı dışında
+        x_tip  = xi + 0.26
+        # y konumunu kullanılmış olanlardan kaçıracak şekilde ayarla
+        y_txt = y_mid
+        for used in used_y:
+            if abs(y_txt - used) < 4:
+                y_txt = used + 4
+        used_y.append(y_txt)
+
+        ax.annotate(
+            txt,
+            xy=(x_tip - 0.01, y_mid),        # ok ucu: segmentin ortası
+            xytext=(x_tip + 0.35, y_txt),     # metin konumu
+            fontsize=8.5, color="#333333", fontweight="bold",
+            arrowprops=dict(
+                arrowstyle="-",
+                color=color,
+                lw=1.5,
+                connectionstyle="arc3,rad=0.0",
+            ),
+            va="center", ha="left",
+        )
 
     ax.set_xticks(x)
     ax.set_xticklabels(COHORT_ORDER, fontsize=12)
