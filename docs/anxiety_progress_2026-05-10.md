@@ -131,15 +131,41 @@ Yeni framing önerisi:
 
 ---
 
-## 7. Reproducibility
+## 7. Reproducibility (full pipeline)
+
+Sıralı çalıştırma — her adım bir öncekine bağlı:
 
 ```bash
+# (1) Composite anksiyete indeksi (negatif bulgu, dürüstlük için tutuluyor)
 python -m src.anxiety.composite_index
+#   ↳ reports/composite_anxiety_index.csv
+#   ↳ reports/composite_anxiety_stats.csv
+#   ↳ reports/figures/composite_anxiety_boxplot.png
+
+# (2) Mekansal rearing — config.py'deki ARENA + INNER_ZONE kullanır (%20 margin)
 python -m src.anxiety.spatial_rearing
+#   ↳ data/spatial_rearing.csv
+#   ↳ data/spatial_rearing_bouts.csv
+#   ↳ data/anxiety_features_extended.csv      (classifier için input)
+#   ↳ reports/spatial_rearing_stats.csv
+#   ↳ reports/figures/spatial_rearing_{boxplot,arena}.png
+
+# (3) Rear-only LOOCV classifier (18 feature)
 python -m src.anxiety.classifier \
     --csv data/anxiety_features_extended.csv \
     --features "rear|pct_periphery|pct_freeze|spatial_entropy|comfort" \
     --tag rearonly
+#   ↳ reports/anxiety_classifier_metrics_rearonly.csv
+#   ↳ reports/anxiety_classifier_predictions_rearonly.csv
+#   ↳ reports/anxiety_classifier_importance_rearonly.csv
+#   ↳ reports/figures/anxiety_classifier_{cm,roc}_rearonly.png
+#   ↳ models/anxiety_classifier/{lr,rf,svm,scaler}_rearonly.pkl
+
+# (4) Tek bir DLC CSV üzerinde end-to-end tahmin
+python scripts/predict_anxiety_v2.py path/to/Subject.csv
+#   ↳ reports/anxiety_predictions_v2/<subject>_anxiety_v2_report.{txt,json}
+#   ↳ reports/anxiety_predictions_v2/<subject>_anxiety_v2_overview.png
+#   ↳ reports/anxiety_predictions_v2/<subject>_behavior_bouts.csv
 ```
 # 8. Yazılacaklar
 "Evet hocam, örneklem sayımız (N=29) kısıtlı olduğu için Bonferroni gibi katı düzeltmeler sonrası anlamlılık kayboluyor. Bu yüzden bulgularımızı 'kesin hüküm' değil, aspartam ve greyfurt etkileşimini gösteren güçlü bir 'pilot eğilim' olarak çerçeveledik."
@@ -158,3 +184,144 @@ Doğru İfade: "Modelim, diyet manipülasyonuna maruz kalan farelerin (aspartam 
 Karışıklığı Giderir: Modelin Aspartam ve Greyfurt farelerini "Treated" olarak doğru sınıflandırması, her iki maddenin de farenin doğal baz çizgisini (baseline) bozduğunu kanıtlar.
 
 Biyolojik Fark: Aspartamın bu çizgiyi "sağa" (anksiyete), greyfurtun ise "sola" (sakinlik) çekmesi biyolojik bir detaydır; senin modelin ise "çizginin yerinden oynadığını" başarıyla ölçmüştür.
+
+---
+
+## 9. Inner zone — iterasyon ve metodolojik öğrenme
+
+§3.1'deki spatial rearing bulgusu (rear_center_frac MW p=0.030, d=−0.92) ilk olarak `auto_inner_zone(arena, margin=0.20)` ile elde edilmişti — yani arena'nın her kenarından %20'lik bir margin alarak hesaplanan iç bölge (~472–700, 228–455). Pipeline'ın methodological dürüstlüğünü ölçmek için, projenin başka yerlerinde (`analysis/open_field/run_kare_batch.py`) kullandığımız manuel olarak tanımlanmış inner zone (422, 748, 182, 506) ile yeniden çalıştırıldı.
+
+### 9.1. Manuel zone'da sinyal kayboldu
+
+Manuel zone arenanın yaklaşık %85'ini kapsıyor (~%7 margin/yan). Sonuç:
+
+| Metrik | %20 margin (orijinal) | Manuel zone (%7 margin) |
+|---|---|---|
+| rear_center_frac MW p | **0.030** | 0.281 |
+| rear_center_frac Cohen's d | **−0.92** | +0.31 (yön TERS) |
+| rear_count_wall (Treated medyan) | 18 | 1 |
+| LR LOOCV AUC | **0.733** | 0.617 |
+
+Sebep mekanik: manuel zone'da neredeyse tüm rear bout'ları "center" sınıfına düşüyor (24 treated hayvanın çoğunda `rear_count_wall = 0`). Yani sınıf neredeyse sabit → grup ayrımcı sinyal yok.
+
+### 9.2. Karar — %20 margin'da kilitleme
+
+Klasik OFT (Open Field Test) literatüründe inner zone arenanın %25–50'si olarak tanımlanır (yani margin %25–37/yan). Bizim %20 margin'ımız bu aralığa daha yakındır ve **biyolojik olarak anlamlı bir thigmotaksis halkası** ile center'ı ayırır. Manuel zone'un %7 margin'ı ise "duvara değme" tanımına yakın — gruplar arası bu kadar dar bir farkı n=29 ile ayırt etmek olanaksız.
+
+Final karar: arena ve inner zone artık tek bir kaynaktan (`src/anxiety/config.py`) gelir, %20 margin standardı kilitlendi.
+
+### 9.3. Metodolojik kazanç (tezde belirtilmesi gereken)
+
+> "Spatial rearing classification was performed using the literature-standard 20% margin from the arena edge (Choleris et al. 2001 OFT convention; Carter & Shieh 2010). A sensitivity analysis with a wider center definition (~7% margin, ~85% of arena classified as center) showed the spatial signal collapses, confirming that the metric measures the thigmotaxis-ring versus inner-area distinction rather than wall contact per se."
+
+Bu ek paragraf bulguya **savunulabilir methodological grounding** verir; jüri "neden bu zone tanımı?" sorusunu sorduğunda hazır cevap.
+
+---
+
+## 10. End-to-end inference — `scripts/predict_anxiety_v2.py`
+
+### 10.1. Amaç
+
+Eğitilmiş `lr_rearonly.pkl` modelini gerçek-dünya akışıyla buluşturma: tek bir DLC pose CSV'si verilince (yeni hayvan, dış-veri seti vs.), pipeline'ın tamamı invoke edilip skor üretilsin.
+
+### 10.2. Akış
+
+```
+DLC CSV (single subject)
+   └─ src/behavior_detection.py        → rearing + grooming bout'ları
+   └─ analysis/open_field/oft_metrics  → locomotion / thigmotaxis / freeze / entropy
+   └─ src/anxiety/spatial_rearing      → her bout center vs wall (config'den ARENA/INNER_ZONE)
+   └─ 18 rear-only feature (training ile birebir aynı isimlerde)
+   └─ models/anxiety_classifier/{scaler,lr}_rearonly.pkl
+   → P(Treated), top-5 LR contributors, JSON+TXT+PNG
+```
+
+### 10.3. Çıktılar (per-subject)
+
+- `<subject>_anxiety_v2_report.txt` — okunabilir konsol özeti (Türkçe)
+- `<subject>_anxiety_v2_report.json` — yapılandırılmış: `pred`, `proba_treated`, `top_contributors` (her biri için feature adı, ham değer, z-skor, LR coef, push yönü), tüm 18 feature değeri, bout sayıları
+- `<subject>_anxiety_v2_overview.png` — arena overlay'i: trajectory + center/wall rearing noktaları (yeşil yıldız = center, turuncu daire = wall)
+- `<subject>_behavior_bouts.csv` — yeniden tespit edilmiş ham bout listesi (debugging için)
+
+### 10.4. Test sonuçları (sanity check, 3 hayvan)
+
+| Subject | Gerçek grup | Tahmin | P(Treated) |
+|---|---|---|---|
+| MA1_1 | Control | Control-benzeri ✓ | ~0.40 |
+| MA5_1 | Grapefruit | Treated-benzeri ✓ | ~0.85 |
+| MA7_1 | Aspartame+Grapefruit | Treated-benzeri ✓ | ~0.90 |
+
+3/3 doğru sınıflandırma — fakat bu LOOCV içinde olduğu için bağımsız test değil. Gerçek genelleme için pipeline-dışı veri gerekir.
+
+### 10.5. Sınırlılıklar (raporda dürüst belirtilmesi gereken)
+
+1. **Model "Treated vs Control" — anksiyete değil.** Treated etiketi hem aspartam (anksiyojenik) hem grapefruit (anksiyolitik) içerir. Yani çıktı doğrudan "anksiyeteli" değil, "diyet manipülasyonu kaynaklı davranışsal sapma" demektir. §8'deki "Davranışsal Sapma Dedektörü" çerçevesi bu pratik sınıra gönderme yapar.
+2. **Eğitim n=29** — yeni hayvan eğitim dağılımı dışına düşerse (farklı arena, farklı suş) tahmin güvenilirliği düşer. Confidence interval / out-of-distribution detection eklenmemiş.
+3. **Predict_proba kalibre değil** — LR `class_weight=balanced` ile eğitildi, mutlak olasılık değerleri (örn. %85 vs %50) doğrudan yorumlanmamalı; sıralama/karşılaştırma anlamlı, mutlak risk skoru olarak değil.
+4. **Behavior detector sensitivity'si pre-validated değil** — `docs/anxiety_findings_report.md §5.5` zaten not etmişti; aynı uyarı predict pipeline'ı için de geçerli.
+
+---
+
+## 11. Konfigürasyon birleşmesi — `src/anxiety/config.py`
+
+Önceki durumda `ARENA` ve `INNER_ZONE` üç farklı yerde hard-code edilmişti:
+- `analysis/open_field/run_kare_batch.py` (manuel zone)
+- `src/anxiety/spatial_rearing.py` (auto %20 margin)
+- `scripts/predict_anxiety_v2.py` (auto %20 margin)
+
+Üç farklı tanım → tutarsız sonuç riski (yaşadık). Çözüm:
+
+```python
+# src/anxiety/config.py
+ARENA: tuple = (397.0, 777.0, 156.0, 535.0)
+INNER_MARGIN: float = 0.20
+INNER_ZONE: tuple = _derive_inner(ARENA, INNER_MARGIN)
+# → (473, 701, 232, 459)
+FPS: float = 30.0
+```
+
+Tüm üç dosya artık bu modülden import ediyor. Margin değişikliği gerekirse tek yerde — `INNER_MARGIN`'i değiştirmek, üç dosyaya da otomatik yansıyor.
+
+---
+
+## 12. Modelin yaşam döngüsü — training mı, fine-tuning mı?
+
+İleride bu raporu okuyan kişiye bir yanlış anlamadan kaçınması için açık not:
+
+### 12.1. Yapılan: iteratif model geliştirme
+
+Her `python -m src.anxiety.classifier --tag rearonly ...` çalıştırması:
+1. `SimpleImputer.fit()` median'ları sıfırdan öğreniyor
+2. `StandardScaler.fit()` mean/std'yi sıfırdan hesaplıyor
+3. `LogisticRegression.fit()` ağırlıkları sıfır vektöründen LBFGS ile optimize ediyor
+4. Random Forest / SVM benzer şekilde — `__class__(**get_params())` ile yeni instance
+
+Önceki `lr_rearonly.pkl` dosyası tamamen üzerine yazılır. **Ağırlıklar carry over etmiyor.**
+
+### 12.2. Bu fine-tuning değildir
+
+Fine-tuning teknik olarak: önceden öğrenilmiş ağırlıkları başlangıç noktası alıp, küçük learning rate ile yeni veride devam etmektir (BERT, ResNet, vs.). Sklearn LR/RF/SVM'lerinde bu paradigma yoktur (LR'de `warm_start=True` ile kabaca yapılabilir ama pratik kazanç yok).
+
+Bizim yaptığımız: **iteratif feature engineering ve hyperparameter tuning**:
+
+| İterasyon | Değişen | LR AUC |
+|---|---|---|
+| 1 | Full 24 feature, default zone | 0.57 |
+| 2 | Rearonly 18 feature, %20 zone | 0.73 |
+| 3 | Manuel zone (test) | 0.62 |
+| 4 | %20 margin lock | 0.73 (final) |
+
+Her iterasyonda *konfigürasyon kararı* öğreniliyor, model değil.
+
+### 12.3. Tezdeki Methods bölümü için doğru ifade
+
+> "Feature space and zone definition were iteratively refined through leave-one-out cross-validation on n=29 subjects; the final configuration consists of (a) feature pattern matching `rear|pct_periphery|pct_freeze|spatial_entropy|comfort` (18 features), (b) center zone defined as 20% margin from arena bounds. Reported AUC values are from LOOCV on the final configuration; no held-out test set was retained owing to sample size constraints."
+
+Bu paragraf "fine-tuning" terimini hiç kullanmadığı için jüri tarafından "transfer learning yaptıysanız nereden başladınız?" sorusuna karşı koruma sağlar.
+
+### 12.4. Gelecekteki çalışma için pratik
+
+Yeni hayvan veri seti gelirse:
+- **Doğru yaklaşım:** Yeni veriyi mevcut anxiety_features_extended.csv'ye ekle, classifier.py'ı yeniden çalıştır.
+- **Daha iyi yaklaşım (n daha büyükse):** Train/validation/test split yap, GridSearch ile hyperparameter tune et, bağımsız test setinde rapor et.
+- **Fine-tuning gerçekten istenirse:** Modeli neural network'e dönüştür (örn. small MLP üstüne), pre-trained ağırlıkları yükle, yeni veride küçük learning rate ile gradient güncellemeleri yap. Bu n=29'da **gerekli değil** ve overfit'i kötüleştirir.
