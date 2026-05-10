@@ -57,6 +57,29 @@ labels    = pd.read_csv(FEAT / "labels.csv")
 FEATURE_COLS = [c for c in feat_norm.columns
                 if c not in ("subject_id", "cohort", "group", "session_duration_s")]
 
+# ── Label-leakage haritasi ────────────────────────────────────────────────────
+# Her hedef icin, o hedefin etiketini *uretmek* icin kullanilan feature'lar.
+# Bu feature'lar o hedefe ozgu X'ten cikarilarak "no-leakage" versiyonu uretilir.
+# Kaynak: src/features.py — anxiety_score = z(pct_time_periphery)
+#                           + z(pct_time_freeze) - z(center_zone_entries)
+#                           - z(pct_time_center)
+LEAKAGE_MAP = {
+    "anxiety_level": {
+        "pct_time_periphery", "pct_time_freeze",
+        "center_zone_entries", "pct_time_center",
+        "total_freeze_s", "freeze_bout_count",   # freeze'in turev kolonlari
+    },
+    "rearing_profile": {
+        "rear_pct_time", "rear_total_s",
+        "rear_per_min", "rear_bout_count",
+    },
+    "grooming_profile": {
+        "groom_pct_time", "groom_total_s",
+        "groom_per_min", "groom_bout_count",
+    },
+    "group": set(),  # group icin leakage yok
+}
+
 X = feat_norm[FEATURE_COLS].values
 
 # ── NaN Handling ──────────────────────────────────────────────────────────────
@@ -266,6 +289,16 @@ for target_name, y_raw in TARGETS.items():
     n_classes = len(le.classes_)
     class_names = list(le.classes_)
 
+    # Hedefe ozgu leakage feature'larini cikar
+    leakage_feats = LEAKAGE_MAP.get(target_name, set())
+    clean_cols = [c for c in FEATURE_COLS if c not in leakage_feats]
+    clean_idx  = [FEATURE_COLS.index(c) for c in clean_cols]
+    X_target   = X[:, clean_idx]
+    if leakage_feats:
+        dropped = leakage_feats & set(FEATURE_COLS)
+        print(f"  [leakage] {len(dropped)} feature cikarildi: {sorted(dropped)}")
+        print(f"  [leakage] X boyutu: {X.shape[1]} -> {X_target.shape[1]}")
+
     models = make_models(n_classes)
     best_f1 = -1
     best_cm  = None
@@ -274,7 +307,7 @@ for target_name, y_raw in TARGETS.items():
     for model_name, model in models.items():
         # ── LOOCV ──
         f1_loo, acc_loo, cm_loo, true_lbl, pred_lbl, subs = cv_evaluate(
-            model, X, y_enc, le, SUBJECT_IDS, LeaveOneOut()
+            model, X_target, y_enc, le, SUBJECT_IDS, LeaveOneOut()
         )
         print(f"  {model_name:<15}  LOOCV   F1={f1_loo:.3f}  Acc={acc_loo:.3f}")
 
@@ -285,6 +318,7 @@ for target_name, y_raw in TARGETS.items():
             "f1_macro":   round(f1_loo, 4),
             "accuracy":   round(acc_loo, 4),
             "n_classes":  n_classes,
+            "leakage_removed": len(leakage_feats) > 0,
         })
 
         for sid, tl, pl in zip(subs, true_lbl, pred_lbl):
@@ -299,7 +333,7 @@ for target_name, y_raw in TARGETS.items():
 
         # ── LOGOCV (cohort dışarıda bırak) — gerçek genelleme testi ──
         f1_g, acc_g, _, _, _, _ = cv_evaluate(
-            model, X, y_enc, le, SUBJECT_IDS,
+            model, X_target, y_enc, le, SUBJECT_IDS,
             LeaveOneGroupOut(), groups=COHORTS,
         )
         print(f"  {' '*15}  LOGOCV  F1={f1_g:.3f}  Acc={acc_g:.3f}")
@@ -310,6 +344,7 @@ for target_name, y_raw in TARGETS.items():
             "f1_macro":   round(f1_g, 4),
             "accuracy":   round(acc_g, 4),
             "n_classes":  n_classes,
+            "leakage_removed": len(leakage_feats) > 0,
         })
 
         # Görsellerde LOOCV en-iyi confusion matrix kullanılıyor
@@ -318,10 +353,11 @@ for target_name, y_raw in TARGETS.items():
             best_cm = cm_loo
 
         # modeli kaydet (tüm veriyle eğitilmiş)
-        model.fit(X, y_enc)
+        model.fit(X_target, y_enc)
         pkl_path = MODELS / f"{model_name.lower()}_{target_name}.pkl"
         with open(pkl_path, "wb") as f_pkl:
-            pickle.dump({"model": model, "label_encoder": le}, f_pkl)
+            pickle.dump({"model": model, "label_encoder": le,
+                         "feature_cols": clean_cols}, f_pkl)
 
         # XGBoost modelini SHAP için sakla
         if model_name == "XGBoost":
@@ -338,8 +374,8 @@ for target_name, y_raw in TARGETS.items():
     if xgb_model_final is not None:
         try:
             plot_shap(
-                xgb_model_final, X,
-                feature_names=FEATURE_COLS,
+                xgb_model_final, X_target,
+                feature_names=clean_cols,
                 class_names=class_names,
                 target_name=target_name,
                 save_path=FIGS / f"shap_{target_name}.png",
@@ -361,6 +397,11 @@ df_logocv.to_csv(REPORTS / "model_comparison_logocv.csv", index=False)
 
 # Birleşik tablo (cv sütunlu)
 df_results.to_csv(REPORTS / "model_comparison_all.csv", index=False)
+
+# Leakage-free sonuçlar ayrı dosyaya kaydet
+df_no_leak = df_results[df_results["leakage_removed"] == True]
+if not df_no_leak.empty:
+    df_no_leak.to_csv(REPORTS / "model_comparison_no_leakage.csv", index=False)
 
 df_details = pd.DataFrame(loocv_details)
 df_details.to_csv(REPORTS / "loocv_predictions.csv", index=False)
