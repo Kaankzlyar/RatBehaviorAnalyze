@@ -194,8 +194,8 @@ def plot_arm_distribution():
         for xi, (v, b) in enumerate(zip(vals, bottom)):
             seg_mid = b + v / 2
             if v >= 3:
-                # Büyük segment: etiket içeride
-                ax.text(xi, seg_mid, f"{v:.0f}%",
+                # Büyük segment: etiket içeride — 1 ondalık basamak
+                ax.text(xi, seg_mid, f"{v:.1f}%",
                         ha="center", va="center", fontsize=9,
                         color="white", fontweight="bold")
             elif v >= 0.3:
