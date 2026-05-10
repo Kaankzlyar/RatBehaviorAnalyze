@@ -423,4 +423,4 @@ docs/inference_results.md            # final thesis-ready writeup
 - `data/kutu_validation_summary.csv` — DLC vs MATLAB-blob speed cross-validation
 - `data/DLCfiltered/<subject>/*_heatmap_kde.png` — heatmaps available as model input
 - `docs/behavior_comparison.md` — per-group descriptive analysis (companion document)
-- `documents/plans/STAGE_06_MODEL_TRAINING.md` — the existing Turkish-language modelling plan, which this document refines and replaces for the open-field arm
+- `docs/plans/STAGE_06_MODEL_TRAINING.md` — the existing Turkish-language modelling plan, which this document refines and replaces for the open-field arm

@@ -35,7 +35,7 @@ behavioural profiling (MA1 / MA3 / MA5 / MA7).
   [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md).
 
 > **Looking for a description of what the pipeline produces?**
-> See [`OUTPUTS.md`](OUTPUTS.md) — a full walkthrough of every file that
+> See [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — a full walkthrough of every file that
 > lands in `data/DLCfiltered/<subject>/`.
 
 ---
@@ -132,7 +132,7 @@ sequenceDiagram
 ## Example outputs
 
 All screenshots below are from `OpenFieldMA1_2`. Every subject in
-`data/DLCfiltered/` has the same set of files — see [`OUTPUTS.md`](OUTPUTS.md)
+`data/DLCfiltered/` has the same set of files — see [`docs/OUTPUTS.md`](docs/OUTPUTS.md)
 for the full per-file breakdown.
 
 ### Behaviour timeline
@@ -172,7 +172,6 @@ One trajectory panel per tracked body part — useful both qualitatively
 ```
 RatBehaviorAnalyze/
 ├── README.md                          ← this file
-├── OUTPUTS.md                         ← guide to every output file
 │
 ├── src/                               Main pipeline code
 │   ├── behavior_detection.py          Rule-based rearing/grooming detector
@@ -180,10 +179,11 @@ RatBehaviorAnalyze/
 │   ├── features.py                    Stage 05: feature engineering (20+ metrics/subject)
 │   ├── train_baseline.py              Stage 06: LOOCV across 4 targets, 4 model families
 │   ├── visualize_reports.py           Stage 07: confusion matrices, SHAP, OvR F1
-│   ├── window_features.py             (planned) Stage 06.2: pose-window feature extractor
-│   ├── window_labeling.py             (planned) Stage 06.2: bind ground-truth to windows
-│   ├── train_window_classifier.py     (planned) Stage 06.2: subject-grouped LOSO trainer
-│   ├── inference.py                   (planned) Stage 06.2: CSV-in → bouts + metrics
+│   ├── window_classifier/             Stage 06.2 — pose-window behavior classifier pipeline
+│   │   ├── features.py                window-level feature extraction (1 s + 3 s context)
+│   │   ├── label_join.py              join window features with rule-based frame labels
+│   │   ├── train.py                   GroupKFold + LOGOCV trainer (RF / XGBoost / LightGBM)
+│   │   └── infer.py                   DLC CSV-in → frame predictions + bout list
 │   ├── orbit_plot.py                  Trajectory plotting
 │   ├── show_frame_coords.py           Arena-boundary picker (interactive)
 │   ├── requirements.txt
@@ -195,18 +195,25 @@ RatBehaviorAnalyze/
 │   └── tmaze/                         (planned) arena geometry, metrics, zone classifier
 │
 ├── analysis/                          Spatial / locomotion analysis
-│   ├── run_analysis.py                One-shot runner for all 4 OFT outputs
-│   ├── oft_metrics.py                 Per-subject OFT metric extraction
-│   ├── speed_analysis.py              Speed pipeline + cohort summary
-│   ├── kutu_validation.py             Cross-validation vs. professor's HSV-blob pipeline
-│   ├── behavior_analysis.py           Aggregated behaviour bouts → group stats
-│   ├── cohort_stats.py                Kruskal-Wallis + Dunn + PERMANOVA across cohorts
-│   ├── label_bouts.py                 (planned) Interactive bout-labelling tool
-│   ├── orbit_plot.py                  Per-bodypart trajectories
-│   ├── activity_heatmap.py            Body-centre KDE + histogram
-│   ├── bodypart_heatmaps.py           Per-bodypart density grid
 │   ├── README.md                      Tool-level docs
-│   └── WORKFLOW_SUMMARY.md            Filtering pipeline & parameters
+│   ├── common/                        Arena-agnostic analyses
+│   │   └── speed_analysis.py          Speed pipeline + cohort summary
+│   ├── open_field/                    OFT-specific analyses
+│   │   ├── run_analysis.py            One-shot runner for all 4 OFT outputs
+│   │   ├── oft_metrics.py             Per-subject OFT metric extraction
+│   │   ├── kutu_validation.py         Cross-validation vs. professor's HSV-blob pipeline
+│   │   ├── behavior_analysis.py       Aggregated behaviour bouts → group stats
+│   │   ├── cohort_stats.py            Kruskal-Wallis + Dunn + PERMANOVA across cohorts
+│   │   ├── label_bouts.py             (planned) Interactive bout-labelling tool
+│   │   ├── orbit_plot.py              Per-bodypart trajectories
+│   │   ├── activity_heatmap.py        Body-centre KDE + histogram
+│   │   └── bodypart_heatmaps.py       Per-bodypart density grid
+│   └── tmaze/                         T-maze-specific analyses (parallel layout)
+│
+├── scripts/                           Entry-point CLIs
+│   ├── predict_anxiety.py             Predict anxiety from a DLC pose CSV
+│   ├── debug_features.py              Quick feature/threshold diagnostic
+│   └── legacy/                        Archived (Windows-path hardcoded, kept for reference)
 │
 ├── tools/
 │   └── convert_labeled_to_video_format.py
@@ -214,7 +221,7 @@ RatBehaviorAnalyze/
 ├── data/
 │   ├── DLCfiltered/                   One folder per cohort/subject (inputs + outputs)
 │   │   ├── control/                   MA1 cohort
-│   │   │   └── OpenFieldMA1_<RUN>/    ← see OUTPUTS.md for the per-subject file set
+│   │   │   └── OpenFieldMA1_<RUN>/    ← see docs/OUTPUTS.md for the per-subject file set
 │   │   ├── ASP/                       MA3 cohort
 │   │   ├── Greyfurt/                  MA5 cohort
 │   │   ├── ASP ve Greyfurt/           MA7 cohort
@@ -242,18 +249,19 @@ RatBehaviorAnalyze/
 │   ├── cohort_permanova.csv           Multivariate pseudo-F + R² + p_perm
 │   └── figures/                       SHAP + confusion-matrix PNGs (per target)
 │
-├── docs/
-│   ├── final_report.md                OFT-complete thesis chapter + inference roadmap
-│   ├── tmaze_keypoints_and_layout.md  T-maze keypoint plan + repo layout (NEW, 2026-05-05)
-│   ├── behavior_detection_documentation.md   Detector design (algorithmic)
-│   ├── behavior_comparison.md         Cohort-vs-cohort behavioural comparison
-│   └── yapilanlar.md                  Running progress log (Turkish)
-│
-└── documents/                         Older planning docs — superseded in places
+└── docs/                              All documentation (single root)
+    ├── OUTPUTS.md                     Guide to every output file under data/DLCfiltered/
+    ├── WORKFLOW_SUMMARY.md            Filtering pipeline & parameters (analysis-side)
+    ├── final_report.md                OFT-complete thesis chapter + inference roadmap
+    ├── window_classifier_plan.md      Window-level classifier — 7-phase implementation plan
+    ├── tmaze_keypoints_and_layout.md  T-maze keypoint plan + repo layout (5-point DLC)
+    ├── behavior_detection_documentation.md         Detector design (algorithmic)
+    ├── behavior_detection_documentation.legacy.md  Detector design rationale (Turkish narrative)
+    ├── behavior_comparison.md         Cohort-vs-cohort behavioural comparison
+    ├── yapilanlar.md                  Running progress log (Turkish)
     ├── DEEPLABCUT_PIPELINE.md         DLC workflow (10 stages)
-    ├── RAT_TMAZE_PROJECT.md           Earlier roadmap (assumed single shared DLC model;
-    │                                   superseded by docs/tmaze_keypoints_and_layout.md)
-    ├── behavior_detection_documentation.md   Detector design (Turkish narrative)
+    ├── RAT_TMAZE_PROJECT.md           Earlier roadmap (single-DLC-model assumption
+    │                                   superseded by tmaze_keypoints_and_layout.md)
     └── plans/                         Per-stage design docs (STAGE_01 … STAGE_07)
 ```
 
@@ -304,7 +312,7 @@ All outputs land next to the input CSV.
 | 02    | `src/dlc/dlc_inference.py`               | Run inference, export filtered tracking CSVs | done |
 | 02B   | `src/behavior_detection.py`              | Rule-based rearing / grooming classifier (OFT) | done |
 | 03A   | `analysis/run_analysis.py`               | Orbits, thigmotaxis, KDE & per-bodypart heatmaps (OFT) | done |
-| 03A.1 | `analysis/speed_analysis.py`             | Speed pipeline + cohort summary | done |
+| 03A.1 | `analysis/common/speed_analysis.py`      | Speed pipeline + cohort summary | done |
 | 03A.2 | `analysis/kutu_validation.py`            | Cross-validation vs. professor's 2017 HSV-blob MATLAB pipeline | done |
 | 05    | `src/features.py`                        | Feature engineering — 20+ metrics per subject | done |
 | 06    | `src/train_baseline.py`                  | LOOCV training — logistic / RF / SVM / XGBoost across 4 targets | done |
@@ -317,7 +325,7 @@ All outputs land next to the input CSV.
 | 03B   | `src/tmaze/tmaze_metrics.py` (planned)   | Turn bias, path efficiency, zone dwell, decision latency | planned |
 | 04    | `analysis/tmaze_path_plot.py` (planned)  | Path overlay + zone heatmap | planned |
 
-Design docs for each stage live in `documents/plans/`. T-maze keypoint and
+Design docs for each stage live in `docs/plans/`. T-maze keypoint and
 layout decisions are consolidated in
 [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md).
 
@@ -339,7 +347,7 @@ flowchart LR
 ```
 
 Full rationale (thresholds, failure modes, ground-truth validation) in
-[`documents/behavior_detection_documentation.md`](documents/behavior_detection_documentation.md).
+[`docs/behavior_detection_documentation.md`](docs/behavior_detection_documentation.md).
 
 ### Ground-truth validation
 
@@ -403,7 +411,7 @@ per-behaviour metric mapping in
 
 ## Documentation index
 
-- [`OUTPUTS.md`](OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
+- [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
 - [`docs/final_report.md`](docs/final_report.md) — **consolidated OFT thesis chapter + ML inference roadmap**
 - [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md) — **T-maze keypoint plan + repo layout (5-point DLC project)**
 - [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md) — **window-level behaviour classifier — 7-phase implementation plan**
@@ -411,11 +419,11 @@ per-behaviour metric mapping in
 - [`docs/behavior_comparison.md`](docs/behavior_comparison.md) — cohort-vs-cohort behavioural comparison
 - [`docs/yapilanlar.md`](docs/yapilanlar.md) — running progress log (Turkish)
 - [`analysis/README.md`](analysis/README.md) — spatial-analysis tools (quickstart + parameters)
-- [`analysis/WORKFLOW_SUMMARY.md`](analysis/WORKFLOW_SUMMARY.md) — filtering pipeline details
-- [`documents/DEEPLABCUT_PIPELINE.md`](documents/DEEPLABCUT_PIPELINE.md) — full DLC workflow (10 stages)
-- [`documents/RAT_TMAZE_PROJECT.md`](documents/RAT_TMAZE_PROJECT.md) — earlier roadmap (single-DLC-model assumption superseded by `docs/tmaze_keypoints_and_layout.md`)
-- [`documents/behavior_detection_documentation.md`](documents/behavior_detection_documentation.md) — behaviour-detector design rationale (Turkish)
-- [`documents/plans/`](documents/plans/) — per-stage design documents
+- [`docs/WORKFLOW_SUMMARY.md`](docs/WORKFLOW_SUMMARY.md) — filtering pipeline details
+- [`docs/DEEPLABCUT_PIPELINE.md`](docs/DEEPLABCUT_PIPELINE.md) — full DLC workflow (10 stages)
+- [`docs/RAT_TMAZE_PROJECT.md`](docs/RAT_TMAZE_PROJECT.md) — earlier roadmap (single-DLC-model assumption superseded by `docs/tmaze_keypoints_and_layout.md`)
+- [`docs/behavior_detection_documentation.legacy.md`](docs/behavior_detection_documentation.legacy.md) — behaviour-detector design rationale (Turkish)
+- [`docs/plans/`](docs/plans/) — per-stage design documents
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Tarih:** 2026-05-05
 **Kapsam:** T-maze arm'ı için DeepLabCut etiket setinin tanımı + repo içinde T-maze verisinin/çıktılarının nereye konacağının kararlaştırılması.
-**İlişkili:** `documents/RAT_TMAZE_PROJECT.md` (eski plan — tek DLC modeli varsayıyordu, bu doküman onu geçersiz kılıyor).
+**İlişkili:** `docs/RAT_TMAZE_PROJECT.md` (eski plan — tek DLC modeli varsayıyordu, bu doküman onu geçersiz kılıyor).
 
 ---
 
@@ -23,7 +23,7 @@ T-maze kayıtlarında üç farkı durum 9 noktayı verimsiz kılıyor:
 nose, ear_L, ear_R, mid_back, tail_base
 ```
 
-OFT ile bu nedenle DLC modeli paylaşılmıyor — `documents/RAT_TMAZE_PROJECT.md` bölüm 1'deki "Single DeepLabCut model … both arenas" varsayımı bu kararla geçersiz oldu.
+OFT ile bu nedenle DLC modeli paylaşılmıyor — `docs/RAT_TMAZE_PROJECT.md` bölüm 1'deki "Single DeepLabCut model … both arenas" varsayımı bu kararla geçersiz oldu.
 
 ---
 
