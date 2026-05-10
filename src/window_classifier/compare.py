@@ -1,20 +1,29 @@
 """
 Window-classifier prediction vs rule-based ground-truth karşılaştırması.
 
-For one or more session(s) bu modül:
-  1. (opsiyonel) modeli çağırıp predicted_frames.csv üretir
-  2. <subject>_behavior_frames.csv (rule-based) ile aynı uzunluğa hizalar
-  3. frame-bazlı confusion matrix + classification report basar
-  4. <out-dir>/<subject>_compare_frames.csv (frame, true, predicted, prob_*)
-     ve <out-dir>/<subject>_compare_cm.png yazar
+İki seviyede değerlendirme:
+
+  frame-level   modelin frame-bazlı tahmini (window prob ortalaması →
+                argmax) vs rule-based detector frame label'ları
+                — "praktik tahmin kalitesi"
+
+  window-level  modelin window-bazlı argmax tahmini vs aynı
+                pencerenin majority frame label'ı (label_join.py'nin
+                training için kullandığı şema)
+                — "modelin training hedefini ne kadar öğrendiği";
+                  CV macro-F1 ile apples-to-apples karşılaştırılabilir
 
 Usage
 -----
-    # tek session, mevcut prediction CSV'si üzerinden
+    # tek session, mevcut prediction CSV'si üzerinden (frame-level)
     python -m src.window_classifier.compare \\
         --pred results/test_inference/OpenFieldMA1_1_predicted_frames.csv
 
-    # birden çok subject, eksikse otomatik infer
+    # window-level + frame-level birlikte (subject + model gerekir)
+    python -m src.window_classifier.compare \\
+        --subjects OpenFieldMA1_1 --model lightgbm --level both --auto-infer
+
+    # birden çok subject
     python -m src.window_classifier.compare \\
         --subjects OpenFieldMA1_1 OpenFieldMA1_2 OpenFieldMA1_3 \\
         --model lightgbm --out-dir results/test_inference --auto-infer
@@ -87,6 +96,81 @@ def maybe_run_inference(subject: str, model: str, out_dir: Path,
     return pred_path
 
 
+def run_full_pipeline(subject: str, model: str, out_dir: Path,
+                      write_frame_csv: bool = True) -> dict:
+    """Pipeline'ı tek seferde çalıştırıp window + frame seviyesinde tahmin verir.
+
+    Returns
+    -------
+    dict with keys:
+        win_df       : pencere feature DataFrame (window_start, window_end, ...)
+        win_pred     : np.ndarray[str], window-level argmax
+        frame_pred   : np.ndarray[str], frame-level argmax (window prob ort.)
+        frame_probs  : np.ndarray[(n_frames, n_classes)]
+        class_names  : list[str]
+        n_frames     : int
+    """
+    from src.window_classifier.infer import (
+        DEFAULT_FPS, load_model_bundle, windows_to_frame_probs,
+    )
+    from src.window_classifier.features import (
+        DEFAULT_WINDOW, DEFAULT_STRIDE, DEFAULT_LONG_WINDOW, LIKELIHOOD_THRESH,
+        apply_likelihood_mask, compute_rule_signals, extract_windows,
+        load_dlc_flat_raw,
+    )
+
+    dlc_csv, _ = find_subject_paths(subject)
+    bundle = load_model_bundle(model)
+    raw = load_dlc_flat_raw(dlc_csv)
+    dlc = apply_likelihood_mask(raw, LIKELIHOOD_THRESH)
+    rule_sig = compute_rule_signals(raw, dlc, fps=DEFAULT_FPS)
+    win_df = extract_windows(
+        dlc, subject, DEFAULT_WINDOW, DEFAULT_STRIDE,
+        long_window_size=DEFAULT_LONG_WINDOW, fps=DEFAULT_FPS,
+        rule_signals=rule_sig,
+    )
+
+    feature_cols = bundle["feature_cols"]
+    missing = [c for c in feature_cols if c not in win_df.columns]
+    if missing:
+        raise ValueError(
+            f"window_features çıktısında eksik kolonlar var: {missing[:5]}"
+            f"{'...' if len(missing) > 5 else ''}"
+        )
+    X = win_df[feature_cols].values.astype(np.float32)
+    X = bundle["imputer"].transform(X)
+    proba = bundle["model"].predict_proba(X)
+    le = bundle["label_encoder"]
+    win_pred = le.inverse_transform(proba.argmax(axis=1))
+
+    n_frames = len(dlc)
+    starts = win_df["window_start"].to_numpy(int)
+    ends   = win_df["window_end"].to_numpy(int)
+    frame_probs = windows_to_frame_probs(proba, starts, ends, n_frames)
+    frame_pred = le.inverse_transform(frame_probs.argmax(axis=1))
+
+    if write_frame_csv:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        frames_df = pd.DataFrame({
+            "frame": np.arange(n_frames),
+            "time_s": np.round(np.arange(n_frames) / DEFAULT_FPS, 3),
+            "predicted_label": frame_pred,
+        })
+        for ci, cn in enumerate(list(le.classes_)):
+            frames_df[f"prob_{cn}"] = np.round(frame_probs[:, ci], 4)
+        frames_df.to_csv(out_dir / f"{subject}_predicted_frames.csv",
+                         index=False)
+
+    return {
+        "win_df": win_df,
+        "win_pred": np.asarray(win_pred),
+        "frame_pred": np.asarray(frame_pred),
+        "frame_probs": frame_probs,
+        "class_names": list(le.classes_),
+        "n_frames": n_frames,
+    }
+
+
 def load_pred_and_gt(pred_csv: Path, gt_csv: Path) -> pd.DataFrame:
     pred = pd.read_csv(pred_csv)
     gt   = pd.read_csv(gt_csv)
@@ -132,39 +216,50 @@ def plot_confusion_matrix(cm: np.ndarray, labels: list[str],
     plt.close(fig)
 
 
-def evaluate(subject: str, df: pd.DataFrame, out_dir: Path) -> dict:
-    classes = sorted(set(df["true"]) | set(df["predicted"]))
-    cm = confusion_matrix(df["true"], df["predicted"], labels=classes)
-    acc = accuracy_score(df["true"], df["predicted"])
-    macro_f1    = f1_score(df["true"], df["predicted"], labels=classes,
-                           average="macro", zero_division=0)
-    weighted_f1 = f1_score(df["true"], df["predicted"], labels=classes,
+def _bout_counts(arr: np.ndarray) -> dict:
+    """Run-length sayımı: ardışık aynı etiket koşularını sayar."""
+    if len(arr) == 0:
+        return {}
+    arr = np.asarray(arr)
+    change = np.flatnonzero(arr[1:] != arr[:-1]) + 1
+    starts = np.concatenate(([0], change))
+    out: dict[str, int] = {}
+    for s in starts:
+        out[arr[s]] = out.get(arr[s], 0) + 1
+    return out
+
+
+def _print_metrics(subject: str, level: str, n_unit_label: str,
+                   y_true: np.ndarray, y_pred: np.ndarray,
+                   classes: list[str]) -> dict:
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+    acc = accuracy_score(y_true, y_pred)
+    macro_f1 = f1_score(y_true, y_pred, labels=classes,
+                        average="macro", zero_division=0)
+    weighted_f1 = f1_score(y_true, y_pred, labels=classes,
                            average="weighted", zero_division=0)
-
     report = classification_report(
-        df["true"], df["predicted"], labels=classes,
-        digits=4, zero_division=0,
+        y_true, y_pred, labels=classes, digits=4, zero_division=0,
     )
-
-    print(f"\n=== {subject} ===")
-    print(f"  n_frames={len(df)}  acc={acc:.4f}  "
+    print(f"\n=== {subject}  [{level.upper()}-LEVEL] ===")
+    print(f"  {n_unit_label}={len(y_true)}  acc={acc:.4f}  "
           f"macro_f1={macro_f1:.4f}  weighted_f1={weighted_f1:.4f}")
     print(report)
+    return {
+        "cm": cm, "accuracy": acc,
+        "macro_f1": macro_f1, "weighted_f1": weighted_f1,
+    }
 
-    # bout sayısı (basit run-length): true vs predicted
-    def bout_counts(arr: np.ndarray) -> dict:
-        if len(arr) == 0:
-            return {}
-        change = np.flatnonzero(arr[1:] != arr[:-1]) + 1
-        starts = np.concatenate(([0], change))
-        ends   = np.concatenate((change, [len(arr)]))
-        out: dict[str, int] = {}
-        for s, e in zip(starts, ends):
-            out[arr[s]] = out.get(arr[s], 0) + 1
-        return out
 
-    true_bouts = bout_counts(df["true"].to_numpy())
-    pred_bouts = bout_counts(df["predicted"].to_numpy())
+def evaluate(subject: str, df: pd.DataFrame, out_dir: Path) -> dict:
+    """Frame-level eval + bout count tablosu."""
+    classes = sorted(set(df["true"]) | set(df["predicted"]))
+    y_true = df["true"].to_numpy()
+    y_pred = df["predicted"].to_numpy()
+    m = _print_metrics(subject, "frame", "n_frames", y_true, y_pred, classes)
+
+    true_bouts = _bout_counts(y_true)
+    pred_bouts = _bout_counts(y_pred)
     print("  bouts (true → pred):")
     for c in classes:
         print(f"    {c:9s}  {true_bouts.get(c, 0):3d}  →  "
@@ -173,66 +268,164 @@ def evaluate(subject: str, df: pd.DataFrame, out_dir: Path) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_dir / f"{subject}_compare_frames.csv", index=False)
     plot_confusion_matrix(
-        cm, classes,
-        title=f"{subject} — frame-level (acc={acc:.3f}, macroF1={macro_f1:.3f})",
+        m["cm"], classes,
+        title=f"{subject} — frame-level "
+              f"(acc={m['accuracy']:.3f}, macroF1={m['macro_f1']:.3f})",
         out_path=out_dir / f"{subject}_compare_cm.png",
     )
 
-    row = {"subject": subject, "n_frames": len(df),
-           "accuracy": round(acc, 4),
-           "macro_f1": round(macro_f1, 4),
-           "weighted_f1": round(weighted_f1, 4)}
+    row = {"subject": subject, "level": "frame", "n": len(df),
+           "accuracy": round(m["accuracy"], 4),
+           "macro_f1": round(m["macro_f1"], 4),
+           "weighted_f1": round(m["weighted_f1"], 4)}
     for c in classes:
         row[f"true_bouts_{c}"] = true_bouts.get(c, 0)
         row[f"pred_bouts_{c}"] = pred_bouts.get(c, 0)
     return row
 
 
+def evaluate_window_level(subject: str, win_df: pd.DataFrame,
+                          win_pred: np.ndarray, gt_csv: Path,
+                          out_dir: Path) -> dict:
+    """Window-level eval: model pencere argmax vs majority frame label.
+
+    Aynı pencereleme şemasını (label_join.majority_label) kullandığımız için
+    bu rakamlar training CV macro-F1 ile apples-to-apples okunabilir.
+    """
+    from src.window_classifier.label_join import majority_label
+
+    gt = pd.read_csv(gt_csv)
+    frame_labels = gt["behaviour"].astype(str).to_numpy()
+
+    starts = win_df["window_start"].to_numpy(int)
+    ends   = win_df["window_end"].to_numpy(int)
+
+    win_true: list[str] = []
+    keep: list[int] = []
+    for i, (s, e) in enumerate(zip(starts, ends)):
+        lbl = majority_label(frame_labels, int(s), int(e))
+        if lbl is not None:
+            win_true.append(str(lbl))
+            keep.append(i)
+
+    if not keep:
+        print(f"[skip] {subject}: window-level GT eşleşmesi yok")
+        return {}
+    y_true = np.array(win_true)
+    y_pred = np.asarray(win_pred)[keep]
+    classes = sorted(set(y_true) | set(y_pred))
+
+    m = _print_metrics(subject, "window", "n_windows", y_true, y_pred, classes)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({
+        "window_start": starts[keep],
+        "window_end":   ends[keep],
+        "true":         y_true,
+        "predicted":    y_pred,
+    }).to_csv(out_dir / f"{subject}_compare_windows.csv", index=False)
+    plot_confusion_matrix(
+        m["cm"], classes,
+        title=f"{subject} — window-level "
+              f"(acc={m['accuracy']:.3f}, macroF1={m['macro_f1']:.3f})",
+        out_path=out_dir / f"{subject}_compare_window_cm.png",
+    )
+
+    return {"subject": subject, "level": "window", "n": len(y_true),
+            "accuracy": round(m["accuracy"], 4),
+            "macro_f1": round(m["macro_f1"], 4),
+            "weighted_f1": round(m["weighted_f1"], 4)}
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--pred", type=Path, default=None,
-                   help="Tek bir prediction CSV (öncelik: bu varsa --subjects yok sayılır)")
+                   help="Tek bir prediction CSV (sadece --level=frame ile)")
     p.add_argument("--subjects", nargs="+", default=None,
                    help="Subject adları (örn. OpenFieldMA1_1 OpenFieldMA1_2)")
     p.add_argument("--model", default="lightgbm",
-                   help="--auto-infer ile kullanılacak model adı")
+                   help="Model adı: randomforest | xgboost | lightgbm")
+    p.add_argument("--level", choices=("frame", "window", "both"),
+                   default="frame",
+                   help="Karşılaştırma seviyesi (default: frame). "
+                        "'window' / 'both' --subjects + --model ister.")
     p.add_argument("--out-dir", type=Path,
                    default=ROOT / "results" / "test_inference",
                    help="Hem prediction hem karşılaştırma çıktılarının yeri")
     p.add_argument("--auto-infer", action="store_true",
-                   help="prediction CSV yoksa infer.predict_one ile üret")
+                   help="prediction CSV yoksa infer.predict_one ile üret "
+                        "(yalnızca --level=frame için anlamlı)")
     p.add_argument("--force-infer", action="store_true",
                    help="prediction CSV mevcut olsa bile yeniden üret")
     args = p.parse_args()
 
+    if args.level in ("window", "both") and args.pred is not None:
+        p.error("--pred sadece --level=frame ile kullanılabilir; "
+                "window-level eval için --subjects + --model ver")
+
     rows: list[dict] = []
+
+    # --- (a) tek dosya, frame-level only ---
     if args.pred is not None:
         subject = args.pred.name.replace("_predicted_frames.csv", "")
         _, gt_csv = find_subject_paths(subject)
         df = load_pred_and_gt(args.pred, gt_csv)
         rows.append(evaluate(subject, df, args.out_dir))
+
+    # --- (b) subject listesi ---
     elif args.subjects:
         for subject in args.subjects:
             try:
-                if args.auto_infer or args.force_infer:
-                    pred_csv = maybe_run_inference(
-                        subject, args.model, args.out_dir,
-                        force=args.force_infer,
-                    )
-                else:
-                    pred_csv = args.out_dir / f"{subject}_predicted_frames.csv"
-                    if not pred_csv.exists():
-                        print(f"[skip] {subject}: {pred_csv} yok "
-                              "(--auto-infer eklemeyi düşün)")
-                        continue
                 _, gt_csv = find_subject_paths(subject)
-                df = load_pred_and_gt(pred_csv, gt_csv)
-                rows.append(evaluate(subject, df, args.out_dir))
+
+                if args.level == "frame":
+                    # eski yol: predicted_frames.csv'yi oku
+                    if args.auto_infer or args.force_infer:
+                        pred_csv = maybe_run_inference(
+                            subject, args.model, args.out_dir,
+                            force=args.force_infer,
+                        )
+                    else:
+                        pred_csv = args.out_dir / f"{subject}_predicted_frames.csv"
+                        if not pred_csv.exists():
+                            print(f"[skip] {subject}: {pred_csv} yok "
+                                  "(--auto-infer eklemeyi düşün)")
+                            continue
+                    df = load_pred_and_gt(pred_csv, gt_csv)
+                    rows.append(evaluate(subject, df, args.out_dir))
+
+                else:
+                    # window veya both → pipeline'ı tek seferde sür
+                    out = run_full_pipeline(
+                        subject, args.model, args.out_dir,
+                        write_frame_csv=True,
+                    )
+                    if args.level in ("frame", "both"):
+                        # frame-level — taze tahminleri kullan
+                        gt = pd.read_csv(gt_csv)
+                        n = min(out["n_frames"], len(gt))
+                        df = pd.DataFrame({
+                            "frame": np.arange(n),
+                            "time_s": np.round(np.arange(n) / 30.0, 3),
+                            "true": gt["behaviour"].astype(str).values[:n],
+                            "predicted": out["frame_pred"][:n],
+                        })
+                        for ci, cn in enumerate(out["class_names"]):
+                            df[f"prob_{cn}"] = np.round(
+                                out["frame_probs"][:n, ci], 4)
+                        rows.append(evaluate(subject, df, args.out_dir))
+                    if args.level in ("window", "both"):
+                        rows.append(evaluate_window_level(
+                            subject, out["win_df"], out["win_pred"],
+                            gt_csv, args.out_dir,
+                        ))
             except FileNotFoundError as exc:
                 print(f"[skip] {subject}: {exc}")
+
     else:
         p.error("--pred ya da --subjects ver")
 
+    rows = [r for r in rows if r]
     if len(rows) > 1:
         summary = pd.DataFrame(rows)
         summary_path = args.out_dir / "compare_summary.csv"
