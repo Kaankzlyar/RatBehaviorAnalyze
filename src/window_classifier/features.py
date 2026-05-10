@@ -55,9 +55,9 @@ DLC_DIR = ROOT / "data" / "DLCfiltered"
 OUT_DEFAULT = ROOT / "data" / "windows_all.parquet"
 
 LIKELIHOOD_THRESH = 0.6
-DEFAULT_WINDOW = 30        # 1 s @ 30 fps
-DEFAULT_STRIDE = 15        # 50 % overlap
-DEFAULT_LONG_WINDOW = 90   # 3 s @ 30 fps — co-centered slow-context window
+DEFAULT_WINDOW = 15        # 0.5 s @ 30 fps — eşleşir kısa rearing/grooming bout uzunluklarıyla
+DEFAULT_STRIDE = 5         # 10/15 = 67 % overlap; daha yoğun pencere kapsaması
+DEFAULT_LONG_WINDOW = 90   # 3 s @ 30 fps — co-centered slow-context window (yavaş bağlam aynı kalır)
 DEFAULT_FPS = 30.0
 GROOMING_BAND_HZ = (4.0, 8.0)  # rat forepaw oscillation during grooming
 
