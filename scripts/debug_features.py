@@ -1,11 +1,13 @@
 import pandas as pd
 import numpy as np
 import sys
+from pathlib import Path
 
-sys.path.insert(0, 'src')
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 from behavior_detection import *
 
-df = load_dlc_csv('data/DLCfiltered/OpenFieldMA1_1/OpenFieldMA1_1.csv')
+df = load_dlc_csv(str(ROOT / "data" / "DLCfiltered" / "control" / "OpenFieldMA1_1" / "OpenFieldMA1_1.csv"))
 masked = mask_low_likelihood(df, LIKELIHOOD_THRESH)
 feat = compute_features(df, masked)
 

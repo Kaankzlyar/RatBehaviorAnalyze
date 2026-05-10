@@ -676,4 +676,4 @@ Mevcut n=12 (3/grup) ile 4-sınıf grup tahmini güvenilir değildir. Gelecek ç
 
 ---
 
-*Bu dosya, `docs/behavior_comparison.md`, `docs/final_report.md`, `analysis/WORKFLOW_SUMMARY.md` ve `documents/plans/` altındaki aşama planlarından derlenerek hazırlanmıştır.*
+*Bu dosya, `docs/behavior_comparison.md`, `docs/final_report.md`, `docs/WORKFLOW_SUMMARY.md` ve `docs/plans/` altındaki aşama planlarından derlenerek hazırlanmıştır.*

@@ -156,7 +156,7 @@ These describe *where* the rat went, not *what* it was doing.
 
 All of them apply the same 4-step cleaning pipeline to the DLC CSV:
 likelihood filter → arena-bounds filter → jump threshold → rolling-median
-smoothing. See `analysis/WORKFLOW_SUMMARY.md` for parameters.
+smoothing. See `docs/WORKFLOW_SUMMARY.md` for parameters.
 
 ### 6.1 `*_orbit_grid.png`
 
@@ -214,7 +214,7 @@ python analysis/run_analysis.py --arena 396 776 153 530
 ```
 
 See `analysis/README.md` for the full spatial-analysis workflow and
-`documents/behavior_detection_documentation.md` for the behaviour-detection
+`docs/behavior_detection_documentation.legacy.md` for the behaviour-detection
 design rationale (Turkish).
 
 ---

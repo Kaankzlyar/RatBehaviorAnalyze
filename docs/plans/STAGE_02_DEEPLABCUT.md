@@ -152,7 +152,7 @@ data/dlc_output/
 | `src/dlc_setup.py` | Project creation, frame extraction, labeling |
 | `src/dlc_train.py` | Training + evaluation |
 | `src/dlc_inference.py` | Inference + export |
-| `documents/DEEPLABCUT_PIPELINE.md` | Detailed DLC reference |
+| `docs/DEEPLABCUT_PIPELINE.md` | Detailed DLC reference |
 
 ---
 

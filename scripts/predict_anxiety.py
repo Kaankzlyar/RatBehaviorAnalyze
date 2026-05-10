@@ -2,8 +2,8 @@
 Predict whether a rat appears anxious from a DLC pose CSV.
 
 Usage:
-    python predict_anxiety.py path/to/<subject>.csv
-    python predict_anxiety.py path/to/<subject>.csv --output "D:\\ProjectsD\\ThesisWork\\reports"
+    python scripts/predict_anxiety.py path/to/<subject>.csv
+    python scripts/predict_anxiety.py path/to/<subject>.csv --output reports/anxiety_predictions
 
 Writes three files per run into the output directory:
     <subject>_anxiety_report.txt       — the same summary printed to stdout
@@ -26,7 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = ROOT / "models" / "anxiety_demo"
 DEFAULT_OUTPUT = ROOT / "reports" / "anxiety_predictions"
 

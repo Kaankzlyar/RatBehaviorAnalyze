@@ -44,14 +44,14 @@ Batch outputs (under --out-dir, default `data/`)
 Usage
 -----
   # single subject
-  python analysis/speed_analysis.py \\
+  python analysis/common/speed_analysis.py \\
       --csv data/DLCfiltered/control/OpenFieldMA1_1/OpenFieldMA1_1.csv
 
   # all subjects
-  python analysis/speed_analysis.py --batch-dir data/DLCfiltered
+  python analysis/common/speed_analysis.py --batch-dir data/DLCfiltered
 
   # also report cm/s (60-cm OFT with default arena ⇒ ~6.3 px/cm)
-  python analysis/speed_analysis.py --batch-dir data/DLCfiltered --px-per-cm 6.3
+  python analysis/common/speed_analysis.py --batch-dir data/DLCfiltered --px-per-cm 6.3
 """
 
 import argparse
