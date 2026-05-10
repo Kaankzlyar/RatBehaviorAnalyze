@@ -1,0 +1,15 @@
+feature,H,p_asymptotic,p_permutation,epsilon_sq,effect_size_label,q_bh
+pct_open_arm_entries,6.946,0.0736,0.0488,0.4933,medium,0.2581
+pct_time_junction,6.8462,0.077,0.0504,0.4808,medium,0.2581
+anxiety_index_epm,6.7158,0.0815,0.0553,0.4645,medium,0.2581
+pct_open_arm,6.3041,0.0977,0.0827,0.413,medium,0.2699
+arm_preference_index,5.9567,0.1137,0.0964,0.3696,medium,0.2699
+pct_time_right,5.1719,0.1596,0.1591,0.2715,medium,0.3712
+pct_time_left,3.7211,0.2932,0.2417,0.0901,small,0.3864
+successive_alternation_pct,4.3357,0.2274,0.2463,0.167,small,0.3864
+perseveration_rate_pct,4.3357,0.2274,0.2484,0.167,small,0.3864
+total_entries,3.9497,0.2669,0.2934,0.1187,small,0.4108
+mean_speed_px_s,2.8974,0.4077,0.4479,-0.0128,negligible,0.5372
+total_distance_px,2.8974,0.4077,0.4605,-0.0128,negligible,0.5372
+pct_time_bottom,0.8462,0.8384,0.8771,-0.2692,negligible,0.9446
+pct_time_top,0.4359,0.9327,0.9571,-0.3205,negligible,0.9571
