@@ -141,3 +141,20 @@ python -m src.anxiety.classifier \
     --features "rear|pct_periphery|pct_freeze|spatial_entropy|comfort" \
     --tag rearonly
 ```
+# 8. Yazılacaklar
+"Evet hocam, örneklem sayımız (N=29) kısıtlı olduğu için Bonferroni gibi katı düzeltmeler sonrası anlamlılık kayboluyor. Bu yüzden bulgularımızı 'kesin hüküm' değil, aspartam ve greyfurt etkileşimini gösteren güçlü bir 'pilot eğilim' olarak çerçeveledik."
+
+Modeline "0" (Kontrol) ve "1" (Treated - İşlem Görmüş) etiketlerini verdin. Ancak "1" etiketinin içine iki farklı dünya koydun:
+Aspartam: Fareyi gergin/anksiyeteli yapıyor (negatif sapma).
+Greyfurt: Fareyi sakinleştiriyor (pozitif sapma).
+
+Modelin perspektifinden bakarsan; model "Bu fare anksiyetelidir" demiyor. Model şunu diyor: "Bu fare, normal (kontrol) farenin yapması gereken hareket paterninden saptı."
+Bu çerçeveleme şu anlama gelir: Senin modelin bir "Anksiyete Teşhis Cihazı" değil, bir "Davranışsal Sapma Dedektörü"dür.
+Yanlış İfade: "Modelim farenin anksiyeteli olduğunu %80 doğrulukla bildi." (Jüri bunu çürütür, çünkü greyfurt anksiyete yapmaz).
+
+Doğru İfade: "Modelim, diyet manipülasyonuna maruz kalan farelerin (aspartam veya greyfurt), kontrol grubuna göre sergilediği davranışsal kaymayı (behavioral shift) tespit etmiştir."
+
+3. Neden Bu Çerçeveleme Önemli?
+Karışıklığı Giderir: Modelin Aspartam ve Greyfurt farelerini "Treated" olarak doğru sınıflandırması, her iki maddenin de farenin doğal baz çizgisini (baseline) bozduğunu kanıtlar.
+
+Biyolojik Fark: Aspartamın bu çizgiyi "sağa" (anksiyete), greyfurtun ise "sola" (sakinlik) çekmesi biyolojik bir detaydır; senin modelin ise "çizginin yerinden oynadığını" başarıyla ölçmüştür.
