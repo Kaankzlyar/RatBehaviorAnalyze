@@ -6,57 +6,57 @@
   "model_tag": "rearonly",
   "pred": 0,
   "label": "Control-benzeri",
-  "proba_control": 0.9972,
-  "proba_treated": 0.0028,
+  "proba_control": 0.9999,
+  "proba_treated": 0.0001,
   "top_contributors": [
+    {
+      "feature": "pct_periphery",
+      "value": 0.28,
+      "z": -4.53,
+      "coef": 1.082,
+      "push": -4.896,
+      "toward": "Control"
+    },
     {
       "feature": "rear_early_frac",
       "value": 0.8845315904139432,
       "z": 2.02,
-      "coef": -1.321,
-      "push": -2.674,
-      "toward": "Control"
-    },
-    {
-      "feature": "pct_periphery",
-      "value": 9.91,
-      "z": -3.97,
-      "coef": 0.581,
-      "push": -2.31,
+      "coef": -1.493,
+      "push": -3.022,
       "toward": "Control"
     },
     {
       "feature": "spatial_entropy",
-      "value": 0.306,
-      "z": -2.69,
-      "coef": 0.696,
-      "push": -1.875,
+      "value": 0.2986,
+      "z": -2.75,
+      "coef": 0.779,
+      "push": -2.137,
       "toward": "Control"
     },
     {
       "feature": "pct_freeze",
       "value": 24.72,
       "z": 2.84,
-      "coef": 0.473,
-      "push": 1.342,
+      "coef": 0.481,
+      "push": 1.366,
       "toward": "Treated"
     },
     {
-      "feature": "rear_mean_bout_s",
-      "value": 0.6557142857142857,
-      "z": -2.29,
-      "coef": 0.512,
-      "push": -1.173,
-      "toward": "Control"
+      "feature": "rear_rate_per_min",
+      "value": 2.3630907726931736,
+      "z": -2.01,
+      "coef": -0.36,
+      "push": 0.724,
+      "toward": "Treated"
     }
   ],
   "features": {
-    "pct_periphery": 9.91,
-    "pct_center": 90.09,
-    "center_entries": 6,
+    "pct_periphery": 0.28,
+    "pct_center": 99.72,
+    "center_entries": 1,
     "total_distance_px": 3007.8,
     "mean_speed_px_s": 16.99,
-    "spatial_entropy": 0.306,
+    "spatial_entropy": 0.2986,
     "pct_freeze": 24.72,
     "freeze_bout_count": 40,
     "rear_count": 7.0,
@@ -73,13 +73,13 @@
     "groom_early_frac": 0.19724137931034483,
     "rear_groom_ratio": 0.6331034482758621,
     "rear_per_100px": 0.23272823990956845,
-    "comfort_ratio": 0.08047508047508047,
-    "rear_count_center": 2,
-    "rear_count_wall": 5,
-    "rear_center_frac": 0.2857142857142857,
-    "rear_total_s_center": 1.76,
-    "rear_total_s_wall": 2.83,
-    "rear_center_minus_wall": -3
+    "comfort_ratio": 0.07270356999598877,
+    "rear_count_center": 6,
+    "rear_count_wall": 1,
+    "rear_center_frac": 0.8571428571428571,
+    "rear_total_s_center": 3.76,
+    "rear_total_s_wall": 0.83,
+    "rear_center_minus_wall": 5
   },
   "feature_cols_used": [
     "pct_periphery",
@@ -104,10 +104,10 @@
   "n_rearing_bouts": 7,
   "n_grooming_bouts": 5,
   "spatial_rearing": {
-    "rear_count_center": 2,
-    "rear_count_wall": 5,
+    "rear_count_center": 6,
+    "rear_count_wall": 1,
     "rear_count_unknown": 0,
-    "rear_center_frac": 0.2857
+    "rear_center_frac": 0.8571
   },
-  "generated_at": "2026-05-10T19:28:52"
+  "generated_at": "2026-05-10T19:40:47"
 }

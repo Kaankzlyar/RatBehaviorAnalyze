@@ -1,0 +1,113 @@
+{
+  "subject": "OpenFieldMA5_1",
+  "csv_path": "D:\\ProjectsD\\ThesisWork\\data\\DLCfiltered\\Greyfurt\\OpenFieldMA5_1\\OpenFieldMA5_1.csv",
+  "n_frames": 5380,
+  "session_s": 179.33333333333334,
+  "model_tag": "rearonly",
+  "pred": 0,
+  "label": "Control-benzeri",
+  "proba_control": 0.9752,
+  "proba_treated": 0.0248,
+  "top_contributors": [
+    {
+      "feature": "rear_early_frac",
+      "value": 0.8306911857958147,
+      "z": 1.73,
+      "coef": -1.493,
+      "push": -2.581,
+      "toward": "Control"
+    },
+    {
+      "feature": "pct_periphery",
+      "value": 52.51,
+      "z": -1.53,
+      "coef": 1.082,
+      "push": -1.652,
+      "toward": "Control"
+    },
+    {
+      "feature": "pct_freeze",
+      "value": 23.98,
+      "z": 2.72,
+      "coef": 0.481,
+      "push": 1.311,
+      "toward": "Treated"
+    },
+    {
+      "feature": "spatial_entropy",
+      "value": 0.5445,
+      "z": -1.05,
+      "coef": 0.779,
+      "push": -0.815,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_center_frac",
+      "value": 0.75,
+      "z": -1.83,
+      "coef": 0.359,
+      "push": -0.655,
+      "toward": "Control"
+    }
+  ],
+  "features": {
+    "pct_periphery": 52.51,
+    "pct_center": 47.49,
+    "center_entries": 10,
+    "total_distance_px": 2965.3,
+    "mean_speed_px_s": 16.54,
+    "spatial_entropy": 0.5445,
+    "pct_freeze": 23.98,
+    "freeze_bout_count": 50,
+    "rear_count": 12.0,
+    "rear_total_s": 15.770000000000001,
+    "rear_pct": 8.79368029739777,
+    "rear_mean_bout_s": 1.3141666666666667,
+    "rear_rate_per_min": 4.014869888475836,
+    "rear_early_frac": 0.8306911857958147,
+    "groom_count": 16.0,
+    "groom_total_s": 73.07,
+    "groom_pct": 40.74535315985129,
+    "groom_mean_bout_s": 4.566875,
+    "groom_bout_cv": 1.2766875488161376,
+    "groom_early_frac": 0.07622827425756125,
+    "rear_groom_ratio": 0.2158204461475298,
+    "rear_per_100px": 0.40468080801267997,
+    "comfort_ratio": 1.5386397136239207,
+    "rear_count_center": 9,
+    "rear_count_wall": 3,
+    "rear_center_frac": 0.75,
+    "rear_total_s_center": 13.2,
+    "rear_total_s_wall": 2.57,
+    "rear_center_minus_wall": 6
+  },
+  "feature_cols_used": [
+    "pct_periphery",
+    "spatial_entropy",
+    "pct_freeze",
+    "rear_count",
+    "rear_total_s",
+    "rear_pct",
+    "rear_mean_bout_s",
+    "rear_rate_per_min",
+    "rear_early_frac",
+    "rear_groom_ratio",
+    "rear_per_100px",
+    "comfort_ratio",
+    "rear_count_center",
+    "rear_count_wall",
+    "rear_center_frac",
+    "rear_total_s_center",
+    "rear_total_s_wall",
+    "rear_center_minus_wall"
+  ],
+  "n_rearing_bouts": 12,
+  "n_grooming_bouts": 16,
+  "spatial_rearing": {
+    "rear_count_center": 9,
+    "rear_count_wall": 3,
+    "rear_count_unknown": 0,
+    "rear_center_frac": 0.75
+  },
+  "generated_at": "2026-05-10T19:42:20"
+}

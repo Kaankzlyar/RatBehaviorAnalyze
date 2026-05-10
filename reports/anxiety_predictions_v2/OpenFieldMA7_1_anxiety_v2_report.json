@@ -1,0 +1,113 @@
+{
+  "subject": "OpenFieldMA7_1",
+  "csv_path": "D:\\ProjectsD\\ThesisWork\\data\\DLCfiltered\\ASPveGreyfurt\\OpenFieldMA7_1\\OpenFieldMA7_1.csv",
+  "n_frames": 5116,
+  "session_s": 170.53333333333333,
+  "model_tag": "rearonly",
+  "pred": 0,
+  "label": "Control-benzeri",
+  "proba_control": 0.9509,
+  "proba_treated": 0.0491,
+  "top_contributors": [
+    {
+      "feature": "pct_periphery",
+      "value": 1.86,
+      "z": -4.44,
+      "coef": 1.082,
+      "push": -4.798,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_early_frac",
+      "value": 0.36142371107040044,
+      "z": -0.84,
+      "coef": -1.493,
+      "push": 1.259,
+      "toward": "Treated"
+    },
+    {
+      "feature": "spatial_entropy",
+      "value": 0.8215,
+      "z": 0.87,
+      "coef": 0.779,
+      "push": 0.673,
+      "toward": "Treated"
+    },
+    {
+      "feature": "rear_center_frac",
+      "value": 1.0,
+      "z": 0.86,
+      "coef": 0.359,
+      "push": 0.309,
+      "toward": "Treated"
+    },
+    {
+      "feature": "rear_rate_per_min",
+      "value": 8.092259577795152,
+      "z": 0.81,
+      "coef": -0.36,
+      "push": -0.292,
+      "toward": "Control"
+    }
+  ],
+  "features": {
+    "pct_periphery": 1.86,
+    "pct_center": 98.14,
+    "center_entries": 6,
+    "total_distance_px": 6362.7,
+    "mean_speed_px_s": 37.33,
+    "spatial_entropy": 0.8215,
+    "pct_freeze": 3.42,
+    "freeze_bout_count": 8,
+    "rear_count": 23.0,
+    "rear_total_s": 38.21,
+    "rear_pct": 22.406176700547302,
+    "rear_mean_bout_s": 1.661304347826087,
+    "rear_rate_per_min": 8.092259577795152,
+    "rear_early_frac": 0.36142371107040044,
+    "groom_count": 17.0,
+    "groom_total_s": 29.439999999999998,
+    "groom_pct": 17.263487099296327,
+    "groom_mean_bout_s": 1.7317647058823529,
+    "groom_bout_cv": 1.1658754741857693,
+    "groom_early_frac": 0.5200407608695653,
+    "rear_groom_ratio": 1.2978940217391306,
+    "rear_per_100px": 0.3614817608876735,
+    "comfort_ratio": 0.29997962094966374,
+    "rear_count_center": 23,
+    "rear_count_wall": 0,
+    "rear_center_frac": 1.0,
+    "rear_total_s_center": 38.21,
+    "rear_total_s_wall": 0.0,
+    "rear_center_minus_wall": 23
+  },
+  "feature_cols_used": [
+    "pct_periphery",
+    "spatial_entropy",
+    "pct_freeze",
+    "rear_count",
+    "rear_total_s",
+    "rear_pct",
+    "rear_mean_bout_s",
+    "rear_rate_per_min",
+    "rear_early_frac",
+    "rear_groom_ratio",
+    "rear_per_100px",
+    "comfort_ratio",
+    "rear_count_center",
+    "rear_count_wall",
+    "rear_center_frac",
+    "rear_total_s_center",
+    "rear_total_s_wall",
+    "rear_center_minus_wall"
+  ],
+  "n_rearing_bouts": 23,
+  "n_grooming_bouts": 17,
+  "spatial_rearing": {
+    "rear_count_center": 23,
+    "rear_count_wall": 0,
+    "rear_count_unknown": 0,
+    "rear_center_frac": 1.0
+  },
+  "generated_at": "2026-05-10T19:43:26"
+}
