@@ -23,12 +23,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 # ---------------------------------------------------------------------------
-# Kare arena coordinates (confirmed from video annotation)
+# Arena & inner-zone (confirmed from video annotation) — single source of
+# truth in src/anxiety/config.py so spatial_rearing & predict_anxiety_v2
+# stay consistent.
 # ---------------------------------------------------------------------------
-ARENA      = (397, 777, 156, 535)   # x_min x_max y_min y_max
-INNER_ZONE = (422, 748, 182, 506)   # 20% margin — matches MA1/3/5/7 oft_metrics_all.csv
-FPS        = 30
+from src.anxiety.config import ARENA as _ARENA, INNER_ZONE as _INNER_ZONE, FPS as _FPS
+
+ARENA      = tuple(int(v) for v in _ARENA)
+INNER_ZONE = tuple(int(v) for v in _INNER_ZONE)
+FPS        = int(_FPS)
 
 COHORT_TO_GROUP = {
     2: "control",

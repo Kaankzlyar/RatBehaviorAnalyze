@@ -8,7 +8,7 @@ stack (LOOCV + SHAP).
 This repository accompanies a thesis on per-subject and per-cohort
 behavioural profiling (MA1 / MA3 / MA5 / MA7).
 
-### Current state (2026-05-05)
+### Current state (2026-05-10)
 
 - **Open-field arm:** end-to-end pipeline complete. 12 subjects (4 cohorts × 3 rats)
   processed through DLC → behaviour detection → spatial analysis → feature
@@ -33,6 +33,18 @@ behavioural profiling (MA1 / MA3 / MA5 / MA7).
   detector with a retrainable model that ports cleanly to T-maze. Full
   7-phase plan in
   [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md).
+- **Anxiety analysis (2026-05-10) — thesis re-framed:** PCA + LOOCV
+  classifier (Control vs Treated) and PC1-axis regression on n=29 (5–8 per
+  group). Empirical finding: consistent rearing-direction signal (top
+  feature `rear_early_frac` across all models; `rear_count` Kruskal η²=0.20)
+  but **no result reaches statistical significance** at this sample size.
+  Power analysis: ≥20 animals/group would be needed to detect the observed
+  effect sizes at 80% power. Thesis primary claim therefore pivots from
+  "we showed a biological effect" to "**we built a reproducible end-to-end
+  behavioural-analysis pipeline**", with empirical findings reported as a
+  use-case demonstration with proper effect-size + CI framing. Full
+  defensive write-up in
+  [`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md).
 
 > **Looking for a description of what the pipeline produces?**
 > See [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — a full walkthrough of every file that
@@ -253,6 +265,7 @@ RatBehaviorAnalyze/
     ├── OUTPUTS.md                     Guide to every output file under data/DLCfiltered/
     ├── WORKFLOW_SUMMARY.md            Filtering pipeline & parameters (analysis-side)
     ├── final_report.md                OFT-complete thesis chapter + inference roadmap
+    ├── anxiety_findings_report.md     Anxiety analysis — pipeline pivot + empirical findings
     ├── window_classifier_plan.md      Window-level classifier — 7-phase implementation plan
     ├── tmaze_keypoints_and_layout.md  T-maze keypoint plan + repo layout (5-point DLC)
     ├── behavior_detection_documentation.md         Detector design (algorithmic)
@@ -413,6 +426,7 @@ per-behaviour metric mapping in
 
 - [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
 - [`docs/final_report.md`](docs/final_report.md) — **consolidated OFT thesis chapter + ML inference roadmap**
+- [`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md) — **anxiety analysis — pipeline pivot + empirical findings + power analysis**
 - [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md) — **T-maze keypoint plan + repo layout (5-point DLC project)**
 - [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md) — **window-level behaviour classifier — 7-phase implementation plan**
 - [`docs/behavior_detection_documentation.md`](docs/behavior_detection_documentation.md) — behaviour-detector design (algorithmic)

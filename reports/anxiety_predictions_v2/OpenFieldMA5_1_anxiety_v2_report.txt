@@ -1,0 +1,32 @@
+
+🐀  DLC CSV: OpenFieldMA5_1.csv
+────────────────────────────────────────────────────────────
+✓ Pose verisi okundu        (5,380 frame)
+✓ Davranış bout'ları çıkarıldı  (rearing=12, grooming=16)
+✓ OFT metrikleri ve mekansal rearing hesaplandı
+✓ Rear-only model yüklendi  (LogReg, AUC=0.73 LOOCV)
+────────────────────────────────────────────────────────────
+
+  Anahtar metrikler:
+    Merkezde süre        : %  2.6
+    Duvar kenarında süre : % 97.4
+    Donakalma süresi     : % 24.0
+    Rearing toplam       : 12 bout, 15.8 s
+    Rearing — center     : 0 bout, 0.0 s
+    Rearing — wall       : 12 bout, 15.8 s
+    rear_center_frac     : 0.000  (referans: Control medyan 0.133, Treated medyan 0.075)
+────────────────────────────────────────────────────────────
+
+🟦  TAHMİN: Control-benzeri
+    P(Treated)=0.282    P(Control)=0.718
+    Güven      : %72
+
+  Kararı en çok etkileyen 5 özellik (LR coef × z-skor):
+    rear_center_frac            z=-9.90  push=−3.55 → Control
+    rear_early_frac             z=+1.73  push=−2.58 → Control
+    comfort_ratio               z=+3.17  push=+1.52 → Treated
+    pct_freeze                  z=+2.72  push=+1.31 → Treated
+    pct_periphery               z=+1.05  push=+1.14 → Treated
+
+  Not: model 'Treated vs Control' ayırıyor — doğrudan 'anksiyeteli' değil.
+
