@@ -430,7 +430,11 @@ def main() -> None:
         out.to_csv(target, index=False)
         print(f"  parquet unavailable ({exc.__class__.__name__}), wrote CSV instead")
 
-    print(f"[write] {target.relative_to(ROOT)}: {len(out)} windows × {out.shape[1]} cols")
+    try:
+        display = target.resolve().relative_to(ROOT)
+    except ValueError:
+        display = target
+    print(f"[write] {display}: {len(out)} windows × {out.shape[1]} cols")
     feat_cols = [c for c in out.columns if c not in ("subject_id", "window_start", "window_end")]
     nan_pct = out[feat_cols].isna().mean().mean() * 100
     print(f"[stats] {len(feat_cols)} feature columns; mean NaN rate {nan_pct:.2f}%")

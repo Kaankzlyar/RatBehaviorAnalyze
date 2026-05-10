@@ -145,7 +145,11 @@ def main() -> None:
         target = args.out.with_suffix(".csv")
         labeled.to_csv(target, index=False)
         print(f"[warn] parquet kullanılamıyor ({exc.__class__.__name__}); CSV yazıldı")
-    print(f"[write] {target.relative_to(ROOT)}: "
+    try:
+        display = target.resolve().relative_to(ROOT)
+    except ValueError:
+        display = target
+    print(f"[write] {display}: "
           f"{len(labeled)} satır × {labeled.shape[1]} sütun")
 
 
