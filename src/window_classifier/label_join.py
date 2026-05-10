@@ -12,11 +12,25 @@ Output
         cohort, subject_id (MA<n>_<m>), window_start, window_end, label,
         <feature_1..N>
 
+Labeling şemaları
+-----------------
+    --scheme majority   (default) pencerenin frame'lerinin çoğunluğu
+                        — kısa rare-class bout'ları kaybeder (≥16/30 frame
+                        olmazsa "other" olarak etiketlenirler)
+
+    --scheme any        pencerede priority_classes'tan biri en az
+                        --any-thresh frame ise o sınıfla etiketle (eğer
+                        birden fazlası eşiği aşıyorsa daha çok frame
+                        içereni seç). Aksi halde majority'ye düşer.
+                        Kısa bout recall'unu artırır, "other" sınıfını
+                        küçültür ⇒ class imbalance azalır ama
+                        rare-class label noise biraz artar.
+
 Usage
 -----
     python -m src.window_classifier.label_join
-    python -m src.window_classifier.label_join --in data/windows_all.parquet --out data/windows_labeled.parquet
-                                               
+    python -m src.window_classifier.label_join \\
+        --scheme any --any-thresh 5 --priority-classes grooming,rearing
 """
 from __future__ import annotations
 
@@ -68,6 +82,35 @@ def majority_label(frame_labels: np.ndarray, start: int, end_inclusive: int):
     return vals[counts.argmax()]
 
 
+def any_label(frame_labels: np.ndarray, start: int, end_inclusive: int,
+              priority_classes: tuple[str, ...] = ("grooming", "rearing"),
+              min_frames: int = 5):
+    """Pencerede priority_classes'tan biri >= min_frames frame içeriyorsa
+    o sınıfı döndür (eşiği aşan birden fazlası varsa en çok frame içereni —
+    eşitlikte priority_classes sırasına göre).
+
+    Aksi halde majority_label'a düşer.
+    """
+    if start < 0 or end_inclusive >= len(frame_labels):
+        return None
+    window = frame_labels[start:end_inclusive + 1]
+    if len(window) == 0:
+        return None
+
+    best_class = None
+    best_count = 0
+    for c in priority_classes:
+        cnt = int(np.sum(window == c))
+        if cnt >= min_frames and cnt > best_count:
+            best_class = c
+            best_count = cnt
+    if best_class is not None:
+        return best_class
+
+    vals, counts = np.unique(window, return_counts=True)
+    return vals[counts.argmax()]
+
+
 def normalize_subject(subject_id: str) -> tuple[str, str]:
     """'OpenFieldMA5_2' -> ('MA5_2', 'MA5')."""
     m = SUBJECT_RE.search(subject_id)
@@ -78,7 +121,7 @@ def normalize_subject(subject_id: str) -> tuple[str, str]:
     return canonical, cohort
 
 
-def join_labels(windows: pd.DataFrame) -> pd.DataFrame:
+def join_labels(windows: pd.DataFrame, label_fn=majority_label) -> pd.DataFrame:
     out_parts: list[pd.DataFrame] = []
     for raw_subject, group in windows.groupby("subject_id", sort=False):
         canonical, cohort = normalize_subject(raw_subject)
@@ -93,7 +136,7 @@ def join_labels(windows: pd.DataFrame) -> pd.DataFrame:
         ends   = group["window_end"].to_numpy()
         win_labels = np.empty(len(group), dtype=object)
         for i, (s, e) in enumerate(zip(starts, ends)):
-            win_labels[i] = majority_label(labels, int(s), int(e))
+            win_labels[i] = label_fn(labels, int(s), int(e))
 
         annotated = group.copy()
         annotated.insert(0, "cohort", cohort)
@@ -117,12 +160,37 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--in",  dest="inp", type=Path, default=WIN_PATH)
     p.add_argument("--out", type=Path, default=OUT_PATH)
+    p.add_argument("--scheme", choices=("majority", "any"),
+                   default="majority",
+                   help="Pencere etiketleme şeması (default: majority)")
+    p.add_argument("--any-thresh", type=int, default=5, dest="any_thresh",
+                   help="--scheme=any için pencerede priority sınıfının "
+                        "asgari frame sayısı (default: 5)")
+    p.add_argument("--priority-classes", default="grooming,rearing",
+                   dest="priority_classes",
+                   help="--scheme=any için öncelik sınıfları, virgülle "
+                        "ayrılmış (default: grooming,rearing)")
     args = p.parse_args()
 
     windows = load_windows(args.inp)
     print(f"[load] {len(windows)} pencere × {windows.shape[1]} sütun")
 
-    labeled = join_labels(windows)
+    if args.scheme == "any":
+        priority = tuple(c.strip() for c in args.priority_classes.split(",")
+                         if c.strip())
+        if not priority:
+            p.error("--priority-classes boş olamaz")
+        print(f"[scheme] any  thresh={args.any_thresh}  priority={priority}")
+
+        def label_fn(labels, s, e):
+            return any_label(labels, s, e,
+                             priority_classes=priority,
+                             min_frames=args.any_thresh)
+    else:
+        print("[scheme] majority")
+        label_fn = majority_label
+
+    labeled = join_labels(windows, label_fn=label_fn)
 
     n_drop = labeled["label"].isna().sum()
     if n_drop:
