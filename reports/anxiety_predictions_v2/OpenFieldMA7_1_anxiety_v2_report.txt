@@ -8,25 +8,25 @@
 ────────────────────────────────────────────────────────────
 
   Anahtar metrikler:
-    Merkezde süre        : % 98.1
-    Duvar kenarında süre : %  1.9
+    Merkezde süre        : % 36.4
+    Duvar kenarında süre : % 63.6
     Donakalma süresi     : %  3.4
     Rearing toplam       : 23 bout, 38.2 s
-    Rearing — center     : 23 bout, 38.2 s
-    Rearing — wall       : 0 bout, 0.0 s
-    rear_center_frac     : 1.000  (referans: Control medyan 0.133, Treated medyan 0.075)
+    Rearing — center     : 2 bout, 1.9 s
+    Rearing — wall       : 21 bout, 36.3 s
+    rear_center_frac     : 0.087  (referans: Control medyan 0.133, Treated medyan 0.075)
 ────────────────────────────────────────────────────────────
 
-🟦  TAHMİN: Control-benzeri
-    P(Treated)=0.049    P(Control)=0.951
-    Güven      : %95
+🟧  TAHMİN: Treated-benzeri
+    P(Treated)=0.574    P(Control)=0.426
+    Güven      : %57
 
   Kararı en çok etkileyen 5 özellik (LR coef × z-skor):
-    pct_periphery               z=-4.44  push=−4.80 → Control
+    rear_center_frac            z=-8.96  push=−3.21 → Control
+    rear_count_wall             z=+10.34  push=+1.94 → Treated
     rear_early_frac             z=-0.84  push=+1.26 → Treated
-    spatial_entropy             z=+0.87  push=+0.67 → Treated
-    rear_center_frac            z=+0.86  push=+0.31 → Treated
-    rear_rate_per_min           z=+0.81  push=−0.29 → Control
+    pct_periphery               z=-0.89  push=−0.97 → Control
+    rear_total_s_wall           z=+7.98  push=+0.92 → Treated
 
   Not: model 'Treated vs Control' ayırıyor — doğrudan 'anksiyeteli' değil.
 

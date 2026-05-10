@@ -6,15 +6,15 @@
   "model_tag": "rearonly",
   "pred": 0,
   "label": "Control-benzeri",
-  "proba_control": 0.9999,
-  "proba_treated": 0.0001,
+  "proba_control": 1.0,
+  "proba_treated": 0.0,
   "top_contributors": [
     {
       "feature": "pct_periphery",
-      "value": 0.28,
-      "z": -4.53,
+      "value": 8.8,
+      "z": -4.04,
       "coef": 1.082,
-      "push": -4.896,
+      "push": -4.367,
       "toward": "Control"
     },
     {
@@ -23,6 +23,14 @@
       "z": 2.02,
       "coef": -1.493,
       "push": -3.022,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_center_frac",
+      "value": 0.14285714285714285,
+      "z": -8.36,
+      "coef": 0.359,
+      "push": -2.997,
       "toward": "Control"
     },
     {
@@ -40,20 +48,12 @@
       "coef": 0.481,
       "push": 1.366,
       "toward": "Treated"
-    },
-    {
-      "feature": "rear_rate_per_min",
-      "value": 2.3630907726931736,
-      "z": -2.01,
-      "coef": -0.36,
-      "push": 0.724,
-      "toward": "Treated"
     }
   ],
   "features": {
-    "pct_periphery": 0.28,
-    "pct_center": 99.72,
-    "center_entries": 1,
+    "pct_periphery": 8.8,
+    "pct_center": 91.2,
+    "center_entries": 7,
     "total_distance_px": 3007.8,
     "mean_speed_px_s": 16.99,
     "spatial_entropy": 0.2986,
@@ -73,13 +73,13 @@
     "groom_early_frac": 0.19724137931034483,
     "rear_groom_ratio": 0.6331034482758621,
     "rear_per_100px": 0.23272823990956845,
-    "comfort_ratio": 0.07270356999598877,
-    "rear_count_center": 6,
-    "rear_count_wall": 1,
-    "rear_center_frac": 0.8571428571428571,
-    "rear_total_s_center": 3.76,
-    "rear_total_s_wall": 0.83,
-    "rear_center_minus_wall": 5
+    "comfort_ratio": 0.07949561403508772,
+    "rear_count_center": 1,
+    "rear_count_wall": 6,
+    "rear_center_frac": 0.14285714285714285,
+    "rear_total_s_center": 0.53,
+    "rear_total_s_wall": 4.06,
+    "rear_center_minus_wall": -5
   },
   "feature_cols_used": [
     "pct_periphery",
@@ -104,10 +104,10 @@
   "n_rearing_bouts": 7,
   "n_grooming_bouts": 5,
   "spatial_rearing": {
-    "rear_count_center": 6,
-    "rear_count_wall": 1,
+    "rear_count_center": 1,
+    "rear_count_wall": 6,
     "rear_count_unknown": 0,
-    "rear_center_frac": 0.8571
+    "rear_center_frac": 0.1429
   },
-  "generated_at": "2026-05-10T19:40:47"
+  "generated_at": "2026-05-10T19:51:29"
 }
