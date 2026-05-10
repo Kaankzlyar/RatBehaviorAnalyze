@@ -18,8 +18,9 @@ Yöntem
     kayar; body_center daha kararlı).
   - DLC likelihood < 0.6 olan kareler atılır.
   - Her bout için frame'lerin body_center medyan (x,y)'si hesaplanır.
-  - Inner zone: arena (396,776,153,530) etrafında %20 margin (oft_metrics.py'deki
-    aynı default — iç bölge 472–700, 228–455 px).
+  - Arena ve inner zone: src/anxiety/config.py'den. Manuel olarak video
+    anotasyonundan tanımlı (iç bölge 422–748, 182–506 px) — auto %margin
+    formülünden değil; run_kare_batch.py ile aynı koordinatları paylaşır.
   - Medyan (x,y) inner zone içindeyse bout = center, değilse wall.
 
 Çıktılar
@@ -45,6 +46,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from src.anxiety.config import ARENA, INNER_ZONE
+
 ROOT     = Path(__file__).resolve().parent.parent.parent
 DLC_DIR  = ROOT / "data" / "DLCfiltered"
 DATA     = ROOT / "data"
@@ -53,8 +56,6 @@ FIGS     = REPORTS / "figures"
 for d in (REPORTS, FIGS):
     d.mkdir(parents=True, exist_ok=True)
 
-ARENA      = (396.0, 776.0, 153.0, 530.0)   # XMIN XMAX YMIN YMAX (oft_metrics default)
-MARGIN     = 0.20                            # iç bölge marjı
 LIKELIHOOD = 0.6
 
 GROUP_COLORS = {
@@ -70,12 +71,6 @@ COHORT_MAP = {
     "MA5": "Grapefruit", "MA6": "Grapefruit",
     "MA7": "Aspartame+Grapefruit", "MA8": "Aspartame+Grapefruit",
 }
-
-
-def inner_zone(arena: tuple, margin: float = MARGIN) -> tuple:
-    x0, x1, y0, y1 = arena
-    w, h = x1 - x0, y1 - y0
-    return (x0 + margin * w, x1 - margin * w, y0 + margin * h, y1 - margin * h)
 
 
 def load_body_center(csv_path: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -292,9 +287,9 @@ def plot_arena(bouts_df: pd.DataFrame, inner: tuple, out: Path) -> None:
 
 
 def main() -> None:
-    inner = inner_zone(ARENA)
+    inner = INNER_ZONE
     print(f"[arena]  X {ARENA[0]:.0f}-{ARENA[1]:.0f}   Y {ARENA[2]:.0f}-{ARENA[3]:.0f}")
-    print(f"[inner]  X {inner[0]:.0f}-{inner[1]:.0f}   Y {inner[2]:.0f}-{inner[3]:.0f}")
+    print(f"[inner]  X {inner[0]:.0f}-{inner[1]:.0f}   Y {inner[2]:.0f}-{inner[3]:.0f}  (manual, src/anxiety/config.py)")
 
     subj_dirs = find_subject_dirs()
     print(f"[scan]   {len(subj_dirs)} subject klasörü")

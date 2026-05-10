@@ -59,17 +59,15 @@ from src.behavior_detection import (
     mask_low_likelihood,
 )
 from analysis.open_field.oft_metrics import (
-    auto_inner_zone,
     freezing_metrics,
     load_body_center,
     locomotion_metrics,
     spatial_entropy,
     thigmotaxis_metrics,
 )
-from src.anxiety.spatial_rearing import classify_bout, inner_zone as sr_inner_zone
+from src.anxiety.config import ARENA, INNER_ZONE
+from src.anxiety.spatial_rearing import classify_bout
 
-ARENA      = (396.0, 776.0, 153.0, 530.0)
-MARGIN     = 0.20
 EARLY_S    = 90.0   # erken faz cutoff (profile.py ile uyumlu)
 MODEL_DIR  = ROOT / "models" / "anxiety_classifier"
 DEFAULT_OUT = ROOT / "reports" / "anxiety_predictions_v2"
@@ -103,12 +101,11 @@ def detect_bouts(csv_path: Path, fps: float) -> tuple[pd.DataFrame, int]:
 
 def compute_oft_metrics(csv_path: Path, fps: float) -> dict:
     """oft_metrics.py'deki helper'ları doğrudan çağır."""
-    inner = auto_inner_zone(ARENA, MARGIN)
     x, y = load_body_center(str(csv_path), likelihood_thresh=0.6,
                             jump_thresh=60.0, smooth=5)
     out: dict = {"n_frames": len(x), "session_s": len(x) / fps}
     out.update(locomotion_metrics(x, y, fps))
-    out.update(thigmotaxis_metrics(x, y, inner))
+    out.update(thigmotaxis_metrics(x, y, INNER_ZONE))
     out.update(freezing_metrics(x, y, fps))
     out["spatial_entropy_norm"] = spatial_entropy(x, y, ARENA)
     return out, x, y
@@ -117,7 +114,6 @@ def compute_oft_metrics(csv_path: Path, fps: float) -> dict:
 def compute_spatial_rearing(bouts_df: pd.DataFrame,
                              body_x: np.ndarray, body_y: np.ndarray) -> dict:
     """Her rearing bout için body_center medyanı → center / wall."""
-    inner = sr_inner_zone(ARENA, MARGIN)
     rears = bouts_df[bouts_df["behaviour"] == "rearing"]
     n_total = len(rears)
     n_center = n_wall = n_unk = 0
@@ -126,7 +122,7 @@ def compute_spatial_rearing(bouts_df: pd.DataFrame,
 
     for _, r in rears.iterrows():
         s = int(r["start_frame"]); e = int(r["end_frame"])
-        zone, mx, my = classify_bout(body_x, body_y, s, e, inner)
+        zone, mx, my = classify_bout(body_x, body_y, s, e, INNER_ZONE)
         bout_zones.append({"bout": int(r["bout"]), "start_s": float(r["start_s"]),
                            "duration_s": float(r["duration_s"]),
                            "median_x": mx, "median_y": my, "zone": zone})
@@ -303,15 +299,14 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
 
 def plot_overview(csv_path: Path, body_x, body_y, spatial: dict,
                   pred_info: dict, out: Path) -> None:
-    inner = sr_inner_zone(ARENA, MARGIN)
     fig, ax = plt.subplots(figsize=(9, 8.4))
     # arena
     ax.plot([ARENA[0], ARENA[1], ARENA[1], ARENA[0], ARENA[0]],
             [ARENA[2], ARENA[2], ARENA[3], ARENA[3], ARENA[2]],
             "k-", lw=2)
-    ax.plot([inner[0], inner[1], inner[1], inner[0], inner[0]],
-            [inner[2], inner[2], inner[3], inner[3], inner[2]],
-            "k--", lw=1, alpha=0.6, label="İç bölge (%20 margin)")
+    ax.plot([INNER_ZONE[0], INNER_ZONE[1], INNER_ZONE[1], INNER_ZONE[0], INNER_ZONE[0]],
+            [INNER_ZONE[2], INNER_ZONE[2], INNER_ZONE[3], INNER_ZONE[3], INNER_ZONE[2]],
+            "k--", lw=1, alpha=0.6, label="İç bölge (manual)")
 
     # path
     color = "tab:red" if pred_info["pred"] == 1 else "tab:blue"
