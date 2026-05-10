@@ -277,69 +277,82 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
     df_sel = table[table["metrik"].isin(selected_metrics)].copy()
 
     # ── Panel A için grup ortalamalarını hesapla ve normalize et ─────────────
-    group_means = {}   # cohort -> [val_per_metric]
+    metric_keys = list(METRIC_COL_MAP.keys())
+    group_means = {}
     for cohort in COHORT_ORDER:
-        sub = df_raw[df_raw["cohort4"] == cohort]
-        vals = []
-        for label, col in METRIC_COL_MAP.items():
-            vals.append(sub[col].mean() if col in sub.columns else np.nan)
+        sub  = df_raw[df_raw["cohort4"] == cohort]
+        vals = [sub[col].mean() if col in sub.columns else np.nan
+                for col in METRIC_COL_MAP.values()]
         group_means[cohort] = np.array(vals, dtype=float)
 
-    # Min-max normalize: sütun bazında (metrik bazında) tüm 4 gruba göre
     raw_matrix = np.array([group_means[c] for c in COHORT_ORDER])  # (4, 8)
-    col_min = np.nanmin(raw_matrix, axis=0)
-    col_max = np.nanmax(raw_matrix, axis=0)
-    col_rng = np.where(col_max - col_min > 0, col_max - col_min, 1.0)
-    norm_matrix = (raw_matrix - col_min) / col_rng  # 0-1
+    col_min    = np.nanmin(raw_matrix, axis=0)
+    col_max    = np.nanmax(raw_matrix, axis=0)
+    col_rng    = np.where(col_max - col_min > 0, col_max - col_min, 1.0)
+    norm_matrix = (raw_matrix - col_min) / col_rng  # 0–1
+
+    MIN_VIS = 0.04   # küçük değerlerin yine de görünmesi için minimum bar yüksekliği
 
     # ── Figür ─────────────────────────────────────────────────────────────────
-    fig, axes = plt.subplots(1, 2, figsize=(17, 7))
-    fig.subplots_adjust(wspace=0.36, left=0.05, right=0.97, top=0.87, bottom=0.24)
+    fig, axes = plt.subplots(1, 2, figsize=(18, 7.5))
+    fig.subplots_adjust(wspace=0.34, left=0.05, right=0.97, top=0.87, bottom=0.26)
 
     bar_w = 0.19
-    x     = np.arange(len(selected_metrics))
+    x     = np.arange(len(metric_keys))
 
-    # ── Panel A: 4 grup ham ortalama (normalize) ──────────────────────────────
+    # ── Panel A: 4 grup, her metrikte 4 renkli bar ───────────────────────────
     ax = axes[0]
     for i, cohort in enumerate(COHORT_ORDER):
-        offset = (i - 1.5) * bar_w
-        vals   = norm_matrix[i]
-        bars   = ax.bar(x + offset, vals, bar_w * 0.92,
-                        color=COHORT_COLORS[cohort], alpha=0.85, label=cohort)
-        # Ham değer etiketleri (büyük barlar için)
-        for bar, v_norm, (label, col) in zip(bars, vals, METRIC_COL_MAP.items()):
-            raw_val = group_means[cohort][list(METRIC_COL_MAP.keys()).index(label)]
-            if v_norm > 0.15:
-                txt = (f"{raw_val:.0f}" if raw_val >= 100
-                       else f"{raw_val:.1f}")
-                ax.text(bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + 0.02,
-                        txt, ha="center", va="bottom",
-                        fontsize=6.5, color="#333333", rotation=90)
+        offset    = (i - 1.5) * bar_w
+        norm_vals = norm_matrix[i]           # gerçek normalize değer
+        raw_vals  = group_means[cohort]
+
+        for j, (n_val, r_val) in enumerate(zip(norm_vals, raw_vals)):
+            vis_h = max(float(n_val), MIN_VIS)   # görünür yükseklik
+            bar = ax.bar(x[j] + offset, vis_h, bar_w * 0.92,
+                         color=COHORT_COLORS[cohort],
+                         alpha=0.85 if n_val >= MIN_VIS else 0.45,
+                         label=cohort if j == 0 else "_nolegend_")
+
+            # Ham değer etiketi — her bar'ın üstünde
+            txt = (f"{r_val:.0f}" if r_val >= 100 else f"{r_val:.1f}")
+            ax.text(x[j] + offset + bar_w * 0.92 / 2,
+                    vis_h + 0.015,
+                    txt,
+                    ha="center", va="bottom",
+                    fontsize=6.5, color="#333333",
+                    rotation=90)
 
     ax.set_xticks(x)
     ax.set_xticklabels(SHORT_LABELS, fontsize=9)
     ax.set_ylabel("Normalize Edilmiş Ortalama\n(0 = en düşük grup, 1 = en yüksek grup)",
                   fontsize=10)
-    ax.set_ylim(0, 1.35)
-    ax.set_title("A — 4 Grup Karşılaştırması (Ham Ortalama, Min-Max Norm.)",
+    ax.set_ylim(0, 1.55)
+    ax.set_title("A — 4 Grup Karşılaştırması\n(Her metrikte 4 renk: Control · Aspartame · Grapefruit · ASP+Greyfurt)",
                  fontsize=11, fontweight="bold")
     ax.grid(axis="y", alpha=0.25, linestyle="--")
     ax.spines[["top", "right"]].set_visible(False)
 
-    # ── Panel B: Cohen's d (3 madde vs Kontrol, Kontrol = 0) ─────────────────
+    # ── Panel B: Cohen's d — 4 grup, Control = 0 bar ─────────────────────────
     ax = axes[1]
-    # Kontrol = 0 referans barı (görünmez ama legend'a eklenir)
-    ax.bar(x - 1.5 * bar_w, np.zeros(len(x)), bar_w * 0.92,
-           color=COHORT_COLORS["Control"], alpha=0.85, label="Control (referans = 0)")
 
+    # Control = 0 barı (açıkça göster)
+    ctrl_bar_h = np.zeros(len(x))
+    ax.bar(x - 1.5 * bar_w, ctrl_bar_h, bar_w * 0.92,
+           color=COHORT_COLORS["Control"], alpha=0.85, label="Control  (d = 0, referans)")
+    for j in range(len(x)):
+        ax.text(x[j] - 1.5 * bar_w + bar_w * 0.92 / 2,
+                0.08, "0", ha="center", va="bottom",
+                fontsize=6.5, color=COHORT_COLORS["Control"], fontweight="bold")
+
+    # 3 madde grubu
     for i, sub in enumerate(SUBSTANCES):
         sub_df = df_sel[df_sel["madde"] == sub].set_index("metrik")
-        vals   = [sub_df.loc[m, "cohens_d"] if m in sub_df.index else 0
-                  for m in selected_metrics]
-        offset = (i - 0.5) * bar_w   # Control barı için yer bırak: offset i=0,1,2 → -0.5,0.5,1.5
-        ax.bar(x + offset, vals, bar_w * 0.92,
-               color=COHORT_COLORS[sub], alpha=0.85, label=sub)
+        vals   = [float(sub_df.loc[m, "cohens_d"]) if m in sub_df.index else 0.0
+                  for m in metric_keys]
+        offset = (i - 0.5) * bar_w
+        bars   = ax.bar(x + offset, vals, bar_w * 0.92,
+                        color=COHORT_COLORS[sub], alpha=0.85, label=sub)
 
     for val, lbl, ls in [(0.8, "büyük (0.8)", "--"), (1.4, "çok büyük (1.4)", ":")]:
         ax.axhline( val, color="#888888", linewidth=1, linestyle=ls, alpha=0.7)
@@ -347,25 +360,25 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
         ax.text(len(x) - 0.3, val + 0.06, lbl,
                 fontsize=7, color="#888888", va="bottom")
 
-    ax.axhline(0, color="black", linewidth=1.2, label="Kontrol (d = 0)")
+    ax.axhline(0, color="black", linewidth=1.3)
     ax.set_xticks(x)
     ax.set_xticklabels(SHORT_LABELS, fontsize=9)
-    ax.set_ylabel("Cohen's d  (madde − kontrol)", fontsize=11)
-    ax.set_title("B — Etki Büyüklüğü vs Kontrol (Cohen's d)",
+    ax.set_ylabel("Cohen's d  (madde − kontrol)\nKontrol = 0 referans", fontsize=10)
+    ax.set_title("B — Etki Büyüklüğü vs Kontrol (Cohen's d)\n"
+                 "d = (madde_ort − kontrol_ort) / havuzlanmış_std",
                  fontsize=11, fontweight="bold")
     ax.grid(axis="y", alpha=0.25, linestyle="--")
     ax.spines[["top", "right"]].set_visible(False)
 
-    # Ortak legend — 4 renk + kontrol çizgisi
+    # Ortak legend — 4 grup
     handles = [mpatches.Patch(facecolor=COHORT_COLORS[c], alpha=0.85, label=c)
                for c in COHORT_ORDER]
     fig.legend(handles=handles, loc="lower center", ncol=4,
-               fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.01))
+               fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.005))
 
     fig.suptitle(
         "Madde Etkisi — OFT + EPM Birleşik Analiz  (n = 3 / grup)\n"
-        "A: 4 grubun tamamı karşılaştırılıyor  |  "
-        "B: Cohen's d — Kontrol = 0 referans çizgisi",
+        "A: Her metrikte 4 grup yan yana  |  B: Cohen's d (Kontrol referans alınarak hesaplanmış)",
         fontsize=11, fontweight="bold",
     )
 
