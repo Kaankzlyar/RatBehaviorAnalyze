@@ -1,0 +1,4 @@
+model,tag,n_features,accuracy,balanced_acc,f1_macro,f1_treated,f1_control,auc
+LogisticReg,rearonly,18,0.69,0.575,0.554,0.8,0.308,0.733
+RandomForest,rearonly,18,0.793,0.558,0.565,0.88,0.25,0.65
+SVM-RBF,rearonly,18,0.724,0.517,0.517,0.833,0.2,0.208
