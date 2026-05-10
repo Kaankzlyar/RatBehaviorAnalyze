@@ -20,8 +20,7 @@ Usage
         --pred results/test_inference/OpenFieldMA1_1_predicted_frames.csv
 
     # window-level + frame-level birlikte (subject + model gerekir)
-    python -m src.window_classifier.compare \\
-        --subjects OpenFieldMA1_1 --model lightgbm --level both --auto-infer
+    python -m src.window_classifier.compare --subjects OpenFieldMA1_1 --model lightgbm --level both --auto-infer
 
     # birden çok subject
     python -m src.window_classifier.compare \\
