@@ -184,6 +184,24 @@ def plot_arm_distribution():
     x      = np.arange(len(COHORT_ORDER))
     bottom = np.zeros(len(COHORT_ORDER))
 
+    # ── Largest-remainder düzeltmesi ─────────────────────────────────────────
+    # Her kohortta 5 segment değerini 0.1% hassasiyetle yuvarla ve toplamı
+    # tam %100 yapacak şekilde en büyük segmenti düzelt.
+    # means'i cohort-indexed hâliyle kullan (reset_index öncesi)
+    means_idx = means.set_index("cohort")
+    display_map = {}  # (col, xi) -> gösterilecek float değer
+    for xi, cohort in enumerate(COHORT_ORDER):
+        if cohort not in means_idx.index:
+            continue
+        raw      = means_idx.loc[cohort, arm_cols].values.astype(float)
+        rounded  = np.array([round(v, 1) for v in raw])
+        residual = round(100.0 - float(rounded.sum()), 1)
+        if residual != 0.0:
+            largest_idx = int(np.argmax(rounded))
+            rounded[largest_idx] = round(rounded[largest_idx] + residual, 1)
+        for col_name, rv in zip(arm_cols, rounded):
+            display_map[(col_name, xi)] = rv
+
     # Küçük segmentler için sonradan ok+etiket eklemek üzere sakla
     small_annotations = []  # (xi, seg_mid_y, value_str, color)
 
@@ -192,15 +210,16 @@ def plot_arm_distribution():
         ax.bar(x, vals, bottom=bottom, label=label,
                color=color, edgecolor="white", linewidth=0.8, alpha=0.88)
         for xi, (v, b) in enumerate(zip(vals, bottom)):
-            seg_mid = b + v / 2
+            seg_mid  = b + v / 2
+            v_disp   = display_map.get((col, xi), round(v, 1))
+            txt      = f"{v_disp:.1f}%"
             if v >= 3:
-                # Büyük segment: etiket içeride — 1 ondalık basamak
-                ax.text(xi, seg_mid, f"{v:.1f}%",
+                ax.text(xi, seg_mid, txt,
                         ha="center", va="center", fontsize=9,
                         color="white", fontweight="bold")
-            elif v >= 0.3:
-                # Küçük segment: ok ile bar dışında göster
-                small_annotations.append((xi, seg_mid, f"{v:.1f}%", color))
+            elif v >= 0.1:
+                # Eşik altı segment: ok ile bar dışında göster
+                small_annotations.append((xi, seg_mid, txt, color))
         bottom += vals
 
     # Küçük segmentler için annotate — ok bar'dan dışarı çıkıyor
