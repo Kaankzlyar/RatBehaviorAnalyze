@@ -8,10 +8,11 @@
 
 Anksiyete üzerine çalışırken pratikte sadece bu yollara bakmak yetiyor.
 
-### Giriş noktaları (CLI)
+### Giriş noktaları (CLI / GUI)
 | Yol | İşlev | Çıktı |
 |---|---|---|
-| `scripts/predict_anxiety_v2.py` | Uçtan uca çıkarım: DLC CSV → rearing tespiti → OFT metrikleri → spatial rearing → 18-feature vektör → Treated/Control tahmini | `reports/anxiety_predictions_v2/` |
+| `scripts/predict_anxiety_v2.py` | Uçtan uca çıkarım (CLI): DLC CSV → rearing tespiti → OFT metrikleri → spatial rearing → 18-feature vektör → Treated/Control tahmini | `reports/anxiety_predictions_v2/` |
+| `scripts/predict_anxiety_v3_gui.py` | v2'nin Streamlit GUI sarmalı: `streamlit run` ile tarayıcıdan CSV yükle → overview PNG + TR rapor + indirme butonları | `reports/anxiety_predictions_v2/` (opsiyonel) |
 | `src/anxiety/classifier.py` | LOOCV ile binary (Control vs Treated) eğitici (LR / RF / SVM) | `models/anxiety_classifier/` |
 
 ### `src/anxiety/` modülü (hepsi aktif)
@@ -94,7 +95,8 @@ Aktif kodda kullanılmıyor, görmezden gel. Detay: `archive/README.md`.
 
 Anxiety üzerinde çalışırken bakılacak yerler (tam liste):
 ```
-scripts/predict_anxiety_v2.py
+scripts/predict_anxiety_v2.py           # CLI
+scripts/predict_anxiety_v3_gui.py       # Streamlit GUI sarmalayıcı
 src/anxiety/
 src/behavior_detection.py
 analysis/open_field/oft_metrics.py

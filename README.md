@@ -275,6 +275,7 @@ RatBehaviorAnalyze/
 │
 ├── scripts/                           Entry-point CLIs
 │   ├── predict_anxiety_v2.py          End-to-end anxiety inference (DLC CSV → prediction)
+│   ├── predict_anxiety_v3_gui.py      Streamlit GUI wrapper around v2 (browser-based)
 │   ├── debug_features.py              Quick feature/threshold diagnostic
 │   └── legacy/                        Archived early prototypes (Windows-path hardcoded)
 │
@@ -378,10 +379,16 @@ python analysis/open_field/run_analysis.py --arena 396 776 153 530
 # 4. Run end-to-end anxiety inference (DLC CSV → Control/Treated prediction)
 python scripts/predict_anxiety_v2.py \
     --csv data/DLCfiltered/OpenFieldMA5_2/OpenFieldMA5_2.csv
+
+# 5. (alternative) Launch the v3 GUI — upload a DLC CSV in your browser
+pip install streamlit  # one-time
+streamlit run scripts/predict_anxiety_v3_gui.py
 ```
 
 OFT outputs land next to the input CSV. Anxiety v2 outputs land in
-`reports/anxiety_predictions_v2/`.
+`reports/anxiety_predictions_v2/`. The v3 GUI wraps the same v2 pipeline,
+shows the overview PNG + Turkish report inline, and offers download
+buttons — optionally also writes to `reports/anxiety_predictions_v2/`.
 
 ---
 
@@ -403,6 +410,7 @@ OFT outputs land next to the input CSV. Anxiety v2 outputs land in
 | 06    | `src/anxiety/spatial_rearing.py`         | Center- vs wall-adjacent rearing — primary group-separating signal | done |
 | 06    | `src/anxiety/{composite_index,regression}.py` | Composite anxiety index + PC1-axis regression | done |
 | 07    | `scripts/predict_anxiety_v2.py` + `docs/anxiety_findings_report.md` | End-to-end inference (DLC CSV → prediction) + thesis write-up | done |
+| 07.GUI | `scripts/predict_anxiety_v3_gui.py` | Streamlit GUI wrapper — browser upload → overview PNG + TR report + downloads | done |
 | 06.1  | `analysis/open_field/cohort_stats.py`    | Non-parametric cohort effect — Kruskal-Wallis + Dunn + PERMANOVA (replaces failed cohort classifier) | done |
 | 06.2  | `src/window_classifier/` + `docs/window_classifier_plan.md` | Window-level behaviour classifier — implementation parallel, not yet integrated into anxiety pipeline | planned |
 | —     | `docs/tmaze_keypoints_and_layout.md`     | T-maze keypoint plan + repo layout (5-point DLC project, separate from OFT) | planned |
