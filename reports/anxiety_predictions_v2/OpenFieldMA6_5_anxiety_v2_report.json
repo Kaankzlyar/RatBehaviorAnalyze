@@ -1,0 +1,113 @@
+{
+  "subject": "OpenFieldMA6_5",
+  "csv_path": "OpenFieldMA6_5.csv",
+  "n_frames": 5275,
+  "session_s": 175.83333333333334,
+  "model_tag": "rearonly",
+  "pred": 1,
+  "label": "Treated-benzeri",
+  "proba_control": 0.4936,
+  "proba_treated": 0.5064,
+  "top_contributors": [
+    {
+      "feature": "rear_center_frac",
+      "value": 0.10526315789473684,
+      "z": -8.76,
+      "coef": 0.359,
+      "push": -3.142,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_count_wall",
+      "value": 17.0,
+      "z": 8.22,
+      "coef": 0.188,
+      "push": 1.543,
+      "toward": "Treated"
+    },
+    {
+      "feature": "rear_total_s_wall",
+      "value": 41.4,
+      "z": 9.2,
+      "coef": 0.115,
+      "push": 1.062,
+      "toward": "Treated"
+    },
+    {
+      "feature": "spatial_entropy",
+      "value": 0.7755,
+      "z": 0.55,
+      "coef": 0.779,
+      "push": 0.426,
+      "toward": "Treated"
+    },
+    {
+      "feature": "rear_early_frac",
+      "value": 0.5616918693841769,
+      "z": 0.25,
+      "coef": -1.493,
+      "push": -0.38,
+      "toward": "Control"
+    }
+  ],
+  "features": {
+    "pct_periphery": 80.13,
+    "pct_center": 19.87,
+    "center_entries": 29,
+    "total_distance_px": 8003.3,
+    "mean_speed_px_s": 45.52,
+    "spatial_entropy": 0.7755,
+    "pct_freeze": 1.36,
+    "freeze_bout_count": 4,
+    "rear_count": 19.0,
+    "rear_total_s": 45.63,
+    "rear_pct": 25.950710900473933,
+    "rear_mean_bout_s": 2.4015789473684213,
+    "rear_rate_per_min": 6.483412322274881,
+    "rear_early_frac": 0.5616918693841769,
+    "groom_count": 13.0,
+    "groom_total_s": 10.459999999999999,
+    "groom_pct": 5.948815165876777,
+    "groom_mean_bout_s": 0.8046153846153845,
+    "groom_bout_cv": 0.6985512528539797,
+    "groom_early_frac": 0.3279158699808795,
+    "rear_groom_ratio": 4.362332695984704,
+    "rear_per_100px": 0.23740207164544624,
+    "comfort_ratio": 0.5264217413185707,
+    "rear_count_center": 2,
+    "rear_count_wall": 17,
+    "rear_center_frac": 0.10526315789473684,
+    "rear_total_s_center": 4.23,
+    "rear_total_s_wall": 41.4,
+    "rear_center_minus_wall": -15
+  },
+  "feature_cols_used": [
+    "pct_periphery",
+    "spatial_entropy",
+    "pct_freeze",
+    "rear_count",
+    "rear_total_s",
+    "rear_pct",
+    "rear_mean_bout_s",
+    "rear_rate_per_min",
+    "rear_early_frac",
+    "rear_groom_ratio",
+    "rear_per_100px",
+    "comfort_ratio",
+    "rear_count_center",
+    "rear_count_wall",
+    "rear_center_frac",
+    "rear_total_s_center",
+    "rear_total_s_wall",
+    "rear_center_minus_wall"
+  ],
+  "n_rearing_bouts": 19,
+  "n_grooming_bouts": 13,
+  "spatial_rearing": {
+    "rear_count_center": 2,
+    "rear_count_wall": 17,
+    "rear_count_unknown": 0,
+    "rear_center_frac": 0.1053
+  },
+  "generated_at": "2026-05-11T17:06:44"
+}
