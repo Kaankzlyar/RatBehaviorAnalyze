@@ -1,5 +1,13 @@
 # Anxiety Analysis — Findings Report
 
+> **⚠️ TARİHSEL KAYIT (2026-05-10).** Bu doküman ardından gelen
+> [`anxiety_progress_2026-05-10.md`](anxiety_progress_2026-05-10.md) ve
+> 2026-05-11'deki konsolide rapor [`anxiety_report.md`](anxiety_report.md)
+> tarafından kapsanmıştır. **Güncel ve otoritatif kaynak:**
+> [`docs/anxiety_report.md`](anxiety_report.md). Bu dosya tarihsel referans
+> ve §3'teki ilk-tur n=29 PCA / Kruskal-Wallis çıktılarının orijinal
+> formülasyonu için tutuluyor.
+
 **Tarih:** 2026-05-10
 **Veri seti:** OpenField, n=29 hayvan, 4 tedavi grubu (Control 5 / Aspartame 8 / Grapefruit 8 / Aspartame+Grapefruit 8)
 **Pipeline:** DeepLabCut → davranış tespiti → feature mühendisliği → PCA + Kruskal-Wallis + LOOCV (classifier + regression)

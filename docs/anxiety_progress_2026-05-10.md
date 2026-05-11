@@ -1,5 +1,11 @@
 # Anksiyete Analizi — İlerleme Raporu
 
+> **⚠️ TARİHSEL KAYIT (2026-05-10).** Bu doküman 2026-05-11'deki konsolide
+> rapor [`anxiety_report.md`](anxiety_report.md) tarafından kapsanmıştır.
+> **Güncel ve otoritatif kaynak:** [`docs/anxiety_report.md`](anxiety_report.md).
+> Bu dosya 2026-05-10'daki spatial rearing bulgusunun, config birleşmesinin
+> ve v2 inference'ın ilk yazıldığı orijinal akış kaydı olarak tutuluyor.
+
 **Tarih:** 2026-05-10
 **Branch:** `feature/anxiety-analysis`
 **Önceki rapor:** `docs/anxiety_findings_report.md`
