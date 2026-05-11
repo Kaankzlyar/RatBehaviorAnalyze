@@ -41,6 +41,13 @@ COHORT_COLORS = {
     "Grapefruit":   "#FF9800",
     "ASP+Greyfurt": "#9C27B0",
 }
+# Grafiklerde gösterilecek Türkçe isimler
+TR_NAMES = {
+    "Control":      "Kontrol",
+    "Aspartame":    "Aspartam",
+    "Grapefruit":   "Greyfurt",
+    "ASP+Greyfurt": "ASP+Greyfurt",
+}
 
 # MA1=Control, MA3=Aspartame, MA5=Grapefruit, MA7=ASP+Greyfurt
 COHORT_MAP = {
@@ -314,9 +321,9 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
                          alpha=0.85 if n_val >= MIN_VIS else 0.45,
                          label=cohort if j == 0 else "_nolegend_")
 
-            # Ham değer etiketi — her bar'ın üstünde
+            # Ham değer etiketi — her bar'ın tam üstünde ortalanmış
             txt = (f"{r_val:.0f}" if r_val >= 100 else f"{r_val:.1f}")
-            ax.text(x[j] + offset + bar_w * 0.92 / 2,
+            ax.text(x[j] + offset,
                     vis_h + 0.015,
                     txt,
                     ha="center", va="bottom",
@@ -328,7 +335,7 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
     ax.set_ylabel("Normalize Edilmiş Ortalama\n(0 = en düşük grup, 1 = en yüksek grup)",
                   fontsize=10)
     ax.set_ylim(0, 1.55)
-    ax.set_title("A — 4 Grup Karşılaştırması\n(Her metrikte 4 renk: Control · Aspartame · Grapefruit · ASP+Greyfurt)",
+    ax.set_title("A — 4 Grup Karşılaştırması\n(Her metrikte 4 renk: Kontrol · Aspartam · Greyfurt · ASP+Greyfurt)",
                  fontsize=11, fontweight="bold")
     ax.grid(axis="y", alpha=0.25, linestyle="--")
     ax.spines[["top", "right"]].set_visible(False)
@@ -339,9 +346,10 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
     # Control = 0 barı (açıkça göster)
     ctrl_bar_h = np.zeros(len(x))
     ax.bar(x - 1.5 * bar_w, ctrl_bar_h, bar_w * 0.92,
-           color=COHORT_COLORS["Control"], alpha=0.85, label="Control  (d = 0, referans)")
+           color=COHORT_COLORS["Control"], alpha=0.85,
+           label=TR_NAMES["Control"] + "  (d = 0, referans)")
     for j in range(len(x)):
-        ax.text(x[j] - 1.5 * bar_w + bar_w * 0.92 / 2,
+        ax.text(x[j] - 1.5 * bar_w,
                 0.08, "0", ha="center", va="bottom",
                 fontsize=6.5, color=COHORT_COLORS["Control"], fontweight="bold")
 
@@ -352,7 +360,7 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
                   for m in metric_keys]
         offset = (i - 0.5) * bar_w
         bars   = ax.bar(x + offset, vals, bar_w * 0.92,
-                        color=COHORT_COLORS[sub], alpha=0.85, label=sub)
+                        color=COHORT_COLORS[sub], alpha=0.85, label=TR_NAMES[sub])
 
     for val, lbl, ls in [(0.8, "büyük (0.8)", "--"), (1.4, "çok büyük (1.4)", ":")]:
         ax.axhline( val, color="#888888", linewidth=1, linestyle=ls, alpha=0.7)
@@ -371,7 +379,7 @@ def plot_effect_bars(df_raw: pd.DataFrame, table: pd.DataFrame):
     ax.spines[["top", "right"]].set_visible(False)
 
     # Ortak legend — 4 grup
-    handles = [mpatches.Patch(facecolor=COHORT_COLORS[c], alpha=0.85, label=c)
+    handles = [mpatches.Patch(facecolor=COHORT_COLORS[c], alpha=0.85, label=TR_NAMES[c])
                for c in COHORT_ORDER]
     fig.legend(handles=handles, loc="lower center", ncol=4,
                fontsize=11, frameon=False, bbox_to_anchor=(0.5, 0.005))
