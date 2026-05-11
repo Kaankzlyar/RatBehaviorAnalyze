@@ -280,7 +280,8 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
     rcf = feat['rear_center_frac']
     if rcf == rcf:  # not NaN
         print(f"    rear_center_frac     : {rcf:.3f}  "
-              f"(referans: Control medyan 0.133, Treated medyan 0.075)", file=buf)
+              f"(eğitim datası grup medianları için: "
+              f"reports/spatial_rearing_stats.csv)", file=buf)
     print(LINE, file=buf)
 
     icon = "🟧" if pred_info["pred"] == 1 else "🟦"
