@@ -506,10 +506,11 @@ per-behaviour metric mapping in
 ## Documentation index
 
 - [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — **active vs. planned vs. archived map** — read this first to orient
+- [`docs/anxiety_report.md`](docs/anxiety_report.md) — **CONSOLIDATED anxiety report (2026-05-11)** — pipeline · findings · model decision logic · config-mismatch incident · reproducibility · thesis cümleleri. Tek otoritatif kaynak.
 - [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
-- [`docs/final_report.md`](docs/final_report.md) — **consolidated OFT thesis chapter + ML inference roadmap**
-- [`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md) — **anxiety analysis — pipeline pivot + empirical findings + power analysis**
-- [`docs/anxiety_progress_2026-05-10.md`](docs/anxiety_progress_2026-05-10.md) — **latest anxiety progress log**
+- [`docs/final_report.md`](docs/final_report.md) — consolidated OFT thesis chapter + ML inference roadmap
+- [`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md) — *(historical 2026-05-10)* anxiety pipeline pivot + first-pass findings — superseded by `anxiety_report.md`
+- [`docs/anxiety_progress_2026-05-10.md`](docs/anxiety_progress_2026-05-10.md) — *(historical 2026-05-10)* spatial rearing + v2 inference progress log — superseded by `anxiety_report.md`
 - [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md) — **T-maze keypoint plan + repo layout (5-point DLC project)**
 - [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md) — **window-level behaviour classifier — 7-phase implementation plan**
 - [`docs/behavior_detection_documentation.md`](docs/behavior_detection_documentation.md) — behaviour-detector design (algorithmic)

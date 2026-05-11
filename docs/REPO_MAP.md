@@ -35,8 +35,9 @@ Anksiyete üzerine çalışırken pratikte sadece bu yollara bakmak yetiyor.
 - `reports/anxiety_predictions_v2/` — subject başına v2 tahmin
 
 ### Dokümanlar
-- `docs/anxiety_progress_2026-05-10.md` — en güncel ilerleme logu
-- `docs/anxiety_findings_report.md` — pipeline contribution + pilot bulgular
+- **`docs/anxiety_report.md` — konsolide anxiety raporu (2026-05-11, tek otoritatif kaynak)**
+- `docs/anxiety_findings_report.md` — *(tarihsel 2026-05-10)* pipeline pivot + ilk bulgular
+- `docs/anxiety_progress_2026-05-10.md` — *(tarihsel 2026-05-10)* spatial rearing + v2 inference progress logu
 - `README.md` 36–47 — özet durum
 
 ---
