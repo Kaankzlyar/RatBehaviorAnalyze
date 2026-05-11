@@ -97,17 +97,24 @@ flowchart TD
     D2 --> C2["Filtered DLC CSV (T-maze)<br/>5 body parts × (x, y, likelihood)<br/>data/DLCfiltered/&lt;group&gt;/TMaze&lt;...&gt;/"]
 
     C1 --> B["Behaviour detection<br/>src/behavior_detection.py<br/>rule-based rearing &amp; grooming"]
-    C1 --> S["Spatial analysis (OFT)<br/>analysis/run_analysis.py<br/>orbits · thigmotaxis · heatmaps"]
+    C1 --> S["Spatial analysis (OFT)<br/>analysis/open_field/run_analysis.py<br/>orbits · thigmotaxis · heatmaps"]
+    C1 --> M["OFT metrics<br/>analysis/open_field/oft_metrics.py<br/>locomotion · thigmotaxis · freeze · spatial entropy"]
     C2 -.-> B
     C2 -.-> ST["T-maze metrics (planned)<br/>turn bias · path eff. · zone dwell"]
 
     B --> O1["*_behavior_timeline.png<br/>*_behavior_bouts.csv<br/>*_behavior_frames.csv"]
     S --> O2["*_orbit_grid.png<br/>*_thigmotaxis.png<br/>*_heatmap_kde.png<br/>*_heatmap_histogram.png<br/>*_bodypart_heatmaps.png"]
+    M --> O3["*_oft_metrics.csv<br/>*_speed.csv · *_speed.png"]
 
-    O1 --> FE["Feature engineering<br/>src/features.py<br/>20+ engineered metrics per subject"]
-    O2 --> FE
-    FE --> ML["ML classifier stack<br/>src/train_baseline.py<br/>logistic · RF · SVM · XGBoost<br/>LOOCV across 4 targets"]
-    ML --> RP["Reports + figures<br/>reports/figures/* · models/classifier/*<br/>SHAP per target"]
+    O1 --> AX["Anxiety profile<br/>src/anxiety/profile.py<br/>OFT + bouts → 18 anxiety features"]
+    O3 --> AX
+    AX --> SR["Spatial rearing<br/>src/anxiety/spatial_rearing.py<br/>center vs wall rearing bouts"]
+    AX --> CL["Anxiety classifier<br/>src/anxiety/classifier.py<br/>LOOCV · LR / RF / SVM<br/>Control vs Treated (n=29)"]
+    AX --> CI["Composite index + PC1 regression<br/>src/anxiety/{composite_index,regression}.py"]
+    CL --> PR["End-to-end inference<br/>scripts/predict_anxiety_v2.py<br/>DLC CSV → per-subject prediction"]
+    SR --> PR
+    PR --> RP["reports/anxiety_predictions_v2/*_overview.png<br/>+ report.txt + report.json<br/>models/anxiety_classifier/*.pkl"]
+
     ST -.-> R["Cross-cohort thesis report<br/>docs/final_report.md<br/>(OFT-complete · T-maze planned)"]
     RP --> R
 ```
@@ -177,34 +184,76 @@ One trajectory panel per tracked body part — useful both qualitatively
 
 ![Orbit grid](data/DLCfiltered/OpenFieldMA1_2/OpenFieldMA1_2_orbit_grid.png)
 
+### Anxiety inference — v2 overview
+
+End-to-end inference output from `scripts/predict_anxiety_v2.py`: pose
+summary, OFT metrics, spatial-rearing breakdown, and Control-vs-Treated
+prediction with the top driving features. One PNG per subject under
+`reports/anxiety_predictions_v2/`.
+
+![Anxiety v2 overview — MA1_1 (Control)](reports/anxiety_predictions_v2/OpenFieldMA1_1_anxiety_v2_overview.png)
+
+### Anxiety classifier — confusion matrix + ROC
+
+LOOCV across n=29 (5–8 per group), rear-only feature set, logistic
+regression. AUC ≈ 0.73 on held-out folds; see
+[`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md) for
+the full power analysis and effect-size discussion.
+
+![Confusion matrix](reports/figures/anxiety_classifier_cm_rearonly.png)
+![ROC](reports/figures/anxiety_classifier_roc_rearonly.png)
+
+### Spatial rearing — center vs wall
+
+Per-bout classification of rearing as center- or wall-adjacent. The
+`rear_center_frac` axis is the most consistent group-separating signal
+across all model families.
+
+![Spatial rearing arena](reports/figures/spatial_rearing_arena.png)
+![Spatial rearing boxplot](reports/figures/spatial_rearing_boxplot.png)
+
+### Anxiety feature PCA
+
+PC1 captures the rearing-direction + thigmotaxis axis; Control and
+Treated subjects pull in opposite directions but with substantial
+overlap at this sample size.
+
+![Anxiety PCA](reports/anxiety_pca.png)
+
 ---
 
 ## Repository layout
 
+> See [`docs/REPO_MAP.md`](docs/REPO_MAP.md) for the **active vs. archived** breakdown
+> — what's on the anxiety hot path, what's planned/parallel, and what was
+> moved to `archive/`.
+
 ```
 RatBehaviorAnalyze/
 ├── README.md                          ← this file
+├── docs/REPO_MAP.md                   Active / planned / archived map
 │
 ├── src/                               Main pipeline code
 │   ├── behavior_detection.py          Rule-based rearing/grooming detector
 │   ├── video_preprocessing.py         Stage 01: inventory, QC, metadata
-│   ├── features.py                    Stage 05: feature engineering (20+ metrics/subject)
-│   ├── train_baseline.py              Stage 06: LOOCV across 4 targets, 4 model families
-│   ├── visualize_reports.py           Stage 07: confusion matrices, SHAP, OvR F1
-│   ├── window_classifier/             Stage 06.2 — pose-window behavior classifier pipeline
+│   ├── synthesize_keypoints.py        DLC keypoint synthesis / interpolation
+│   ├── anxiety/                       Anxiety analysis (active ML stage)
+│   │   ├── config.py                  ARENA / INNER_ZONE / FPS single-source constants
+│   │   ├── profile.py                 OFT + bouts → 18-feature anxiety matrix
+│   │   ├── classifier.py              LOOCV — LR / RF / SVM (Control vs Treated, n=29)
+│   │   ├── spatial_rearing.py         Center- vs wall-adjacent rearing classification
+│   │   ├── composite_index.py         Composite anxiety score (negative finding — see report)
+│   │   └── regression.py              PC1-axis regression (age/sex covariates)
+│   ├── window_classifier/             Stage 06.2 — pose-window behavior classifier (planned/parallel)
 │   │   ├── features.py                window-level feature extraction (1 s + 3 s context)
 │   │   ├── label_join.py              join window features with rule-based frame labels
 │   │   ├── train.py                   GroupKFold + LOGOCV trainer (RF / XGBoost / LightGBM)
 │   │   └── infer.py                   DLC CSV-in → frame predictions + bout list
-│   ├── orbit_plot.py                  Trajectory plotting
-│   ├── show_frame_coords.py           Arena-boundary picker (interactive)
 │   ├── requirements.txt
-│   ├── dlc/                           DeepLabCut wrappers (OFT, 9 keypoints)
-│   │   ├── dlc_setup.py               Create project, extract & label frames
-│   │   ├── dlc_train.py               Train and evaluate the DLC model
-│   │   └── dlc_inference.py           Run inference, export filtered CSVs
-│   ├── dlc/tmaze/                     (planned) T-maze DLC project, 5 keypoints
-│   └── tmaze/                         (planned) arena geometry, metrics, zone classifier
+│   └── dlc/                           DeepLabCut wrappers (OFT, 9 keypoints)
+│       ├── dlc_setup.py               Create project, extract & label frames
+│       ├── dlc_train.py               Train and evaluate the DLC model
+│       └── dlc_inference.py           Run inference, export filtered CSVs
 │
 ├── analysis/                          Spatial / locomotion analysis
 │   ├── README.md                      Tool-level docs
@@ -212,20 +261,22 @@ RatBehaviorAnalyze/
 │   │   └── speed_analysis.py          Speed pipeline + cohort summary
 │   ├── open_field/                    OFT-specific analyses
 │   │   ├── run_analysis.py            One-shot runner for all 4 OFT outputs
-│   │   ├── oft_metrics.py             Per-subject OFT metric extraction
+│   │   ├── run_kare_batch.py          Batch runner across all OFT subjects
+│   │   ├── oft_metrics.py             Per-subject OFT metric extraction (imported by anxiety pipeline)
 │   │   ├── kutu_validation.py         Cross-validation vs. professor's HSV-blob pipeline
 │   │   ├── behavior_analysis.py       Aggregated behaviour bouts → group stats
 │   │   ├── cohort_stats.py            Kruskal-Wallis + Dunn + PERMANOVA across cohorts
 │   │   ├── label_bouts.py             (planned) Interactive bout-labelling tool
 │   │   ├── orbit_plot.py              Per-bodypart trajectories
 │   │   ├── activity_heatmap.py        Body-centre KDE + histogram
-│   │   └── bodypart_heatmaps.py       Per-bodypart density grid
-│   └── tmaze/                         T-maze-specific analyses (parallel layout)
+│   │   ├── bodypart_heatmaps.py       Per-bodypart density grid
+│   │   └── show_frame_coords.py       Arena-boundary picker (interactive)
+│   └── tmaze/                         T-maze-specific analyses (parallel layout, planned)
 │
 ├── scripts/                           Entry-point CLIs
-│   ├── predict_anxiety.py             Predict anxiety from a DLC pose CSV
+│   ├── predict_anxiety_v2.py          End-to-end anxiety inference (DLC CSV → prediction)
 │   ├── debug_features.py              Quick feature/threshold diagnostic
-│   └── legacy/                        Archived (Windows-path hardcoded, kept for reference)
+│   └── legacy/                        Archived early prototypes (Windows-path hardcoded)
 │
 ├── tools/
 │   └── convert_labeled_to_video_format.py
@@ -238,44 +289,58 @@ RatBehaviorAnalyze/
 │   │   ├── Greyfurt/                  MA5 cohort
 │   │   ├── ASP ve Greyfurt/           MA7 cohort
 │   │   └── Kare/                      Professor's _res.mat reference (Kutu_v1, OFT only)
-│   ├── (planned) TMaze<COHORT>_<RUN>/ subject folders inside each cohort dir
+│   ├── anxiety_features.csv           Cross-subject 18-feature anxiety matrix
 │   ├── metadata.xlsx                  Per-video metadata
 │   ├── oft_metrics_all.csv            Cross-subject OFT metric table
 │   ├── behavior_summary.csv           Cross-subject rearing/grooming summary
 │   ├── kutu_validation_summary.csv    DLC vs. HSV-blob speed cross-check
 │   ├── speed_summary_all.csv          Mean/instantaneous speed per subject
-│   ├── part0_oft_metrics.xlsx         Cross-subject OFT summary (legacy)
 │   ├── part0_trajectories/            Quick-look trajectory PNGs
 │   ├── quality_plots/                 Per-video brightness plots
 │   └── quality_report.xlsx            QC summary
 │
 ├── models/
-│   └── classifier/                    Trained pickles (4 models × 4 targets) + scaler
+│   ├── anxiety_classifier/            {lr, rf, svm}_rearonly.pkl + scaler (Control vs Treated)
+│   ├── anxiety_regression/            PC1-axis regression models
+│   └── window_classifier/             Pose-window classifier pickles (planned/parallel)
 │
 ├── reports/
-│   ├── loocv_predictions.csv          Per-fold per-target predictions
-│   ├── model_comparison.csv           Per-model accuracy / F1 across targets
-│   ├── ovr_binary_f1.csv              One-vs-rest F1 per cohort
+│   ├── anxiety_predictions_v2/        Per-subject v2 inference: overview.png + report.{txt,json}
+│   ├── anxiety_classifier_*.csv       Metrics / importance / predictions (rear-only + full)
+│   ├── anxiety_regression_*.csv       PC1 regression metrics + predictions
+│   ├── anxiety_pca.png                Feature-space PCA across all subjects
+│   ├── anxiety_boxplots.png           Per-feature group distributions
+│   ├── spatial_rearing_stats.csv      Center vs wall rearing summary
+│   ├── composite_anxiety_*.csv        Composite index (negative finding)
 │   ├── cohort_kruskal_wallis.csv      Per-feature KW (H, p_perm, ε², q_bh)
 │   ├── cohort_dunn_posthoc.csv        Pairwise Dunn z + p (within-feature BH)
 │   ├── cohort_permanova.csv           Multivariate pseudo-F + R² + p_perm
-│   └── figures/                       SHAP + confusion-matrix PNGs (per target)
+│   ├── window_classifier_*.csv        Window-level model metrics (planned/parallel)
+│   └── figures/                       Confusion matrices, ROC, SHAP, spatial rearing PNGs
+│
+├── archive/                           Superseded code — kept for history, not on hot path
+│   ├── README.md                      Why each thing is here
+│   ├── scripts/predict_anxiety.py     v1 (replaced by predict_anxiety_v2.py)
+│   ├── src/                           {train_baseline, features, _metrics_minimal,
+│   │                                   visualize_reports, train_anxiety_demo}.py
+│   └── models/classifier/             Old 4-target baseline pickles (25 files)
 │
 └── docs/                              All documentation (single root)
+    ├── REPO_MAP.md                    Active / planned / archived map
     ├── OUTPUTS.md                     Guide to every output file under data/DLCfiltered/
     ├── WORKFLOW_SUMMARY.md            Filtering pipeline & parameters (analysis-side)
     ├── final_report.md                OFT-complete thesis chapter + inference roadmap
     ├── anxiety_findings_report.md     Anxiety analysis — pipeline pivot + empirical findings
+    ├── anxiety_progress_2026-05-10.md Latest anxiety progress log
     ├── window_classifier_plan.md      Window-level classifier — 7-phase implementation plan
     ├── tmaze_keypoints_and_layout.md  T-maze keypoint plan + repo layout (5-point DLC)
     ├── behavior_detection_documentation.md         Detector design (algorithmic)
     ├── behavior_detection_documentation.legacy.md  Detector design rationale (Turkish narrative)
     ├── behavior_comparison.md         Cohort-vs-cohort behavioural comparison
-    ├── yapilanlar.md                  Running progress log (Turkish)
+    ├── yapilanlar.md                  Running progress log (Turkish, historical)
     ├── DEEPLABCUT_PIPELINE.md         DLC workflow (10 stages)
-    ├── RAT_TMAZE_PROJECT.md           Earlier roadmap (single-DLC-model assumption
-    │                                   superseded by tmaze_keypoints_and_layout.md)
-    └── plans/                         Per-stage design docs (STAGE_01 … STAGE_07)
+    ├── RAT_TMAZE_PROJECT.md           Earlier T-maze roadmap (superseded — see tmaze_keypoints_and_layout.md)
+    └── plans/                         Per-stage design docs (STAGE_01 … STAGE_07, historical)
 ```
 
 ---
@@ -304,14 +369,19 @@ python src/behavior_detection.py \
     --csv data/DLCfiltered/OpenFieldMA5_2/OpenFieldMA5_2.csv
 
 # 2. Pick arena boundaries interactively (first subject only)
-python analysis/show_frame_coords.py \
+python analysis/open_field/show_frame_coords.py \
     --video data/DLCfiltered/OpenFieldMA5_2.mp4
 
 # 3. Generate all 4 spatial visualizations in one shot
-python analysis/run_analysis.py --arena 396 776 153 530
+python analysis/open_field/run_analysis.py --arena 396 776 153 530
+
+# 4. Run end-to-end anxiety inference (DLC CSV → Control/Treated prediction)
+python scripts/predict_anxiety_v2.py \
+    --csv data/DLCfiltered/OpenFieldMA5_2/OpenFieldMA5_2.csv
 ```
 
-All outputs land next to the input CSV.
+OFT outputs land next to the input CSV. Anxiety v2 outputs land in
+`reports/anxiety_predictions_v2/`.
 
 ---
 
@@ -324,14 +394,17 @@ All outputs land next to the input CSV.
 | 02    | `src/dlc/dlc_train.py`                   | Train and evaluate the OFT DLC model | done |
 | 02    | `src/dlc/dlc_inference.py`               | Run inference, export filtered tracking CSVs | done |
 | 02B   | `src/behavior_detection.py`              | Rule-based rearing / grooming classifier (OFT) | done |
-| 03A   | `analysis/run_analysis.py`               | Orbits, thigmotaxis, KDE & per-bodypart heatmaps (OFT) | done |
+| 03A   | `analysis/open_field/run_analysis.py`    | Orbits, thigmotaxis, KDE & per-bodypart heatmaps (OFT) | done |
 | 03A.1 | `analysis/common/speed_analysis.py`      | Speed pipeline + cohort summary | done |
-| 03A.2 | `analysis/kutu_validation.py`            | Cross-validation vs. professor's 2017 HSV-blob MATLAB pipeline | done |
-| 05    | `src/features.py`                        | Feature engineering — 20+ metrics per subject | done |
-| 06    | `src/train_baseline.py`                  | LOOCV training — logistic / RF / SVM / XGBoost across 4 targets | done |
-| 07    | `src/visualize_reports.py` + `docs/final_report.md` | Confusion matrices, SHAP, OvR F1, written report | done |
-| 06.1  | `analysis/cohort_stats.py`               | Non-parametric cohort effect — Kruskal-Wallis + Dunn + PERMANOVA (replaces failed cohort classifier) | done |
-| 06.2  | `docs/window_classifier_plan.md`         | Window-level behaviour classifier — 7-phase plan (replaces rule-based detector at inference time) | planned |
+| 03A.2 | `analysis/open_field/kutu_validation.py` | Cross-validation vs. professor's 2017 HSV-blob MATLAB pipeline | done |
+| 03A.3 | `analysis/open_field/oft_metrics.py`     | Per-subject OFT metric extraction (locomotion, thigmotaxis, freeze, spatial entropy) | done |
+| 05    | `src/anxiety/profile.py`                 | Anxiety feature engineering — 18 metrics per subject (`src/features.py` archived) | done |
+| 06    | `src/anxiety/classifier.py`              | LOOCV — LR / RF / SVM, Control vs Treated (n=29). Old 4-target baseline `src/train_baseline.py` archived | done |
+| 06    | `src/anxiety/spatial_rearing.py`         | Center- vs wall-adjacent rearing — primary group-separating signal | done |
+| 06    | `src/anxiety/{composite_index,regression}.py` | Composite anxiety index + PC1-axis regression | done |
+| 07    | `scripts/predict_anxiety_v2.py` + `docs/anxiety_findings_report.md` | End-to-end inference (DLC CSV → prediction) + thesis write-up | done |
+| 06.1  | `analysis/open_field/cohort_stats.py`    | Non-parametric cohort effect — Kruskal-Wallis + Dunn + PERMANOVA (replaces failed cohort classifier) | done |
+| 06.2  | `src/window_classifier/` + `docs/window_classifier_plan.md` | Window-level behaviour classifier — implementation parallel, not yet integrated into anxiety pipeline | planned |
 | —     | `docs/tmaze_keypoints_and_layout.md`     | T-maze keypoint plan + repo layout (5-point DLC project, separate from OFT) | planned |
 | 02-T  | `src/dlc/tmaze/*` (planned)              | T-maze DLC project — separate model, 5 keypoints | planned |
 | 02B-T | `src/behavior_detection.py` (refactor)   | Make detector keypoint-profile aware so the same code serves both arenas | planned |
@@ -424,9 +497,11 @@ per-behaviour metric mapping in
 
 ## Documentation index
 
+- [`docs/REPO_MAP.md`](docs/REPO_MAP.md) — **active vs. planned vs. archived map** — read this first to orient
 - [`docs/OUTPUTS.md`](docs/OUTPUTS.md) — what every file in `data/DLCfiltered/<subject>/` means and how to read it
 - [`docs/final_report.md`](docs/final_report.md) — **consolidated OFT thesis chapter + ML inference roadmap**
 - [`docs/anxiety_findings_report.md`](docs/anxiety_findings_report.md) — **anxiety analysis — pipeline pivot + empirical findings + power analysis**
+- [`docs/anxiety_progress_2026-05-10.md`](docs/anxiety_progress_2026-05-10.md) — **latest anxiety progress log**
 - [`docs/tmaze_keypoints_and_layout.md`](docs/tmaze_keypoints_and_layout.md) — **T-maze keypoint plan + repo layout (5-point DLC project)**
 - [`docs/window_classifier_plan.md`](docs/window_classifier_plan.md) — **window-level behaviour classifier — 7-phase implementation plan**
 - [`docs/behavior_detection_documentation.md`](docs/behavior_detection_documentation.md) — behaviour-detector design (algorithmic)
@@ -453,11 +528,13 @@ per-behaviour metric mapping in
 | 03A — Spatial analysis (orbits, thigmotaxis, KDE, per-bodypart)  | done for MA1 / MA3 / MA5 / MA7 |
 | 03A.1 — Speed pipeline + cohort summary                          | done |
 | 03A.2 — Cross-validation vs. professor's HSV-blob pipeline       | done (~14% mean-speed bias, uniform across cohorts) |
-| 05 — Feature engineering (20+ metrics per subject)               | done |
-| 06 — ML classifier (LOOCV, 4 model families × 4 targets, SHAP)   | done (label-leakage caveat — see final_report) |
-| 06.1 — Cohort statistics (`analysis/cohort_stats.py`, KW + Dunn + PERMANOVA) | done — `center_zone_entries` survives within-feature FDR |
-| 06.2 — Window-level behaviour classifier (`docs/window_classifier_plan.md`) | **planning (2026-05-05)** — 7 phases, replaces rule-based detector |
-| 07 — Cross-cohort reporting (`docs/final_report.md`)             | done |
+| 05 — Anxiety feature engineering (`src/anxiety/profile.py`, 18 metrics) | done — `src/features.py` (old 20+ metrics) archived under `archive/src/` |
+| 06 — Anxiety classifier (`src/anxiety/classifier.py`, LOOCV LR/RF/SVM, Control vs Treated n=29) | done — AUC≈0.73 rear-only; old 4-target baseline archived |
+| 06 — Spatial rearing (`src/anxiety/spatial_rearing.py`)          | done — `rear_center_frac` is the primary group-separating signal |
+| 06 — Composite index + PC1 regression (`src/anxiety/{composite_index,regression}.py`) | done — composite reported as negative finding |
+| 06.1 — Cohort statistics (`analysis/open_field/cohort_stats.py`, KW + Dunn + PERMANOVA) | done — `center_zone_entries` survives within-feature FDR |
+| 06.2 — Window-level behaviour classifier (`src/window_classifier/`) | **implemented, parallel** — not yet integrated into anxiety pipeline |
+| 07 — End-to-end inference (`scripts/predict_anxiety_v2.py`) + thesis write-up (`docs/anxiety_findings_report.md`) | done |
 
 ### T-maze arm
 
