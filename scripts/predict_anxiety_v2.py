@@ -230,6 +230,10 @@ def predict(feat: dict, bundle: dict, model) -> dict:
     x_i = imp.transform(x)
     x_s = sc.transform(x_i)
 
+    # Fix for scikit-learn version compatibility (multi_class attribute)
+    if not hasattr(model, 'multi_class'):
+        model.multi_class = 'auto'
+
     pred  = int(model.predict(x_s)[0])
     proba = model.predict_proba(x_s)[0]
 
