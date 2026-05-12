@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-matplotlib.rcParams["font.family"]        = "Calibri"
+matplotlib.rcParams["font.family"]        = "DejaVu Sans"
 matplotlib.rcParams["axes.unicode_minus"] = False
 matplotlib.rcParams["figure.dpi"]         = 150
 
@@ -38,13 +38,19 @@ FIGS    = ROOT / "reports" / "figures" / "plus_maze"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 ARMS          = ["B", "T", "L", "R"]
-ARM_LABELS    = ["Bottom\n(kapali)", "Top\n(kapali)", "Left\n(acik)", "Right\n(acik)"]
+ARM_LABELS    = ["Alt Kol\n(kapali)", "Ust Kol\n(kapali)", "Sol Kol\n(acik)", "Sag Kol\n(acik)"]
 COHORT_ORDER  = ["Control", "Aspartame", "Grapefruit", "ASP+Greyfurt"]
 COHORT_COLORS = {
     "Control":      "#4CAF50",
     "Aspartame":    "#2196F3",
     "Grapefruit":   "#FF9800",
     "ASP+Greyfurt": "#9C27B0",
+}
+COHORT_TR = {
+    "Control":      "Kontrol",
+    "Aspartame":    "Aspartam",
+    "Grapefruit":   "Greyfurt",
+    "ASP+Greyfurt": "ASP+Greyfurt",
 }
 
 
@@ -111,9 +117,14 @@ def save_matrices_csv(cohort_mats: dict) -> None:
 # ─── Grafik 1: 2x2 isi haritasi ──────────────────────────────────────────────
 
 def plot_heatmaps(cohort_mats: dict) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(13, 11))
-    fig.subplots_adjust(hspace=0.42, wspace=0.32,
-                        top=0.91, bottom=0.06, left=0.06, right=0.98)
+    BG       = "#FFFFFF"
+    GRID_COL = "#E0E0E0"
+    TXT      = "#212121"
+
+    fig, axes = plt.subplots(2, 2, figsize=(15, 14))
+    fig.patch.set_facecolor(BG)
+    fig.subplots_adjust(hspace=0.68, wspace=0.36,
+                        top=0.84, bottom=0.08, left=0.07, right=0.97)
 
     for ax, cohort in zip(axes.flat, COHORT_ORDER):
         if cohort not in cohort_mats:
@@ -121,75 +132,80 @@ def plot_heatmaps(cohort_mats: dict) -> None:
             continue
 
         count_mat, prob_mat = cohort_mats[cohort]
-        total_transitions = int(count_mat.sum())
+        n_trans = int(count_mat.sum())
+        perv    = perseveration_rate(prob_mat)
 
-        # SHAP benzeri: persiverasyon kutulari kirmizi, acik kol kutulari yesil
         annot_arr = np.array(
             [[f"{prob_mat[i,j]:.2f}\n(n={int(count_mat[i,j])})"
               for j in range(4)] for i in range(4)]
         )
 
+        ax.set_facecolor(BG)
         sns.heatmap(
             prob_mat,
             ax=ax,
             annot=annot_arr,
             fmt="",
             cmap="Blues",
-            vmin=0, vmax=1,
+            vmin=0.0, vmax=1.0,
             xticklabels=ARM_LABELS,
             yticklabels=ARM_LABELS,
-            linewidths=0.5,
-            linecolor="#cccccc",
-            cbar_kws={"shrink": 0.75, "label": "Gecis Olasiligi"},
+            linewidths=1.0,
+            linecolor=GRID_COL,
+            cbar_kws={"shrink": 0.80, "pad": 0.03},
+            annot_kws={"size": 10, "color": TXT},
         )
 
-        # Diagonal (persiverasyon) kutusu kirmizi kenarlikla isaretler
+        cbar = ax.collections[0].colorbar
+        cbar.set_label("Gecis Olasiligi", fontsize=9, labelpad=6)
+        cbar.ax.tick_params(labelsize=8)
+
+        # Diagonal: perseveration — thick red border per cell
         for k in range(4):
             ax.add_patch(plt.Rectangle(
                 (k, k), 1, 1,
-                fill=False, edgecolor="#C62828", lw=2.2, zorder=3
+                fill=False, edgecolor="#D32F2F", lw=2.8, zorder=5,
             ))
 
-        # Acik kol sutunlari (L=2, R=3) yesil kenarlikla isaretler
-        for col_idx in [2, 3]:
-            ax.add_patch(plt.Rectangle(
-                (col_idx, 0), 1, 4,
-                fill=False, edgecolor="#2E7D32", lw=1.8,
-                linestyle="--", zorder=3
-            ))
+        # L + R columns together: open arm — green dashed bracket
+        ax.add_patch(plt.Rectangle(
+            (2, 0), 2, 4,
+            fill=False, edgecolor="#388E3C", lw=2.2,
+            linestyle="--", zorder=5,
+        ))
 
-        perv = perseveration_rate(prob_mat)
+        # Kohort basligi — iki satir: isim + istatistik
         ax.set_title(
-            f"{cohort}  (n_gecis={total_transitions})\n"
-            f"Persiverasyon ortalamasi: {perv:.2f}",
-            fontsize=11, fontweight="bold", color=COHORT_COLORS[cohort],
-            pad=8,
+            f"{COHORT_TR[cohort]}\nn = {n_trans}   |   Persiverasyon ort: {perv:.2f}",
+            fontsize=12, fontweight="bold",
+            color=COHORT_COLORS[cohort], pad=10,
         )
-        ax.set_xlabel("Hedef Kol (TO)", fontsize=10)
-        ax.set_ylabel("Kaynak Kol (FROM)", fontsize=10)
-        ax.tick_params(axis="both", labelsize=9)
 
-    # Legend: kirmizi cizgi = persiverasyon, yesil cizgi = acik kol
-    legend_elements = [
-        mpatches.Patch(facecolor="none", edgecolor="#C62828", linewidth=2,
-                       label="Diagonal = Persiverasyon (ayni kol)"),
-        mpatches.Patch(facecolor="none", edgecolor="#2E7D32", linewidth=1.5,
-                       linestyle="--", label="Acik kol sutunlari (L, R)"),
+        ax.set_xlabel("Hedef Kol",   fontsize=10, labelpad=7,  color=TXT)
+        ax.set_ylabel("Kaynak Kol", fontsize=10, labelpad=7,  color=TXT)
+        ax.tick_params(axis="both", labelsize=9.5, colors=TXT)
+
+    legend_handles = [
+        mpatches.Patch(facecolor="none", edgecolor="#D32F2F", linewidth=2.8,
+                       label="Diagonal = Persiverasyon  (ayni kol tekrari)"),
+        mpatches.Patch(facecolor="none", edgecolor="#388E3C", linewidth=2.2,
+                       linestyle="--", label="Acik kol sutunlari  (Sol, Sag)"),
     ]
     fig.legend(
-        handles=legend_elements,
-        loc="lower center", ncol=2, fontsize=10, frameon=False,
-        bbox_to_anchor=(0.5, 0.01),
+        handles=legend_handles,
+        loc="lower center", ncol=2, fontsize=10,
+        frameon=True, facecolor="#F5F5F5", edgecolor="#CCCCCC",
+        bbox_to_anchor=(0.5, 0.008),
     )
 
     fig.suptitle(
-        "Plus Maze — Markov Gecis Olasilik Matrisleri\n"
-        "Satir: kaynak kol  |  Sutun: hedef kol  |  Deger: satir-normalize olasilik",
-        fontsize=13, fontweight="bold", y=0.98,
+        "Plus Maze  —  Markov Gecis Olasilik Matrisleri\n"
+        "Satir: kaynak kol   |   Sutun: hedef kol   |   Deger: satir-normalize olasilik   (n = ham sayi)",
+        fontsize=14, fontweight="bold", y=0.975, color="#1A237E",
     )
 
     out = FIGS / "markov_heatmaps.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.savefig(out, dpi=180, bbox_inches="tight", facecolor=BG)
     plt.close(fig)
     print(f"[ok] {out}")
 
@@ -197,73 +213,95 @@ def plot_heatmaps(cohort_mats: dict) -> None:
 # ─── Grafik 2: Persiverasyon + alternasyon bar chart ─────────────────────────
 
 def plot_perseveration_bars(cohort_mats: dict) -> None:
-    """
-    Her kohort icin:
-      - Persiverasyon orani (diagonal ort.)
-      - Acik kola gecis orani (L+R sutunlari)
-      - Kapali kola gecis orani (B+T sutunlari)
-    """
-    cohorts = [c for c in COHORT_ORDER if c in cohort_mats]
+    BG  = "#FFFFFF"
+    TXT = "#212121"
+
+    cohorts      = [c for c in COHORT_ORDER if c in cohort_mats]
     perv_rates   = []
     open_rates   = []
     closed_rates = []
     total_trans  = []
 
     for c in cohorts:
-        _, prob_mat = cohort_mats[c]
-        count_mat, _ = cohort_mats[c]
+        count_mat, prob_mat = cohort_mats[c]
         perv_rates.append(perseveration_rate(prob_mat))
-
-        # Acik kol hedefi: L(idx=2) ve R(idx=3) sutunlarinin ortalamalari
         l_idx, r_idx = ARMS.index("L"), ARMS.index("R")
         b_idx, t_idx = ARMS.index("B"), ARMS.index("T")
-        open_target   = float(prob_mat[:, l_idx].mean() + prob_mat[:, r_idx].mean())
-        closed_target = float(prob_mat[:, b_idx].mean() + prob_mat[:, t_idx].mean())
-        open_rates.append(open_target)
-        closed_rates.append(closed_target)
+        open_rates.append(float(prob_mat[:, l_idx].mean() + prob_mat[:, r_idx].mean()))
+        closed_rates.append(float(prob_mat[:, b_idx].mean() + prob_mat[:, t_idx].mean()))
         total_trans.append(int(count_mat.sum()))
 
-    x = np.arange(len(cohorts))
-    width = 0.26
+    x     = np.arange(len(cohorts))
+    width = 0.24
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.subplots_adjust(top=0.85, bottom=0.14, left=0.10, right=0.97)
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    fig.patch.set_facecolor(BG)
+    ax.set_facecolor(BG)
+    fig.subplots_adjust(top=0.84, bottom=0.17, left=0.10, right=0.97)
 
-    b1 = ax.bar(x - width, perv_rates,   width, label="Persiverasyon (diagonal ort.)",
-                color="#E53935", alpha=0.85, edgecolor="white")
-    b2 = ax.bar(x,          open_rates,  width, label="Acik kola gecis orani (L+R ort.)",
-                color="#2E7D32", alpha=0.85, edgecolor="white")
-    b3 = ax.bar(x + width,  closed_rates,width, label="Kapali kola gecis orani (B+T ort.)",
-                color="#1565C0", alpha=0.85, edgecolor="white")
+    BAR_COLORS = {
+        "perv":   "#E53935",
+        "open":   "#388E3C",
+        "closed": "#1565C0",
+    }
+
+    b1 = ax.bar(x - width, perv_rates,    width,
+                label="Persiverasyon  (diagonal ort.)",
+                color=BAR_COLORS["perv"],   alpha=0.88, edgecolor="white", linewidth=0.8)
+    b2 = ax.bar(x,          open_rates,   width,
+                label="Acik kola gecis  (Sol + Sag ort.)",
+                color=BAR_COLORS["open"],   alpha=0.88, edgecolor="white", linewidth=0.8)
+    b3 = ax.bar(x + width,  closed_rates, width,
+                label="Kapali kola gecis  (Alt + Ust ort.)",
+                color=BAR_COLORS["closed"], alpha=0.88, edgecolor="white", linewidth=0.8)
 
     for bars in (b1, b2, b3):
         for bar in bars:
             h = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2, h + 0.012,
-                    f"{h:.2f}", ha="center", va="bottom", fontsize=9)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2, h + 0.014,
+                f"{h:.2f}", ha="center", va="bottom",
+                fontsize=9.5, fontweight="bold", color=TXT,
+            )
 
-    # Toplam gecis sayisi etiketler
+    # Cohort-colored n_transitions labels below x-axis
     for xi, (c, n) in enumerate(zip(cohorts, total_trans)):
-        ax.text(xi, -0.055, f"n_gecis={n}", ha="center", va="top",
-                fontsize=8, color="#555555")
+        ax.text(
+            xi, -0.085, f"n = {n}",
+            ha="center", va="top", fontsize=9,
+            color=COHORT_COLORS[c], fontweight="bold",
+            transform=ax.get_xaxis_transform(),
+        )
+
+    ax.axhline(0.25, color="#9E9E9E", linestyle="--", linewidth=1.3,
+               alpha=0.75, label="Esit olasilik esigi  (0.25)")
 
     ax.set_xticks(x)
-    ax.set_xticklabels(cohorts, fontsize=11)
-    ax.set_ylabel("Ortalama Gecis Olasiligi", fontsize=11)
-    ax.set_ylim(-0.02, 1.05)
-    ax.axhline(0.25, color="#888888", linestyle="--", linewidth=1,
-               alpha=0.5, label="Esit olasilik esigi (0.25)")
+    ax.set_xticklabels([COHORT_TR[c] for c in cohorts], fontsize=12)
+    for tick_lbl, c in zip(ax.get_xticklabels(), cohorts):
+        tick_lbl.set_color(COHORT_COLORS[c])
+        tick_lbl.set_fontweight("bold")
+
+    ax.set_ylabel("Ortalama Gecis Olasiligi", fontsize=11, color=TXT, labelpad=8)
+    ax.set_ylim(0, 1.10)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
+
     ax.set_title(
-        "Markov Gecis Oranlarinin Kohort Karsilastirmasi\n"
-        "Persiverasyon: ayni kol tekrari | Acik/Kapali: hedef kol tercihi",
-        fontsize=12, fontweight="bold",
+        "Markov Gecis Oranlari  —  Kohort Karsilastirmasi\n"
+        "Persiverasyon: ayni kol tekrari   |   Acik / Kapali: hedef kol tercihi",
+        fontsize=13, fontweight="bold", color="#1A237E", pad=10,
     )
-    ax.legend(fontsize=9, frameon=False, loc="upper right")
-    ax.grid(axis="y", alpha=0.25, linestyle="--")
+
+    ax.legend(fontsize=9.5, frameon=True, facecolor="#F5F5F5",
+              edgecolor="#CCCCCC", loc="upper right", ncol=1)
+    ax.grid(axis="y", alpha=0.28, linestyle="--", color="#BDBDBD")
     ax.spines[["top", "right"]].set_visible(False)
+    ax.spines["left"].set_color("#BDBDBD")
+    ax.spines["bottom"].set_color("#BDBDBD")
+    ax.tick_params(axis="y", labelsize=9.5, colors=TXT)
 
     out = FIGS / "markov_perseveration.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight")
+    fig.savefig(out, dpi=180, bbox_inches="tight", facecolor=BG)
     plt.close(fig)
     print(f"[ok] {out}")
 
