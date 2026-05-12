@@ -1,4 +1,4 @@
-# Rat Behavioral Analysis System
+﻿# Rat Behavioral Analysis System
 
 End-to-end pipeline for quantifying rat behaviour in open-field and T-maze
 recordings using **DeepLabCut** pose estimation, rule-based behaviour

@@ -1,7 +1,7 @@
-# SAP (Uzanma-Değerlendirme Duruşu) Analizi
+﻿# SAP (Uzanma-Değerlendirme Duruşu) Analizi
 
 **Grafik dosyası:** `ethological_sap.png`  
-**Script:** `analysis/tmaze/ethological_features.py`  
+**Script:** `analysis/plus_maze/ethological_features.py`  
 **Veri kaynağı:** 12 sıçanın Plus Maze DLC pose verisi (10 keypoint, 30 fps)
 
 ---

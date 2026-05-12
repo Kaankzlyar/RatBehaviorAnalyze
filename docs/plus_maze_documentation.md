@@ -1,4 +1,4 @@
-# Plus Maze (Elevated Plus Maze) — Kapsamlı Tez Dokümantasyonu
+﻿# Plus Maze (Elevated Plus Maze) — Kapsamlı Tez Dokümantasyonu
 
 **Proje:** Rat Behavioral Analysis — Thesis  
 **Son güncelleme:** 2026-05-11  
@@ -151,7 +151,7 @@ Mevcut analizde yalnızca `body_center` kullanılmaktadır. Diğer 9 nokta ileri
 
 ## 6. EPM İstatistiksel Analizi
 
-**Script:** `analysis/tmaze/cohort_stats_epm.py`  
+**Script:** `analysis/plus_maze/cohort_stats_epm.py`  
 **Çıktılar:** `docs/plus_maze/epm_statistics/`
 
 ### Yöntem
@@ -510,7 +510,7 @@ Bilinen anksiyolitik (diazepam 1 mg/kg) uygulanmadı. Pipeline'ın gerçek anksi
 
 ## 11. Markov Geçiş Matrisi Analizi
 
-**Script:** `analysis/tmaze/markov_analysis.py`  
+**Script:** `analysis/plus_maze/markov_analysis.py`  
 **Çıktılar:** `docs/plus_maze/markov_analysis/`
 
 ### Yöntem
@@ -562,7 +562,7 @@ n = 3/grup ile toplam geçiş sayısı düşüktür (Grapefruit: yalnızca 21 ge
 
 ## 12. Pose-Bazlı Etolojik Özellikler
 
-**Script:** `analysis/tmaze/ethological_features.py`  
+**Script:** `analysis/plus_maze/ethological_features.py`  
 **Çıktılar:** `docs/plus_maze/ethological_analysis/`
 
 ### Kapsam

@@ -23,7 +23,7 @@ Ciktilar:
   reports/cohort_epm_permanova.csv
 
 Kullanim:
-  python analysis/tmaze/cohort_stats_epm.py
+  python analysis/plus_maze/cohort_stats_epm.py
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# Yapılacaklar
+﻿# Yapılacaklar
 
 **Son güncelleme:** 2026-05-10  
 **Öncelik:** Yukarıdan aşağı — 1. en acil
@@ -9,7 +9,7 @@
 
 **Ne:** 12 sıçanın ayrı `*_plus_maze_metrics.csv` dosyalarını tek `data/plus_maze_metrics_all.csv` tablosuna birleştir.  
 **Çıktı:** `data/plus_maze_metrics_all.csv` (12 satır × 35 sütun)  
-**Script:** `analysis/tmaze/batch_metrics.py`
+**Script:** `analysis/plus_maze/batch_metrics.py`
 
 ---
 
@@ -17,7 +17,7 @@
 
 **Ne:** Plus Maze açık kol % zamanı ve girişi üzerinde Kruskal-Wallis + Dunn post-hoc + permütasyon testi.  
 **Çıktı:** `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv`, `reports/cohort_epm_permanova.csv`  
-**Script:** `analysis/tmaze/cohort_stats_epm.py`  
+**Script:** `analysis/plus_maze/cohort_stats_epm.py`  
 **Bulgular:** pct_open_arm_entries p=0.0488 ε²=0.493 (medium); PERMANOVA R²=0.368 p=0.150
 
 ---
@@ -26,7 +26,7 @@
 
 **Ne:** Kohort bazında açık-kol süresi yüzdesini gösteren box/strip + stacked bar + scatter.  
 **Çıktı:** `reports/figures/epm_open_arm_by_cohort.png`, `epm_arm_distribution.png`, `epm_locomotor_covariate.png`  
-**Script:** `analysis/tmaze/plot_open_arm.py`
+**Script:** `analysis/plus_maze/plot_open_arm.py`
 
 ---
 

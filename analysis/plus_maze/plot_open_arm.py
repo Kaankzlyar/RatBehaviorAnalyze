@@ -15,7 +15,7 @@ Grafik 4 — Scatter: pct_open_arm vs total_entries (lokomotor kovaryat)
   reports/figures/epm_locomotor_covariate.png
 
 Kullanım:
-  python analysis/tmaze/plot_open_arm.py
+  python analysis/plus_maze/plot_open_arm.py
 """
 
 import pathlib

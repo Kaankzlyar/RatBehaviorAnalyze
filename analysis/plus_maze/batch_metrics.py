@@ -5,7 +5,7 @@ batch_metrics.py
 data/plus_maze_metrics_all.csv'ye birleştirir.
 
 Kullanım:
-    python analysis/tmaze/batch_metrics.py
+    python analysis/plus_maze/batch_metrics.py
 
 Çıktı:
     data/plus_maze_metrics_all.csv

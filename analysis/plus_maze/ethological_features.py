@@ -30,7 +30,7 @@ Ciktilar:
   reports/figures/ethological_summary.png
 
 Kullanim:
-  python analysis/tmaze/ethological_features.py
+  python analysis/plus_maze/ethological_features.py
 """
 
 import pathlib

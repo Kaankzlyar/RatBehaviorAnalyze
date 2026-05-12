@@ -1,4 +1,4 @@
-# Plus Maze Analizi — Adım Adım Yol Haritası
+﻿# Plus Maze Analizi — Adım Adım Yol Haritası
 
 **Tarih:** 2026-05-11  
 **Kapsam:** `docs/plus_maze_documentation.md` §8.4'te listelenen eksik analizler
@@ -87,7 +87,7 @@ n=12 ile F1'in anlamlı iyileşmesi beklenmez. Amaç iyileşme değil, **SHAP'ta
 4. Kohort bazında (3 sıçan birleştirilerek) veya sıçan bazında hesapla.
 5. Seaborn `heatmap()` ile görselleştir; diagonal = persiverasyon.
 
-**Oluşturulacak script:** `analysis/tmaze/markov_analysis.py`
+**Oluşturulacak script:** `analysis/plus_maze/markov_analysis.py`
 
 ```python
 # Pseudokod — mantığı gösterir
@@ -155,7 +155,7 @@ body_len = dist(nose, tail_base)
 sap = (body_len > mean_body_len * 1.2) and (speed < low_speed_thresh)
 ```
 
-**Oluşturulacak script:** `analysis/tmaze/ethological_features.py`
+**Oluşturulacak script:** `analysis/plus_maze/ethological_features.py`
 
 ### Dürüst beklenti
 
@@ -215,7 +215,7 @@ Thesis/RatBehaviorAnalyze/
 │   ├── behavioral_radar.png        ✅ Radar grafiği
 │   └── behavioral_effect_bars.png  ✅ Bar chart
 │
-├── analysis/tmaze/
+├── analysis/plus_maze/
 │   ├── cohort_stats_epm.py         ✅ KW + Dunn + PERMANOVA
 │   ├── plot_open_arm.py            ✅ Box/strip + stacked bar + scatter
 │   ├── behavioral_effect_analysis.py  ✅ Cohen's d + radar + bar

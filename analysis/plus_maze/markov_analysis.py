@@ -14,7 +14,7 @@ Ciktilar:
   reports/figures/markov_perseveration.png -- persiverasyon + alternasyon bar chart
 
 Kullanim:
-  python analysis/tmaze/markov_analysis.py
+  python analysis/plus_maze/markov_analysis.py
 """
 
 import pathlib

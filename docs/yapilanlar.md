@@ -1,4 +1,4 @@
-# Sıçan Davranış Analizi — Yapılanlar ve Proje Durumu
+﻿# Sıçan Davranış Analizi — Yapılanlar ve Proje Durumu
 
 **Proje:** Rat Behavioral Analysis System (Sıçan Davranışsal Analiz Sistemi)  
 **Tez konusu:** Yaygın diyet katkı maddelerinin sıçanlarda açık alan (OFT) ve elevated plus maze (EPM) davranışlarına etkisi  
@@ -287,7 +287,7 @@ ML eğitimi gerektirmeyen kural tabanlı dedektör. Postüral özellikler üzeri
 ## 7B. Aşama 03C — Plus Maze (4 Kollu) Analizi
 
 **Durum: Tamamlandı — tüm 4 kohort × 3 sıçan = 12 sıçan**
-**Klasör:** `analysis/tmaze/` (script adları korundu, çıktılar `_plus_maze_*` olarak)
+**Klasör:** `analysis/plus_maze/` (script adları korundu, çıktılar `_plus_maze_*` olarak)
 
 ### Genel Bakış
 
@@ -412,7 +412,7 @@ Açık kolda geçirilen süre/giriş yüzdesi anksiyolitik etkinin **altın stan
 
 1. **`activity_heatmap.py` histogram düzeltmesi:** `hist2d` veri aralığına otomatik fit ediyordu; veri küçük bir alanda yoğunlaşınca grafik köşeye sıkışıyordu. `auto_extent(zones)` ile sabit `range` ve `xlim/ylim` belirlendi.
 2. **CSV tipi:** `_filtered.csv` (DLC'nin pre-smoothed çıktısı) yerine **raw CSV** kullanıldı — analiz scriptleri kendi yumuşatmasını uyguladığı için çift filtreleme engellendi.
-3. **Klasör/script ayrımı:** `analysis/` altındaki scriptler `analysis/open_field/` ve `analysis/tmaze/` olarak ayrıldı; `speed_analysis.py` paylaşılan ortak script olarak `analysis/` kökünde kaldı.
+3. **Klasör/script ayrımı:** `analysis/` altındaki scriptler `analysis/open_field/` ve `analysis/plus_maze/` olarak ayrıldı; `speed_analysis.py` paylaşılan ortak script olarak `analysis/` kökünde kaldı.
 
 ---
 
@@ -709,7 +709,7 @@ reports/
 | 4 model × 4 hedef LOOCV eğitimi | **Tamamlandı** — `src/train_baseline.py` |
 | SHAP analizi (çok-sınıflı + One-vs-Rest) | **Tamamlandı** — `src/train_baseline.py` |
 | CSV çıktılarının PNG görselleştirmesi | **Tamamlandı** — `src/visualize_reports.py` |
-| Plus maze pipeline (4 kollu metrikler + heatmap + orbit) | **Tamamlandı** — `analysis/tmaze/` |
+| Plus maze pipeline (4 kollu metrikler + heatmap + orbit) | **Tamamlandı** — `analysis/plus_maze/` |
 | 12 sıçanın plus maze metriklerinin birleştirilmesi (`plus_maze_metrics_all.csv`) | **Tamamlandı** |
 
 ### Sıradaki Görev — Aşama 05B: OFT + Plus Maze Özellik Birleştirmesi
@@ -780,7 +780,7 @@ Cruz, Frei & Graeff (1994 *Pharmacol Biochem Behav*) faktör analizi ile EPM öl
 Plus maze'in `analysis/cohort_stats.py` (KW + Dunn + PERMANOVA) eşdeğeri **henüz yazılmadı**. OFT için var; Plus Maze'e port edilmeli. Beklenen pipeline:
 
 ```python
-# Yeni: analysis/tmaze/cohort_stats_epm.py
+# Yeni: analysis/plus_maze/cohort_stats_epm.py
 features = ["pct_open_arm", "pct_open_arm_entries",
             "total_entries", "closed_arm_entries",
             "mean_speed_px_s", "successive_alternation_pct"]
@@ -820,8 +820,8 @@ Mevcut Plus Maze metrikleri **sadece spasiyo-temporal**. Anksiyete spesifikliği
 
 | # | İş | Dosya | Çıktı |
 |---|----|-------|-------|
-| 1 | **Plus maze toplu metrik tablosu üret** | `analysis/tmaze/run_analysis.py` (`--batch-dir` ekle) | `data/plus_maze_metrics_all.csv` (12 satır) |
-| 2 | **EPM cohort istatistiği** | `analysis/tmaze/cohort_stats_epm.py` (yeni — OFT'tan port) | `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv` |
+| 1 | **Plus maze toplu metrik tablosu üret** | `analysis/plus_maze/run_analysis.py` (`--batch-dir` ekle) | `data/plus_maze_metrics_all.csv` (12 satır) |
+| 2 | **EPM cohort istatistiği** | `analysis/plus_maze/cohort_stats_epm.py` (yeni — OFT'tan port) | `reports/cohort_epm_kw.csv`, `reports/cohort_epm_dunn.csv` |
 | 3 | **Açık kol % box/violin** | grafik scripti | `reports/figures/epm_open_arm_by_cohort.png` |
 | 4 | **Label-leakage caveat'ini netleştir** | `src/train_baseline.py`'a drop-the-leakage-feature varyantı | yeni LOOCV F1 değerleri (genelde 0.10-0.15 düşer ama dürüst) |
 

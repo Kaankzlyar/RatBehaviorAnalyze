@@ -1,4 +1,4 @@
-# T-Maze Keypoint Setu ve Dosya Organizasyonu
+﻿# T-Maze Keypoint Setu ve Dosya Organizasyonu
 
 **Tarih:** 2026-05-05
 **Kapsam:** T-maze arm'ı için DeepLabCut etiket setinin tanımı + repo içinde T-maze verisinin/çıktılarının nereye konacağının kararlaştırılması.
