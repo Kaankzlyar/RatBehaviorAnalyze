@@ -81,10 +81,10 @@ def run_command(script: str, args: list, description: str) -> bool:
 
     try:
         result = subprocess.run(cmd, check=True, text=True)
-        print(f"[OK] {description} â€” COMPLETE\n")
+        print(f"[OK] {description} ” COMPLETE\n")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] {description} â€” FAILED")
+        print(f"[ERROR] {description} ” FAILED")
         print(f"Error: {e}\n")
         return False
 
@@ -221,7 +221,7 @@ Examples:
         results["heatmap"] = run_command(
             "activity_heatmap.py",
             heatmap_args,
-            "Step 2/4: Activity Heatmap (KDE) â€” THESIS PRIMARY"
+            "Step 2/4: Activity Heatmap (KDE)” THESIS PRIMARY"
         )
     else:
         print("\n[skip] Skipping activity_heatmap.py")

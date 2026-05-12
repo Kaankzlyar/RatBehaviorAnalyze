@@ -178,7 +178,7 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         axes[idx].set_visible(False)
 
     fig.suptitle(
-        f"Per-Bodypart Activity Heatmaps â€” {video_name}\n"
+        f"Per-Bodypart Activity Heatmaps {video_name}\n"
         f"(2D histogram density, dashed white = arena wall, dotted orange = inner boundary)",
         color="#DDDDDD", fontsize=11, y=1.01,
     )

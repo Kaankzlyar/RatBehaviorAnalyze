@@ -126,7 +126,7 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Heatmap â€” {video_name}\n"
+        f"Activity Heatmap {video_name}\n"
         f"(body_center density, {len(xv)} valid frames)",
         color="white", fontsize=13, pad=10,
     )
@@ -165,11 +165,11 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
         range=[[x_min, x_max], [y_min, y_max]]
     )
 
-    # Step 2: heavy gaussian blur â€” football-heatmap smoothness
+    # Step 2: heavy gaussian blur ” football-heatmap smoothness
     # hist.T: rows=Y, cols=X (imshow convention)
     hist_smooth = gaussian_filter(hist.T, sigma=sigma)
 
-    # Step 3: log scale â€” keeps traversed paths visible without washing out hotspots
+    # Step 3: log scale ” keeps traversed paths visible without washing out hotspots
     hist_log = np.log1p(hist_smooth)
 
     # Step 4: normalize 0->1 so colormap uses full dynamic range
@@ -197,7 +197,7 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_title(
-        f"Activity Density â€” {video_name}\n"
+        f"Activity Density” {video_name}\n"
         f"(body_center, {len(xv)} frames, Ïƒ={sigma}px)",
         color="white", fontsize=13, pad=10,
     )

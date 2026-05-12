@@ -4,8 +4,8 @@ orbit_plot.py
 Creates per-bodypart orbit visualizations from a DLC filtered CSV.
 
 Outputs two files:
-  1. <name>_orbit_grid.png  â€” all body parts as individual subplots in a grid
-  2. <name>_thigmotaxis.png â€” body_center only, with arena + thigmotaxis zone overlay
+  1. <name>_orbit_grid.png  ” all body parts as individual subplots in a grid
+  2. <name>_thigmotaxis.png ” body_center only, with arena + thigmotaxis zone overlay
 
 Arena edges and inner zone can be set manually (recommended) using
 show_frame_coords.py, or auto-detected from the data.
@@ -265,7 +265,7 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         axes[idx].set_visible(False)
 
     fig.suptitle(
-        f"Per-Bodypart Orbit â€” {video_name}\n"
+        f"Per-Bodypart Orbit ” {video_name}\n"
         f"(dashed white = arena wall  |  dotted orange = manually selected inner boundary)\n"
         f"circle = start  |  diamond = end  |  pale->dark = early->late",
         color="#DDDDDD", fontsize=11, y=1.01,
@@ -326,7 +326,7 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_title(
-        f"Thigmotaxis Detail â€” {video_name}  [{bp}]\n"
+        f"Thigmotaxis Detail” {video_name}  [{bp}]\n"
         f"Thigmotaxis rate: {rate_str}  (orange = border zone, blue = centre zone)",
         color="white", fontsize=12, pad=10,
     )

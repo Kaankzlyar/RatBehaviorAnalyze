@@ -285,7 +285,7 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
     print(LINE, file=buf)
 
     icon = "🟧" if pred_info["pred"] == 1 else "🟦"
-    print(f"\n{icon}  TAHMİN: {label_str(pred_info['pred'])}", file=buf)
+    print(f"\n{icon} TAHMİN: {label_str(pred_info['pred'])}", file=buf)
     print(f"    P(Treated)={pred_info['proba_treated']:.3f}    "
           f"P(Control)={pred_info['proba_control']:.3f}", file=buf)
     print(f"    Güven      : %{proba*100:.0f}", file=buf)
@@ -325,8 +325,8 @@ def plot_overview(csv_path: Path, body_x, body_y, spatial: dict,
                    color="lime", edgecolor="black", s=110, marker="*",
                    label=f"center rear (n={len(centers)})", zorder=5)
 
-    icon = "🟧" if pred_info["pred"] == 1 else "🟦"
-    ax.set_title(f"{icon}  {label_str(pred_info['pred'])}  "
+    
+    ax.set_title(f"{label_str(pred_info['pred'])}  "
                  f"(P_treated={pred_info['proba_treated']:.2f})",
                  fontsize=14, pad=12)
     ax.invert_yaxis()
