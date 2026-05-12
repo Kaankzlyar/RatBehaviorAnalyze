@@ -22,7 +22,6 @@ import pickle
 import subprocess
 import sys
 import tempfile
-from io import StringIO
 from pathlib import Path
 
 import matplotlib
@@ -32,6 +31,9 @@ import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 import streamlit as st
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
 # ── Yol kurulumu ──────────────────────────────────────────────────────────────
 ROOT     = Path(__file__).resolve().parent.parent
@@ -99,17 +101,55 @@ def add_derived(row: dict) -> dict:
 
 # ── Yardimci: model yukle ────────────────────────────────────────────────────
 
+FEATURE_COLS = [
+    "pct_open_arm",
+    "anxiety_index_epm",
+    "pct_open_arm_entries",
+    "total_entries",
+    "successive_alternation_pct",
+    "perseveration_rate_pct",
+    "mean_speed_px_s",
+    "arm_preference_index",
+    "pct_time_junction",
+]
+
+
+def _train_from_csv() -> tuple[dict, object] | tuple[None, None]:
+    """pkl yuklenemezse aninda egit (37 subject, <1s)."""
+    data_csv = ROOT / "data" / "plus_maze_metrics_all.csv"
+    if not data_csv.exists():
+        return None, None
+    df = pd.read_csv(data_csv)
+    df["label"] = (df["cohort"] != "Control").astype(int)
+    missing = [c for c in FEATURE_COLS if c not in df.columns]
+    if missing:
+        return None, None
+    X = df[FEATURE_COLS].values.astype(float)
+    y = df["label"].values
+    imp = SimpleImputer(strategy="median")
+    X_i = imp.fit_transform(X)
+    sc  = StandardScaler()
+    X_s = sc.fit_transform(X_i)
+    clf = LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)
+    clf.fit(X_s, y)
+    bundle = {"imputer": imp, "scaler": sc, "features": FEATURE_COLS}
+    return bundle, clf
+
+
 @st.cache_resource
 def load_model():
     scaler_path = MODEL_DIR / "scaler_epm.pkl"
     model_path  = MODEL_DIR / "lr_epm.pkl"
-    if not scaler_path.exists() or not model_path.exists():
-        return None, None
-    with open(scaler_path, "rb") as f:
-        bundle = pickle.load(f)
-    with open(model_path, "rb") as f:
-        clf = pickle.load(f)
-    return bundle, clf
+    if scaler_path.exists() and model_path.exists():
+        try:
+            with open(scaler_path, "rb") as f:
+                bundle = pickle.load(f)
+            with open(model_path, "rb") as f:
+                clf = pickle.load(f)
+            return bundle, clf
+        except Exception:
+            pass  # numpy/sklearn surum uyumsuzlugu — aninda egit
+    return _train_from_csv()
 
 
 # ── Yardimci: tahmin ─────────────────────────────────────────────────────────
@@ -280,9 +320,8 @@ if not st.button("Calistir", type="primary"):
 bundle, clf = load_model()
 if bundle is None:
     st.error(
-        "Model dosyalari bulunamadi: `models/epm_classifier/`\n\n"
-        "Once su komutu calistir:\n"
-        "```\npython analysis/plus_maze/train_epm_classifier.py\n```"
+        "Model yuklenemedi ve egitim verisi de bulunamadi.\n\n"
+        "`data/plus_maze_metrics_all.csv` dosyasinin var oldugunu kontrol et."
     )
     st.stop()
 
