@@ -1,0 +1,3 @@
+﻿feature,auc,accuracy,sensitivity,specificity,tn,fp,fn,tp
+Açık Kol Süresi (%),0.776,0.649,0.567,1.0,7,0,13,17
+Anksiyete İndeksi,0.805,0.676,0.667,0.714,5,2,10,20

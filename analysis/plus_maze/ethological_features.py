@@ -118,9 +118,21 @@ COHORT_DISPLAY = {
 }
 
 
-def load_cohort_map() -> dict:
-    pm = pd.read_csv(ROOT / "data" / "plus_maze_metrics_all.csv")
-    return dict(zip(pm["subject_id"].str.replace("PlusMaze", ""), pm["cohort"]))
+DIR_TO_COHORT = {
+    "asp ve greyfurt": "ASP+Greyfurt",   # önce uzun anahtar — "asp" ile çakışmaz
+    "control"        : "Control",
+    "greyfurt"       : "Grapefruit",
+    "asp"            : "Aspartame",
+}
+
+
+def cohort_from_path(csv_path: pathlib.Path) -> str:
+    """Dizin adından kohortu türet — plus_maze_metrics_all.csv'ye bağımsız."""
+    dir_name = csv_path.parent.parent.name.lower()
+    for key, cohort in DIR_TO_COHORT.items():
+        if key in dir_name:
+            return cohort
+    return "Unknown"
 
 
 # ── DLC CSV okuyucu ───────────────────────────────────────────────────────────
@@ -151,15 +163,22 @@ def dist(x1, y1, x2, y2) -> np.ndarray:
 
 def load_arm_coords(csv_path: pathlib.Path) -> dict | None:
     """
-    PlusMaze<ID>_arm_coords.json yukler.
-    tmaze_metrics.py tarafindan kaydedilir; yoksa None dondurur.
+    Arm koordinatlarini yukler. Oncelik sirasi:
+      1. Per-subject: <subject>_arm_coords.json  (tmaze_metrics.py kaydeder)
+      2. Merkezi:     data/arm_coords.json        (show_frame_coords.py kaydeder)
+      3. None → rearing atlanir
     """
-    json_path = csv_path.parent / f"{csv_path.stem}_arm_coords.json"
-    if not json_path.exists():
-        return None
-    with open(json_path, encoding="utf-8") as fh:
-        data = json.load(fh)
-    return {k: tuple(v) for k, v in data.items()}
+    per_subject = csv_path.parent / f"{csv_path.stem}_arm_coords.json"
+    if per_subject.exists():
+        with open(per_subject, encoding="utf-8") as fh:
+            return {k: tuple(v) for k, v in json.load(fh).items()}
+
+    central = ROOT / "data" / "arm_coords.json"
+    if central.exists():
+        with open(central, encoding="utf-8") as fh:
+            return {k: tuple(v) for k, v in json.load(fh).items()}
+
+    return None
 
 
 # ── Bout tespit motoru ────────────────────────────────────────────────────────
@@ -397,8 +416,7 @@ def process_subject(csv_path: pathlib.Path) -> dict:
 # ── Tum sicanlari isle ────────────────────────────────────────────────────────
 
 def run_all() -> pd.DataFrame:
-    cohort_map = load_cohort_map()
-    pm_csvs    = sorted([
+    pm_csvs = sorted([
         p for p in DLC_DIR.rglob("*.csv")
         if "PlusMaze" in p.name and "metrics" not in p.name
     ])
@@ -409,7 +427,7 @@ def run_all() -> pd.DataFrame:
         if not m:
             continue
         subj_id = m.group(1)
-        cohort  = cohort_map.get(subj_id, "Unknown")
+        cohort  = cohort_from_path(csv_path)
 
         has_coords = (csv_path.parent / f"{csv_path.stem}_arm_coords.json").exists()
         tag = "arm_coords" if has_coords else "no coords => rearing skip"

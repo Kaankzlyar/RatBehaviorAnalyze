@@ -22,7 +22,9 @@ Usage:
 """
 
 import argparse
+import json
 import os
+import pathlib
 
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
@@ -30,9 +32,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-DEFAULT_CSV     = "../../data/DLCfiltered/control/PlusMazeMA1_1/PlusMazeMA1_1.csv"
-DEFAULT_OUT_DIR = "../../data/DLCfiltered"
+DEFAULT_CSV       = "../../data/DLCfiltered/control/PlusMazeMA1_1/PlusMazeMA1_1.csv"
+DEFAULT_OUT_DIR   = "../../data/DLCfiltered"
 LIKELIHOOD_THRESH = 0.6
+
+ROOT    = pathlib.Path(__file__).resolve().parent.parent.parent
+DLC_DIR = ROOT / "data" / "DLCfiltered"
 
 ZONE_COLORS = {
     "bottom_arm": "#4FC3F7",
@@ -107,8 +112,20 @@ def draw_zones(ax, zones, alpha=0.10):
         ax.add_patch(mpatches.Rectangle((x0, y0), x1-x0, y1-y0,
                      linewidth=1.5, edgecolor=c, facecolor="none",
                      linestyle="--", zorder=10))
-        ax.text(x0+4, y0+16, name.replace("_", " "),
-                color=c, fontsize=8, fontweight="bold", zorder=11)
+        label = name.replace("_", " ")
+        if name == "right_arm":
+            # Sag ust kose
+            ax.text(x1 - 4, y0 + 16, label,
+                    color=c, fontsize=8, fontweight="bold", zorder=11,
+                    ha="right", va="top")
+        elif name == "bottom_arm":
+            # Kutunun en alti (y1 = görsel alt kenar, invert_yaxis ile)
+            ax.text(x0 + 4, y1 - 4, label,
+                    color=c, fontsize=8, fontweight="bold", zorder=11,
+                    ha="left", va="bottom")
+        else:
+            ax.text(x0 + 4, y0 + 16, label,
+                    color=c, fontsize=8, fontweight="bold", zorder=11)
 
 
 def make_cmap(base_hex):
@@ -238,49 +255,118 @@ def plot_bodypart_grid(tracking, zones, name, out_path):
     print(f"Bodypart grid -> {out_path}")
 
 
+def run_single(csv_path, zones, out_dir, likelihood, jump_thresh, smooth):
+    """Tek bir subject icin her iki grafigi uretir."""
+    stem_name = os.path.splitext(os.path.basename(csv_path))[0]
+    os.makedirs(out_dir, exist_ok=True)
+
+    print(f"  {stem_name} ...", end=" ", flush=True)
+    tracking = load_dlc_csv(csv_path, likelihood, jump_thresh, smooth)
+    bc       = tracking.get("body_center", list(tracking.values())[0])
+    labels   = assign_zones(bc["x"], bc["y"], zones)
+
+    valid = ~(np.isnan(bc["x"]) | np.isnan(bc["y"]))
+    n     = valid.sum()
+    zone_pct = {z: (labels == z).sum() / max(n, 1) * 100
+                for z in list(zones.keys()) + ["junction"]}
+    print("  ".join(f"{z.split('_')[0][0].upper()}={v:.0f}%"
+                    for z, v in zone_pct.items()))
+
+    plot_zone_trajectory(tracking, zones, labels, stem_name,
+                         os.path.join(out_dir, f"{stem_name}_plus_maze_orbit.png"))
+    plot_bodypart_grid(tracking, zones, stem_name,
+                       os.path.join(out_dir, f"{stem_name}_plus_maze_bodyparts.png"))
+
+
+def run_batch(likelihood, jump_thresh, smooth, fallback_zones=None):
+    """
+    data/DLCfiltered/ altindaki tum PlusMaze klasorlerini tarar.
+    Oncelik: per-subject arm_coords.json → yoksa fallback_zones (CLI'dan).
+    """
+    csvs = sorted([
+        p for p in DLC_DIR.rglob("*.csv")
+        if "PlusMaze" in p.name
+        and "metrics" not in p.name
+    ])
+
+    central_json = ROOT / "data" / "arm_coords.json"
+
+    found = skipped = 0
+    for csv_path in csvs:
+        json_path = csv_path.parent / f"{csv_path.stem}_arm_coords.json"
+        if json_path.exists():
+            with open(json_path, encoding="utf-8") as fh:
+                zones = {k: tuple(v) for k, v in json.load(fh).items()}
+        elif central_json.exists():
+            with open(central_json, encoding="utf-8") as fh:
+                zones = {k: tuple(v) for k, v in json.load(fh).items()}
+        elif fallback_zones is not None:
+            zones = fallback_zones
+        else:
+            print(f"  [skip] {csv_path.stem} — koordinat bulunamadi")
+            skipped += 1
+            continue
+        run_single(str(csv_path), zones, str(csv_path.parent),
+                   likelihood, jump_thresh, smooth)
+        found += 1
+
+    print(f"\n[done] {found} subject islendi"
+          + (f", {skipped} atlandi" if skipped else ""))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Plus maze trajectory visualization")
-    parser.add_argument("--csv",        default=DEFAULT_CSV)
-    parser.add_argument("--out-dir",    default=DEFAULT_OUT_DIR, dest="out_dir")
-    parser.add_argument("--bottom-arm", nargs=4, type=float, required=True,
+    parser = argparse.ArgumentParser(
+        description="Plus maze trajectory visualization.\n"
+                    "Argumansiz calistirilirsa tum PlusMaze subject'lerini batch isler.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--csv",        default=None,
+                        help="Tek subject DLC CSV (verilmezse batch mod)")
+    parser.add_argument("--out-dir",    default=None, dest="out_dir",
+                        help="Cikti klasoru (tek mod; batch modda CSV klasoru kullanilir)")
+    parser.add_argument("--bottom-arm", nargs=4, type=float,
                         metavar=("XMIN","XMAX","YMIN","YMAX"), dest="bottom_arm")
-    parser.add_argument("--left-arm",   nargs=4, type=float, required=True,
+    parser.add_argument("--left-arm",   nargs=4, type=float,
                         metavar=("XMIN","XMAX","YMIN","YMAX"), dest="left_arm")
-    parser.add_argument("--right-arm",  nargs=4, type=float, required=True,
+    parser.add_argument("--right-arm",  nargs=4, type=float,
                         metavar=("XMIN","XMAX","YMIN","YMAX"), dest="right_arm")
-    parser.add_argument("--top-arm",    nargs=4, type=float, required=True,
+    parser.add_argument("--top-arm",    nargs=4, type=float,
                         metavar=("XMIN","XMAX","YMIN","YMAX"), dest="top_arm")
     parser.add_argument("--likelihood", type=float, default=LIKELIHOOD_THRESH)
     parser.add_argument("--jump-thresh",type=float, default=60.0, dest="jump_thresh")
     parser.add_argument("--smooth",     type=int,   default=5)
     args = parser.parse_args()
 
-    if not os.path.isfile(args.csv):
-        raise FileNotFoundError(f"CSV not found: {args.csv}")
+    kw = dict(likelihood=args.likelihood,
+              jump_thresh=args.jump_thresh,
+              smooth=args.smooth)
 
-    zones = {
-        "bottom_arm": tuple(args.bottom_arm),
-        "left_arm":   tuple(args.left_arm),
-        "right_arm":  tuple(args.right_arm),
-        "top_arm":    tuple(args.top_arm),
-    }
-    os.makedirs(args.out_dir, exist_ok=True)
-    stem_name = os.path.splitext(os.path.basename(args.csv))[0]
-
-    print(f"Loading: {args.csv}")
-    tracking = load_dlc_csv(args.csv, args.likelihood, args.jump_thresh, args.smooth)
-    bc       = tracking.get("body_center", list(tracking.values())[0])
-    labels   = assign_zones(bc["x"], bc["y"], zones)
-
-    valid = ~(np.isnan(bc["x"]) | np.isnan(bc["y"]))
-    n     = valid.sum()
-    for z in list(zones.keys()) + ["junction"]:
-        print(f"  {z:>12s}: {(labels==z).sum()/max(n,1)*100:.1f}%")
-
-    plot_zone_trajectory(tracking, zones, labels, stem_name,
-                         os.path.join(args.out_dir, f"{stem_name}_plus_maze_orbit.png"))
-    plot_bodypart_grid(tracking, zones, stem_name,
-                       os.path.join(args.out_dir, f"{stem_name}_plus_maze_bodyparts.png"))
+    if args.csv is None:
+        # Batch mod: arm_coords.json varsa onu kullan, yoksa CLI koordinatlari
+        fallback = None
+        if all([args.bottom_arm, args.left_arm, args.right_arm, args.top_arm]):
+            fallback = {
+                "bottom_arm": tuple(args.bottom_arm),
+                "left_arm":   tuple(args.left_arm),
+                "right_arm":  tuple(args.right_arm),
+                "top_arm":    tuple(args.top_arm),
+            }
+        print(f"Batch mod — {DLC_DIR} altindaki tum PlusMaze subject'leri taranıyor...\n")
+        run_batch(fallback_zones=fallback, **kw)
+    else:
+        # Tek subject modu
+        if not os.path.isfile(args.csv):
+            raise FileNotFoundError(f"CSV not found: {args.csv}")
+        if not all([args.bottom_arm, args.left_arm, args.right_arm, args.top_arm]):
+            raise ValueError("Tek mod icin --bottom-arm / --left-arm / --right-arm / --top-arm gerekli")
+        zones = {
+            "bottom_arm": tuple(args.bottom_arm),
+            "left_arm":   tuple(args.left_arm),
+            "right_arm":  tuple(args.right_arm),
+            "top_arm":    tuple(args.top_arm),
+        }
+        out_dir = args.out_dir or os.path.dirname(os.path.abspath(args.csv))
+        run_single(args.csv, zones, out_dir, **kw)
 
 
 if __name__ == "__main__":

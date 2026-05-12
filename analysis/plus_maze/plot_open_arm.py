@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 # ── Türkçe karakter desteği için Calibri ──────────────────────────────────────
-matplotlib.rcParams["font.family"]        = "Calibri"
+matplotlib.rcParams["font.family"]        = "DejaVu Sans"
 matplotlib.rcParams["axes.unicode_minus"] = False
 matplotlib.rcParams["figure.dpi"]         = 150
 
@@ -82,8 +82,8 @@ def plot_open_arm_box():
          "Açık Kol Girişi / Toplam Giriş"),
     ]
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5))
-    fig.subplots_adjust(top=0.87, bottom=0.16, left=0.08, right=0.97, wspace=0.32)
+    fig, axes = plt.subplots(1, 2, figsize=(13, 7.0))
+    fig.subplots_adjust(top=0.80, bottom=0.16, left=0.08, right=0.97, wspace=0.32)
 
     for ax, (col, ylabel, title) in zip(axes, metrics):
         data_by_group = {
@@ -145,10 +145,12 @@ def plot_open_arm_box():
         bbox_to_anchor=(0.52, 0.01),
     )
 
+    n_per_group = {g: len(data_by_group.get(g, [])) for g in COHORT_ORDER if g in data_by_group}
+    n_str = "  |  ".join(f"{g} n={n}" for g, n in n_per_group.items())
     fig.suptitle(
-        "Plus Maze — EPM Açık Kol Analizi  (n = 3 / grup)\n"
+        f"Plus Maze — EPM Açık Kol Analizi  ({n_str})\n"
         "Dikey kollar = kapalı kol  |  Yatay kollar = açık kol",
-        fontsize=13, fontweight="bold", y=0.99,
+        fontsize=11, fontweight="bold", y=0.98,
     )
     fig.text(0.52, 0.085, "● Her nokta = 1 sıçan  |  Aynı değerdeki noktalar hafifçe kaydırılmıştır",
              ha="center", va="center", fontsize=9, color="#666666", style="italic")

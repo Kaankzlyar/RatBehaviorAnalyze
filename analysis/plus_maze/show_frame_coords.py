@@ -20,6 +20,8 @@ Usage:
 """
 
 import argparse
+import json
+import pathlib
 import sys
 
 import cv2
@@ -158,11 +160,17 @@ def bounds_str(pts):
     return f"{min(xs)} {max(xs)} {min(ys)} {max(ys)}"
 
 
+ROOT         = pathlib.Path(__file__).resolve().parent.parent.parent
+DEFAULT_JSON = ROOT / "data" / "arm_coords.json"
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plus maze zone selector (bottom + left + right + top)"
     )
     parser.add_argument("--video", required=True, help="Path to video file")
+    parser.add_argument("--save-json", default=str(DEFAULT_JSON), dest="save_json",
+                        help=f"arm_coords.json kayit yolu (varsayilan: {DEFAULT_JSON})")
     args = parser.parse_args()
 
     print(f"Loading: {args.video}")
@@ -202,21 +210,29 @@ def main():
         print("\nRun again and click all 4 corners for each zone.")
         sys.exit(1)
 
+    # ── JSON olarak kaydet ────────────────────────────────────────────────────
+    coords = {}
+    for z in ZONES:
+        pts = zone_pts[z]
+        xs  = [p[0] for p in pts]
+        ys  = [p[1] for p in pts]
+        coords[z] = [min(xs), max(xs), min(ys), max(ys)]
+
+    out_path = pathlib.Path(args.save_json)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump(coords, fh, indent=2)
+    print(f"\n[ok] Koordinatlar kaydedildi -> {out_path}")
+    print("     orbit_plot.py ve ethological_features.py bu dosyayi otomatik okur.\n")
+
     b = bounds_str(zone_pts["bottom_arm"])
     l = bounds_str(zone_pts["left_arm"])
     r = bounds_str(zone_pts["right_arm"])
     t = bounds_str(zone_pts["top_arm"])
 
-    print(f"\nRun tmaze_metrics.py with these exact bounds:\n")
-    print(f"  python tmaze_metrics.py \\")
-    print(f"    --csv <path>.csv \\")
-    print(f"    --bottom-arm {b} \\")
-    print(f"    --left-arm   {l} \\")
-    print(f"    --right-arm  {r} \\")
-    print(f"    --top-arm    {t}")
-    print(f"\nRun orbit_plot.py with these exact bounds:\n")
-    print(f"  python orbit_plot.py \\")
-    print(f"    --csv <path>.csv \\")
+    print(f"tmaze_metrics.py icin komut:\n")
+    print(f"  python analysis/plus_maze/tmaze_metrics.py \\")
+    print(f"    --batch-dir data/DLCfiltered \\")
     print(f"    --bottom-arm {b} \\")
     print(f"    --left-arm   {l} \\")
     print(f"    --right-arm  {r} \\")

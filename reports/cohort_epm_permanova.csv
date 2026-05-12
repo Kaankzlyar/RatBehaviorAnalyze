@@ -1,2 +1,2 @@
 features,pseudo_F,R2,p_perm,n_perm,k_groups,n_subjects
-pct_open_arm+pct_open_arm_entries+total_entries+mean_speed_px_s,1.5541,0.3682,0.1498,10000,4,12
+pct_open_arm+pct_open_arm_entries+total_entries+mean_speed_px_s,1.7223,0.1354,0.0666,10000,4,37
