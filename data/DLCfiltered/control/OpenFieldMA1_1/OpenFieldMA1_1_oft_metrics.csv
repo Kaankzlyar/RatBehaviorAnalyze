@@ -1,2 +1,0 @@
-subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
-MA1_1,MA1,Control,177.7,5332,True,3007.8,16.99,750.41,90.09,9.91,6,40,43.93,24.72,0.306,7,4.59,2.58,5,7.25,4.08

@@ -1,7 +1,0 @@
-,n_valid,n_valid,mean_speed_px_s,mean_speed_px_s,median_speed_px_s,median_speed_px_s,sd_speed_px_s,sd_speed_px_s,max_speed_px_s,max_speed_px_s,p95_speed_px_s,p95_speed_px_s,n_frames,n_frames,session_s,session_s,sd_speed_raw_px_s,sd_speed_raw_px_s,sd_speed_filt_px_s,sd_speed_filt_px_s,sd_reduction_pct,sd_reduction_pct
-,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std,mean,std
-group,,,,,,,,,,,,,,,,,,,,,,
-Aspartame,5100.75,206.032,28.872,6.21,17.934,4.978,32.864,5.113,301.458,105.171,94.314,19.05,5100.75,206.032,170.025,6.875,88.397,42.668,32.864,5.113,57.45,14.582
-Aspartame+Grapefruit,5256.5,92.18,31.099,8.348,18.803,5.807,36.521,8.238,337.948,170.001,105.751,29.501,5256.5,92.18,175.212,3.08,86.474,32.837,36.521,8.238,53.45,16.597
-Control,5136.8,116.913,28.048,11.762,14.94,9.62,37.061,12.118,296.052,112.832,104.406,39.255,5136.8,116.913,171.22,3.882,102.762,77.423,37.061,12.118,47.34,27.707
-Grapefruit,5286.75,89.796,36.275,10.822,21.001,7.65,41.248,12.153,294.229,164.805,123.735,33.912,5286.75,89.796,176.225,2.977,83.866,45.953,41.248,12.153,42.012,19.821

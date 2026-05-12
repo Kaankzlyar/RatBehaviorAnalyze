@@ -1,2 +1,0 @@
-n_valid,mean_speed_px_s,median_speed_px_s,sd_speed_px_s,max_speed_px_s,p95_speed_px_s,subject_id,cohort,group,n_frames,session_s,sd_speed_raw_px_s,sd_speed_filt_px_s,sd_reduction_pct
-8992,24.202,15.898,24.593,181.284,75.376,MA1_5,MA1,Control,8992,299.7,65.272,24.593,62.3

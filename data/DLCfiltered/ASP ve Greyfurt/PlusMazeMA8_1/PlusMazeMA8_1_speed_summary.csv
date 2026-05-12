@@ -1,2 +1,0 @@
-n_valid,mean_speed_px_s,median_speed_px_s,sd_speed_px_s,max_speed_px_s,p95_speed_px_s,subject_id,cohort,group,n_frames,session_s,sd_speed_raw_px_s,sd_speed_filt_px_s,sd_reduction_pct
-9008,51.483,7.197,143.138,932.778,404.286,MA8_1,MA8,Aspartame+Grapefruit,9008,300.3,248.838,143.138,42.5

@@ -13,7 +13,7 @@ data/dlc_output/
 *.h5
 *.pickle
 
-data/DLCfiltered/PlusMaze/
+data/
 
 # Python
 __pycache__/

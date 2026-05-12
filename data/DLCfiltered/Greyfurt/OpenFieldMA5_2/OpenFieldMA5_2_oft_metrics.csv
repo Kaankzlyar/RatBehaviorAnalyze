@@ -1,2 +1,0 @@
-subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
-MA5_2,MA5,Grapefruit,177.8,5335,True,7033.9,39.56,760.79,9.48,90.52,6,7,5.03,2.83,0.8233,22,45.91,25.82,21,24.39,13.72

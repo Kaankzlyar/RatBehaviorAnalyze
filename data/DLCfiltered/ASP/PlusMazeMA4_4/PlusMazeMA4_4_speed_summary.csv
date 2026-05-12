@@ -1,2 +1,0 @@
-n_valid,mean_speed_px_s,median_speed_px_s,sd_speed_px_s,max_speed_px_s,p95_speed_px_s,subject_id,cohort,group,n_frames,session_s,sd_speed_raw_px_s,sd_speed_filt_px_s,sd_reduction_pct
-9047,17.956,10.51,22.201,422.796,56.912,MA4_4,MA4,Aspartame,9047,301.6,32.93,22.201,32.6
