@@ -10,8 +10,8 @@ Diagonal = persiverasyon (ayni koldan ayni kola), off-diagonal = alternasyon.
 Ciktilar:
   reports/markov_transition_matrices.csv   -- uzun format (cohort, from, to, count, prob)
   reports/markov_transition_counts.csv     -- uzun format (ham sayilar)
-  reports/figures/markov_heatmaps.png      -- 2x2 kohort isi haritasi
-  reports/figures/markov_perseveration.png -- persiverasyon + alternasyon bar chart
+  reports/figures/plus_maze/markov_heatmaps.png      -- 2x2 kohort isi haritasi
+  reports/figures/plus_maze/markov_perseveration.png -- persiverasyon + alternasyon bar chart
 
 Kullanim:
   python analysis/plus_maze/markov_analysis.py
@@ -34,7 +34,7 @@ matplotlib.rcParams["figure.dpi"]         = 150
 ROOT    = pathlib.Path(__file__).resolve().parent.parent.parent
 DATA    = ROOT / "data" / "plus_maze_metrics_all.csv"
 REPORTS = ROOT / "reports"
-FIGS    = ROOT / "reports" / "figures"
+FIGS    = ROOT / "reports" / "figures" / "plus_maze"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 ARMS          = ["B", "T", "L", "R"]

@@ -2,8 +2,8 @@
 Aşama 06 — ML Model Eğitimi (LOOCV)
 Çıktılar:
   reports/model_comparison.csv
-  reports/figures/confusion_<hedef>.png
-  reports/figures/shap_<hedef>.png
+  reports/figures/open_field/confusion_<hedef>.png
+  reports/figures/open_field/shap_<hedef>.png
   models/classifier/<model>_<hedef>.pkl
 """
 
@@ -44,7 +44,7 @@ ROOT    = pathlib.Path(__file__).parent.parent
 FEAT    = ROOT / "data" / "features"
 MODELS  = ROOT / "models" / "classifier"
 REPORTS = ROOT / "reports"
-FIGS    = REPORTS / "figures"
+FIGS    = REPORTS / "figures" / "open_field"
 
 for d in [MODELS, REPORTS, FIGS]:
     d.mkdir(parents=True, exist_ok=True)

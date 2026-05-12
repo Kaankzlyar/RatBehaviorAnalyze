@@ -25,9 +25,9 @@ Esikler (12 sican havuzundan hesaplandi):
 
 Ciktilar:
   reports/ethological_metrics_epm.csv
-  reports/figures/ethological_grooming.png
-  reports/figures/ethological_sap.png
-  reports/figures/ethological_summary.png
+  reports/figures/plus_maze/ethological_grooming.png
+  reports/figures/plus_maze/ethological_sap.png
+  reports/figures/plus_maze/ethological_summary.png
 
 Kullanim:
   python analysis/plus_maze/ethological_features.py
@@ -53,7 +53,7 @@ matplotlib.rcParams["ps.fonttype"]        = 42
 ROOT    = pathlib.Path(__file__).resolve().parent.parent.parent
 DLC_DIR = ROOT / "data" / "DLCfiltered"
 REPORTS = ROOT / "reports"
-FIGS    = ROOT / "reports" / "figures"
+FIGS    = ROOT / "reports" / "figures" / "plus_maze"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 # ── Sabitler ──────────────────────────────────────────────────────────────────

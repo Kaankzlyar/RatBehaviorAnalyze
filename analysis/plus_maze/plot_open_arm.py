@@ -10,9 +10,9 @@ Grafik 3 — Grouped bar: 4 kohort x 5 kol (bottom/left/right/top/junction) yüz
 Grafik 4 — Scatter: pct_open_arm vs total_entries (lokomotor kovaryat)
 
 Çıktılar:
-  reports/figures/epm_open_arm_by_cohort.png
-  reports/figures/epm_arm_distribution.png
-  reports/figures/epm_locomotor_covariate.png
+  reports/figures/plus_maze/epm_open_arm_by_cohort.png
+  reports/figures/plus_maze/epm_arm_distribution.png
+  reports/figures/plus_maze/epm_locomotor_covariate.png
 
 Kullanım:
   python analysis/plus_maze/plot_open_arm.py
@@ -35,7 +35,7 @@ matplotlib.rcParams["figure.dpi"]         = 150
 ROOT     = pathlib.Path(__file__).resolve().parent.parent.parent
 DATA     = ROOT / "data" / "plus_maze_metrics_all.csv"
 KW_PATH  = ROOT / "reports" / "cohort_epm_kw.csv"
-FIGS     = ROOT / "reports" / "figures"
+FIGS     = ROOT / "reports" / "figures" / "plus_maze"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 COHORT_ORDER  = ["Control", "Aspartame", "Grapefruit", "ASP+Greyfurt"]

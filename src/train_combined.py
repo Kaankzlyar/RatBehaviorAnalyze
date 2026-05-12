@@ -8,11 +8,11 @@ Cikti:
   reports/combined_model_comparison.csv
   reports/combined_loocv_predictions.csv
   reports/combined_ovr_binary_f1.csv
-  reports/figures/combined_confusion_<hedef>.png
-  reports/figures/combined_shap_<hedef>.png
-  reports/figures/combined_shap_ovr_groups.png
-  reports/figures/combined_cv_comparison.png
-  reports/figures/combined_vs_oft_comparison.png
+  reports/figures/combined/combined_confusion_<hedef>.png
+  reports/figures/combined/combined_shap_<hedef>.png
+  reports/figures/combined/combined_shap_ovr_groups.png
+  reports/figures/combined/combined_cv_comparison.png
+  reports/figures/combined/combined_vs_oft_comparison.png
   models/classifier/combined_<model>_<hedef>.pkl
 
 Kullanim:
@@ -60,7 +60,7 @@ ROOT    = pathlib.Path(__file__).parent.parent
 FEAT    = ROOT / "data" / "features"
 MODELS  = ROOT / "models" / "classifier"
 REPORTS = ROOT / "reports"
-FIGS    = REPORTS / "figures"
+FIGS    = REPORTS / "figures" / "combined"
 
 for d in [MODELS, REPORTS, FIGS]:
     d.mkdir(parents=True, exist_ok=True)

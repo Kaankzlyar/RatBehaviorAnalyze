@@ -9,8 +9,8 @@ Inputs
 --------
     reports/window_classifier_metrics.csv      (model, cv, class, f1, support)
     reports/window_classifier_summary.csv      (model, cv, macro_f1, accuracy)
-    reports/figures/window_cm_<cv>_<model>.png (confusion matrix)
-    reports/figures/window_shap_<best>.png     (SHAP top-N feature)
+    reports/figures/open_field/window_cm_<cv>_<model>.png (confusion matrix)
+    reports/figures/open_field/window_shap_<best>.png     (SHAP top-N feature)
     reports/window_shap_<best>.csv             (SHAP rank tablosu)
     models/window_classifier/<model>.pkl       (tüm veriyle eğitilmiş)
 
@@ -54,7 +54,7 @@ ROOT     = pathlib.Path(__file__).resolve().parent.parent
 DATA     = ROOT / "data"
 MODELS   = ROOT / "models" / "window_classifier"
 REPORTS  = ROOT / "reports"
-FIGS     = REPORTS / "figures"
+FIGS     = REPORTS / "figures" / "open_field"
 for d in (MODELS, REPORTS, FIGS):
     d.mkdir(parents=True, exist_ok=True)
 

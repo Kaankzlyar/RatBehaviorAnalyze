@@ -1,9 +1,9 @@
 """
 reports/ altındaki CSV dosyalarını PNG olarak görselleştirir.
 Çıktılar:
-  reports/figures/table_model_comparison.png
-  reports/figures/table_loocv_predictions.png
-  reports/figures/chart_ovr_f1.png
+  reports/figures/open_field/table_model_comparison.png
+  reports/figures/open_field/table_loocv_predictions.png
+  reports/figures/open_field/chart_ovr_f1.png
 """
 
 import pathlib
@@ -16,7 +16,7 @@ import pandas as pd
 
 ROOT    = pathlib.Path(__file__).parent.parent
 REPORTS = ROOT / "reports"
-FIGS    = REPORTS / "figures"
+FIGS    = REPORTS / "figures" / "open_field"
 FIGS.mkdir(parents=True, exist_ok=True)
 
 TARGET_LABELS = {
