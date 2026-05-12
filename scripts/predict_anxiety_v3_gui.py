@@ -41,8 +41,8 @@ import predict_anxiety_v2 as v2  # noqa: E402
 
 # ── Page setup ──────────────────────────────────────────────────────────────
 
-st.set_page_config(page_title="Deney Hayvanı Davranış Analizi & Anksiyete Tahmini", page_icon="🐀", layout="wide")
-st.title("🐀 Deney Hayvanı Davranış Analizi & Anksiyete Tahmini")
+st.set_page_config(page_title="Deney Hayvanı Davranış Analizi", page_icon="🐀", layout="wide")
+st.title("🐀 Deney Hayvanı Davranış Analizi")
 st.caption(
     "Complete pipeline: DLC CSV → behavior detection → open-field metrics → "
     "trajectory/heatmap visualization → anxiety prediction (Treated/Control). "
