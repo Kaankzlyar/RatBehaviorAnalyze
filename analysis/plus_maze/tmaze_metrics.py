@@ -48,6 +48,7 @@ Usage — batch
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -300,12 +301,18 @@ def compute_metrics(csv_path, zones, fps=DEFAULT_FPS,
     return row
 
 
-def save_per_subject(row, csv_path):
+def save_per_subject(row, csv_path, zones=None):
     out_path = csv_path.replace(".csv", "_plus_maze_metrics.csv")
-    # remove internal list field before saving
     save_row = {k: v for k, v in row.items() if not k.startswith("_")}
     pd.DataFrame([save_row]).to_csv(out_path, index=False)
     print(f"  Saved -> {out_path}")
+
+    if zones is not None:
+        json_path = csv_path.replace(".csv", "_arm_coords.json")
+        with open(json_path, "w", encoding="utf-8") as fh:
+            json.dump({k: list(v) for k, v in zones.items()}, fh, indent=2)
+        print(f"  Saved -> {json_path}")
+
     return out_path
 
 
@@ -362,7 +369,7 @@ def main():
         if not os.path.isfile(args.csv):
             print(f"ERROR: {args.csv} not found"); sys.exit(1)
         row = compute_metrics(args.csv, zones, **kw)
-        save_per_subject(row, args.csv)
+        save_per_subject(row, args.csv, zones=zones)
 
     elif args.batch_dir:
         csvs = find_tmaze_csvs(args.batch_dir)
@@ -373,7 +380,7 @@ def main():
         for csv_path in csvs:
             try:
                 row = compute_metrics(csv_path, zones, **kw)
-                save_per_subject(row, csv_path)
+                save_per_subject(row, csv_path, zones=zones)
                 rows.append({k: v for k, v in row.items() if not k.startswith("_")})
             except Exception as e:
                 print(f"  ERROR {csv_path}: {e}")
