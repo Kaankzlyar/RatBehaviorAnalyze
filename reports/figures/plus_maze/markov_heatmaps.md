@@ -39,12 +39,60 @@ Her sıçanın plus maze kolları arasındaki ardışık geçişlerinden oluştu
 
 ---
 
-## Nasıl Okunur?
+## Nasil Okunur?
 
-- **Yüksek diagonal değer** → hayvan aynı kolu tekrar seçiyor (kaşifçi değil, rutine bağlı)  
-- **Yüksek L/R sütun değerleri** → hayvan açık kola geçiş yapıyor (daha az anksiyöz davranış)  
-- **Düşük perseverasyon + yüksek L/R geçişi** → en iyi alternasyon profili (Grapefruit grubu bu yönde öne çıkıyor)  
-- ASP+Greyfurt grubunun 0.59 perseverasyon ortalaması, diğer grupların belirgin üzerinde; bu grup daha az spontan alternasyon yapıyor
+### Temel analiz mantigi
+
+Bu grafik **birinci dereceden Markov analizine** dayanir. Birinci derece Markov varsayimi su demektir:
+hayvanin bir sonraki kol secimi yalnizca bulundugu mevcut kola baglidir, onceki gecmise degil.
+Her kohort icin butun sicalarin `entry_sequence` kayitlari birlestirilir ve ard ardina gelen her
+(kaynak_kol, hedef_kol) ciftinden ham gecis sayimlari olusturulur. Bu sayimlar satirlara gore
+normalize edilerek 0-1 araliginda olasiliga donusturulur: bir satirda tum degerler toplamda 1.00
+verir, yani o kaynak koldan hareket eden hayvanin bir sonraki hamlesini nereye yaptiginin tam
+olasilik dagilimini gosterir.
+
+### Diagonal degerler — Perseverasyon
+
+Bir matrisin kosegeni (sol ust'ten sag alt'a uzanan hucre serisi) **perseverasyonu** temsil eder:
+hayvanin az once ciktigini kola tekrar girmesi. Perseverasyon ortalamasini hesaplamak icin dort
+kosegen degerin aritmetik ortalamasi alinir. Yuksek perseverasyon orani hayvanin kol degistirme
+egiliminin dusuk oldugunu, yani arastirmaci davranisinin zayifladigini gosterir. EPM baglaminda
+bu durum anksiyete ile iliskilendirilir: anksiyoz hayvanlar tanidik ve guvenli hissettikleri
+kola donme egilimindedir.
+
+### L ve R sutunlari — Acik kola gecis
+
+Matrisin ucuncu ve dorduncu sutunlari (Left ve Right) **acik kola yonelen gecisleri** gosterir.
+Acik kollar EPM'de tehdit algilayan hayvanlar tarafindan kacinilanilir; bu sutunlarda yuksek deger
+hayvanin hangi koldan gelirse gelsin acik kolu bir sonraki hedef olarak secme olasiliginin yuksek
+oldugunu gosterir. Bu durum daha az kaygili, arastirmaci bir davranis profiline isaret eder.
+
+### B ve T sutunlari — Kapali kola gecis
+
+Birinci ve ikinci sutunlar (Bottom ve Top) **kapali kola yonelen gecisleri** gosterir. Kapali kollar
+yuksek duvarlar nedeniyle korunmali hissettiren alanlardır. Bu sutunlarda yuksek deger hayvanin
+acik koldan bile olsa kapali kola gecmeyi tercih ettigini, yani kaygidan kacinma davranisi
+sergiledigini gosterir.
+
+### Renk kodlari ve isaretler
+
+- **Mavi renk yogunlugu**: hucredeki gecis olasiliginin buyuklugunu gosterir; koyu mavi yuksek
+  olasilik demektir.
+- **Kirmizi kenarlik (diagonal)**: perseverasyon hucreleri; bu degerler ne kadar yuksekse hayvan
+  o kadar az alternatif kol araştiriyor demektir.
+- **Yesil kesik kenarlik (L ve R sutunlari)**: acik kol hedefli gecisler; bu alanlar ne kadar
+  aydinliksa (yuksek olasilik) hayvanin anksiyete seviyesi o kadar dusuk yorumlanir.
+- **Her hucredeki n= degeri**: o gecisin gozlemlendigi ham kere sayisidir; dusuk n degerli
+  hucrelerdeki yuksek olasiliklar kucuk orneklem buyuklugu nedeniyle dikkatli yorumlanmalidir.
+
+### Kural ozeti
+
+| Durum | Yorum |
+|---|---|
+| Yuksek diagonal, dusuk L/R sutunu | Yuksek anksiyete; hayvan kapali kolda kaliyor |
+| Dusuk diagonal, yuksek L/R sutunu | Dusuk anksiyete; hayvan acik kolu kesfediyor |
+| Tum sutunlar yaklasik esit (~0.25) | Rastgele kol secimi; belirgin tercih yok |
+| Tek bir satir baskinsayisi yuksek | O kaynak koldan gelen hayvanlar belirli bir hedefe yonelimli |
 
 ---
 
