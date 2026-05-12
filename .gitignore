@@ -14,7 +14,9 @@ data/dlc_output/
 *.pickle
 
 data/
-
+models/
+archive/
+test_data/
 # Python
 __pycache__/
 *.py[cod]
