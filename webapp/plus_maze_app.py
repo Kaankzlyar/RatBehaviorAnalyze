@@ -1039,13 +1039,7 @@ with tab_metrics:
     mc1, mc2 = st.columns(2)
     with mc1:
         st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
-        st.markdown(
-            "<div style='font-size:0.82rem;color:rgba(255,255,255,0.5);"
-            "margin:-0.35rem 0 0.65rem 0;text-align:center;'>"
-            "Her özelliğe tıklayarak Türkçe açıklamasını görebilirsiniz."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        
         for k in FEATURE_COLS:
             info = FEATURE_INFO.get(k, {})
             name = info.get("name", k.replace("_", " ").title())
