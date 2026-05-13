@@ -1039,27 +1039,94 @@ with tab_metrics:
     mc1, mc2 = st.columns(2)
     with mc1:
         st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
-        feat_rows = [
-            {"Özellik": k.replace("_", " ").title(),
-             "Değer":   f"{row[k]:.3f}" if isinstance(row.get(k), float) else str(row.get(k, "—"))}
-            for k in FEATURE_COLS
-        ]
-        st.dataframe(
-            pd.DataFrame(feat_rows),
-            use_container_width=True, hide_index=True, height=340,
+        st.markdown(
+            "<div style='font-size:0.82rem;color:rgba(255,255,255,0.5);"
+            "margin:-0.35rem 0 0.65rem 0;text-align:center;'>"
+            "Her özelliğe tıklayarak Türkçe açıklamasını görebilirsiniz."
+            "</div>",
+            unsafe_allow_html=True,
         )
+        for k in FEATURE_COLS:
+            info = FEATURE_INFO.get(k, {})
+            name = info.get("name", k.replace("_", " ").title())
+            val  = row.get(k)
+            if isinstance(val, float):
+                val_str = f"{val:.3f}"
+            elif val is None:
+                val_str = "—"
+            else:
+                val_str = str(val)
+
+            with st.expander(f"{name}   ·   {val_str}", expanded=False):
+                desc = info.get("desc")
+                formula = info.get("formula")
+                if desc:
+                    st.markdown(
+                        f"<div style='font-size:0.72rem;font-weight:700;"
+                        f"letter-spacing:0.14em;color:#94a3b8;"
+                        f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
+                        f"<div style='font-size:0.95rem;color:#e2e8f0;"
+                        f"line-height:1.55;margin-bottom:0.7rem;'>{desc}</div>",
+                        unsafe_allow_html=True,
+                    )
+                if formula:
+                    st.markdown(
+                        "<div style='font-size:0.72rem;font-weight:700;"
+                        "letter-spacing:0.14em;color:#94a3b8;"
+                        "margin:0.1rem 0 0.35rem 0;'>NASIL HESAPLANIR</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.code(formula, language="text")
+                if not desc and not formula:
+                    st.markdown(
+                        "<div style='font-size:0.95rem;color:#cbd5e1;'>"
+                        "Bu özellik için açıklama tanımlanmamış.</div>",
+                        unsafe_allow_html=True,
+                    )
 
     with mc2:
         st.markdown(html_section("Kol Detayları"), unsafe_allow_html=True)
-        arm_tbl = pd.DataFrame({
-            "Kol":       ["Sol (açık)", "Sağ (açık)", "Alt (kapalı)", "Üst (kapalı)", "Kavşak"],
-            "Süre (%)":  [f"{row['pct_time_left']:.1f}", f"{row['pct_time_right']:.1f}",
-                          f"{row['pct_time_bottom']:.1f}", f"{row['pct_time_top']:.1f}",
-                          f"{row['pct_time_junction']:.1f}"],
-            "Giriş":     [row["left_entries"], row["right_entries"],
-                          row["bottom_entries"], row["top_entries"], "—"],
-        })
-        st.dataframe(arm_tbl, use_container_width=True, hide_index=True, height=220)
+        arm_rows = [
+            ("Sol Kol (açık)",   "#10B981", row.get('pct_time_left',     0) or 0, int(row.get("left_entries",   0) or 0)),
+            ("Sağ Kol (açık)",   "#F59E0B", row.get('pct_time_right',    0) or 0, int(row.get("right_entries",  0) or 0)),
+            ("Alt Kol (kapalı)", "#3B82F6", row.get('pct_time_bottom',   0) or 0, int(row.get("bottom_entries", 0) or 0)),
+            ("Üst Kol (kapalı)", "#A855F7", row.get('pct_time_top',      0) or 0, int(row.get("top_entries",    0) or 0)),
+            ("Kavşak",           "#64748B", row.get('pct_time_junction', 0) or 0, None),
+        ]
+        max_pct = max((p for _, _, p, _ in arm_rows), default=1.0) or 1.0
+
+        cards_html = ""
+        for name, color, pct, ent in arm_rows:
+            ent_str = str(ent) if ent is not None else "—"
+            bar_w = (pct / max_pct) * 100.0
+            cards_html += (
+                f"<div style='background:rgba(255,255,255,0.03);"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                f"padding:0.75rem 0.95rem;margin-bottom:8px;'>"
+                f"  <div style='display:flex;justify-content:space-between;"
+                f"align-items:center;margin-bottom:8px;'>"
+                f"    <div style='display:flex;align-items:center;gap:10px;'>"
+                f"      <div style='width:10px;height:10px;border-radius:50%;"
+                f"background:{color};box-shadow:0 0 8px {color}66;'></div>"
+                f"      <span style='color:#e2e8f0;font-weight:600;"
+                f"font-size:0.95rem;'>{name}</span>"
+                f"    </div>"
+                f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
+                f"      <span style='color:#94a3b8;'>Giriş: "
+                f"<strong style='color:#f1f5f9;font-weight:700;'>{ent_str}</strong></span>"
+                f"      <span style='color:#94a3b8;'>Süre: "
+                f"<strong style='color:{color};font-weight:700;'>{pct:.1f}%</strong></span>"
+                f"    </div>"
+                f"  </div>"
+                f"  <div style='height:6px;background:rgba(255,255,255,0.05);"
+                f"border-radius:100px;overflow:hidden;'>"
+                f"    <div style='height:100%;background:{color};"
+                f"width:{bar_w:.2f}%;border-radius:100px;"
+                f"box-shadow:0 0 6px {color}55;'></div>"
+                f"  </div>"
+                f"</div>"
+            )
+        st.markdown(cards_html, unsafe_allow_html=True)
 
         with st.expander("Giriş dizisi"):
             seq = row.get("entry_sequence", "")
