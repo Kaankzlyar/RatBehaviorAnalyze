@@ -147,6 +147,21 @@ def detect_arm_entries(labels: np.ndarray, fps: float) -> dict:
         else:
             i += 1
 
+    # Junction (kavşak) geçiş sayısı — sadece raporlama için, mevcut hesaba
+    # girmez: `sequence`/`ARMS`/`total_entries`/alternasyon/perseverasyon
+    # değerlerini etkilemez.
+    junction_visits = 0
+    j = 0
+    while j < n:
+        if labels[j] == "junction":
+            start = j
+            while j < n and labels[j] == "junction":
+                j += 1
+            if (j - start) >= MIN_ARM_FRAMES:
+                junction_visits += 1
+        else:
+            j += 1
+
     total   = len(sequence)
     counts  = {arm: sequence.count(arm) for arm in ARMS}
 
@@ -182,6 +197,7 @@ def detect_arm_entries(labels: np.ndarray, fps: float) -> dict:
         "left_entries":              counts["left_arm"],
         "right_entries":             counts["right_arm"],
         "top_entries":               counts["top_arm"],
+        "junction_entries":          junction_visits,
         "most_visited_arm":          most_visited,
         "arm_preference_index":      round(api, 4) if not np.isnan(api) else float("nan"),
         "successive_alternation_pct": round(succ_rate, 2) if not np.isnan(succ_rate) else float("nan"),
@@ -268,6 +284,7 @@ def compute_metrics(csv_path, zones, fps=DEFAULT_FPS,
         "left_entries":       arm_stats["left_entries"],
         "right_entries":      arm_stats["right_entries"],
         "top_entries":        arm_stats["top_entries"],
+        "junction_entries":   arm_stats["junction_entries"],
         "most_visited_arm":   arm_stats["most_visited_arm"],
         "arm_preference_index": arm_stats["arm_preference_index"],
         # alternation
