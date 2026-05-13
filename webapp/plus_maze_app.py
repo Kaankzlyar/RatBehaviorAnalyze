@@ -728,77 +728,99 @@ with st.sidebar:
 # HERO HEADER
 # ─────────────────────────────────────────────────────────────────────────────
 
-_MOUSE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
+_MOUSE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 110" width="600" height="110">
 <style>
-@keyframes poseCycle { 0%, 28% { opacity: 1; } 33%, 100% { opacity: 0; } }
+@keyframes mouseFadeIn { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: translateY(0); } }
 @keyframes kpPulse { 0%, 100% { fill-opacity: 1; } 50% { fill-opacity: 0.55; } }
-.pose-g { opacity: 0; animation: poseCycle 6s infinite; }
-.pose-1 { animation-delay: 0s; }
-.pose-2 { animation-delay: 2s; }
-.pose-3 { animation-delay: 4s; }
+.mouse-g { opacity: 0; animation: mouseFadeIn 0.55s ease-out forwards; }
+.mouse-1 { animation-delay: 0.1s; }
+.mouse-2 { animation-delay: 1.1s; }
+.mouse-3 { animation-delay: 2.1s; }
 .kp { animation: kpPulse 1.4s infinite ease-in-out; }
-text { font-family: 'Inter','Segoe UI',sans-serif; font-weight: 600; letter-spacing: 0.12em; fill: #cbd5e1; }
 </style>
-<g class="pose-g pose-1">
-<ellipse cx="100" cy="58" rx="38" ry="17" fill="#94a3b8" opacity="0.85"/>
-<circle cx="142" cy="55" r="13" fill="#94a3b8" opacity="0.95"/>
-<ellipse cx="137" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
-<ellipse cx="148" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
-<circle cx="146" cy="53" r="1.4" fill="#0f172a"/>
-<circle cx="155" cy="57" r="1.4" fill="#0f172a"/>
-<line x1="152" y1="58" x2="163" y2="60" stroke="#cbd5e1" stroke-width="0.5"/>
-<line x1="152" y1="59" x2="163" y2="64" stroke="#cbd5e1" stroke-width="0.5"/>
-<path d="M 62 58 Q 40 50 28 60 Q 22 66 26 74" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-<line x1="80" y1="74" x2="76" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<line x1="95" y1="74" x2="98" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<line x1="115" y1="74" x2="113" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<line x1="128" y1="72" x2="131" y2="83" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<circle class="kp" cx="142" cy="55" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="100" cy="58" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="62" cy="58" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-<text x="100" y="110" text-anchor="middle" font-size="9.5">YÜRÜYOR</text>
+
+<g class="mouse-g mouse-1">
+<path d="M 50 67 Q 32 52 14 60 Q 2 70 8 82" stroke="#9ca3af" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+<path d="M 50 60 Q 55 50 80 48 Q 112 46 138 50 Q 155 53 168 60 Q 175 64 178 68 Q 178 72 175 73 Q 168 75 165 73 Q 152 73 138 73 Q 110 76 80 74 Q 55 72 50 62 Z" fill="#a8a29e" opacity="0.93"/>
+<path d="M 65 71 Q 90 75 130 73 Q 145 73 158 70" stroke="#e7e5e4" stroke-width="0.8" fill="none" opacity="0.55"/>
+<ellipse cx="150" cy="46" rx="3.5" ry="4.2" fill="#a8a29e"/>
+<ellipse cx="150" cy="47" rx="2" ry="2.6" fill="#f9a8d4" opacity="0.75"/>
+<circle cx="160" cy="58" r="1.3" fill="#0f172a"/>
+<circle cx="176" cy="66" r="1.2" fill="#f87171"/>
+<line x1="171" y1="63" x2="184" y2="63" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="171" y1="65" x2="184" y2="67" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="171" y1="67" x2="184" y2="71" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="75" y1="73" x2="71" y2="86" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="92" y1="74" x2="95" y2="87" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="128" y1="74" x2="125" y2="86" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="145" y1="73" x2="148" y2="86" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<circle class="kp" cx="155" cy="58" r="3" fill="#ef4444" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="105" cy="61" r="3" fill="#fb923c" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="50" cy="63" r="3" fill="#38bdf8" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="71" cy="86" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="95" cy="87" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="125" cy="86" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="148" cy="86" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
 </g>
-<g class="pose-g pose-2">
-<ellipse cx="100" cy="55" rx="16" ry="30" fill="#94a3b8" opacity="0.85" transform="rotate(-7 100 55)"/>
-<circle cx="96" cy="22" r="12" fill="#94a3b8" opacity="0.95"/>
-<ellipse cx="89" cy="13" rx="4" ry="5" fill="#cbd5e1"/>
-<ellipse cx="101" cy="13" rx="4" ry="5" fill="#cbd5e1"/>
-<circle cx="92" cy="23" r="1.4" fill="#0f172a"/>
-<circle cx="100" cy="23" r="1.4" fill="#0f172a"/>
-<circle cx="96" cy="30" r="1.5" fill="#0f172a"/>
-<line x1="86" y1="40" x2="79" y2="30" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-<line x1="116" y1="40" x2="120" y2="29" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-<line x1="91" y1="84" x2="86" y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
-<line x1="109" y1="84" x2="114" y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
-<path d="M 110 85 Q 130 90 138 80 Q 142 74 138 67" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-<circle class="kp" cx="96" cy="22" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="100" cy="55" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="110" cy="85" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-<text x="100" y="110" text-anchor="middle" font-size="9.5">AYAKTA</text>
+
+<g class="mouse-g mouse-2" transform="translate(200,0)">
+<path d="M 95 30 Q 78 32 75 50 Q 73 70 80 84 Q 90 92 100 92 Q 118 90 122 76 Q 124 56 121 38 Q 115 31 95 30 Z" fill="#a8a29e" opacity="0.93"/>
+<path d="M 78 36 Q 80 56 86 76" stroke="#e7e5e4" stroke-width="0.7" fill="none" opacity="0.5"/>
+<path d="M 90 14 Q 76 18 73 28 Q 72 36 78 40 Q 92 44 110 42 Q 122 38 124 28 Q 124 18 116 14 Q 103 10 90 14 Z" fill="#a8a29e" opacity="0.95"/>
+<ellipse cx="100" cy="40" rx="4.5" ry="3" fill="#a8a29e" opacity="0.95"/>
+<ellipse cx="86" cy="11" rx="3.2" ry="4" fill="#a8a29e"/>
+<ellipse cx="86" cy="12" rx="1.8" ry="2.4" fill="#f9a8d4" opacity="0.75"/>
+<ellipse cx="113" cy="11" rx="3.2" ry="4" fill="#a8a29e"/>
+<ellipse cx="113" cy="12" rx="1.8" ry="2.4" fill="#f9a8d4" opacity="0.75"/>
+<circle cx="88" cy="26" r="1.2" fill="#0f172a"/>
+<circle cx="105" cy="26" r="1.2" fill="#0f172a"/>
+<circle cx="103" cy="42" r="1.4" fill="#f87171"/>
+<line x1="108" y1="42" x2="118" y2="40" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="108" y1="43" x2="118" y2="44" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="82" y1="50" x2="73" y2="36" stroke="#78716c" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="118" y1="50" x2="126" y2="34" stroke="#78716c" stroke-width="2.6" stroke-linecap="round"/>
+<line x1="88" y1="92" x2="82" y2="104" stroke="#78716c" stroke-width="2.4" stroke-linecap="round"/>
+<line x1="110" y1="92" x2="116" y2="104" stroke="#78716c" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M 116 92 Q 132 96 138 86 Q 142 76 138 68" stroke="#9ca3af" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+<circle class="kp" cx="100" cy="26" r="3" fill="#ef4444" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="100" cy="60" r="3" fill="#fb923c" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="116" cy="92" r="3" fill="#38bdf8" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="73" cy="36" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="126" cy="34" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="82" cy="104" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="116" cy="104" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
 </g>
-<g class="pose-g pose-3">
-<ellipse cx="98" cy="62" rx="34" ry="20" fill="#94a3b8" opacity="0.85"/>
-<circle cx="132" cy="52" r="12" fill="#94a3b8" opacity="0.95" transform="rotate(15 132 52)"/>
-<ellipse cx="127" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
-<ellipse cx="138" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
-<circle cx="136" cy="52" r="1.4" fill="#0f172a"/>
-<circle cx="144" cy="56" r="1.5" fill="#0f172a"/>
-<line x1="127" y1="58" x2="120" y2="48" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-<line x1="135" y1="60" x2="130" y2="46" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-<line x1="80" y1="80" x2="76" y2="92" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<line x1="100" y1="82" x2="103" y2="94" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-<path d="M 65 65 Q 45 65 45 50 Q 50 38 68 45" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-<circle class="kp" cx="132" cy="52" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="98" cy="62" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-<circle class="kp" cx="65" cy="65" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-<text x="100" y="110" text-anchor="middle" font-size="9.5">TIMARLANIYOR</text>
+
+<g class="mouse-g mouse-3" transform="translate(400,0)">
+<path d="M 52 75 Q 50 55 78 50 Q 110 47 138 55 Q 154 60 158 70 Q 156 84 132 88 Q 100 90 75 88 Q 56 85 52 75 Z" fill="#a8a29e" opacity="0.93"/>
+<path d="M 70 78 Q 95 84 130 82" stroke="#e7e5e4" stroke-width="0.8" fill="none" opacity="0.55"/>
+<path d="M 128 48 Q 142 46 152 52 Q 158 60 152 68 Q 142 73 130 70 Q 124 64 124 58 Q 126 50 128 48 Z" fill="#a8a29e" opacity="0.95"/>
+<ellipse cx="152" cy="68" rx="3.2" ry="2.2" fill="#a8a29e" opacity="0.95"/>
+<ellipse cx="135" cy="44" rx="3.2" ry="4" fill="#a8a29e"/>
+<ellipse cx="135" cy="44.5" rx="1.8" ry="2.4" fill="#f9a8d4" opacity="0.75"/>
+<circle cx="140" cy="58" r="1.3" fill="#0f172a"/>
+<circle cx="154" cy="69" r="1.3" fill="#f87171"/>
+<line x1="148" y1="68" x2="158" y2="65" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="148" y1="70" x2="158" y2="72" stroke="#d6d3d1" stroke-width="0.4" opacity="0.7"/>
+<line x1="128" y1="62" x2="120" y2="54" stroke="#78716c" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="132" y1="65" x2="124" y2="56" stroke="#78716c" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="78" y1="86" x2="74" y2="98" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="100" y1="88" x2="103" y2="100" stroke="#78716c" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M 56 76 Q 32 76 32 56 Q 36 38 62 46" stroke="#9ca3af" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+<circle class="kp" cx="138" cy="58" r="3" fill="#ef4444" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="100" cy="70" r="3" fill="#fb923c" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="56" cy="75" r="3" fill="#38bdf8" stroke="#0f172a" stroke-width="0.7"/>
+<circle class="kp" cx="120" cy="54" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="124" cy="56" r="2.4" fill="#fbbf24" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="74" cy="98" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
+<circle class="kp" cx="103" cy="100" r="2.4" fill="#10b981" stroke="#0f172a" stroke-width="0.5"/>
 </g>
 </svg>"""
 
 _MOUSE_B64 = base64.b64encode(_MOUSE_SVG.encode("utf-8")).decode("ascii")
 _MOUSE_IMG = (
     f'<img src="data:image/svg+xml;base64,{_MOUSE_B64}" '
-    f'width="200" height="120" alt="EPM keypoint animation" '
+    f'width="420" height="77" alt="EPM keypoint mice" '
     f'style="flex-shrink:0;display:block;">'
 )
 
