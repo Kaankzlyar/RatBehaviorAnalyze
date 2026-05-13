@@ -78,61 +78,70 @@ FEATURE_COLS = [
 # tıklanabilir kartlarda kullanılır.
 FEATURE_INFO: dict[str, dict[str, str]] = {
     "pct_open_arm": {
-        "name": "Açık Kol Süresi (%)",
+        "name":       "Açık Kol Süresi (%)",
+        "name_short": "Açık Kol Süresi",
         "desc": "Faredenin açık kollarda (sol + sağ) geçirdiği zamanın "
                 "seansa oranıdır. EPM testinde anksiyete seviyesinin en güçlü "
                 "göstergelerindendir; düşük değer yüksek anksiyeteye işaret eder.",
         "formula": "pct_time_left + pct_time_right",
     },
     "anxiety_index_epm": {
-        "name": "Anksiyete İndeksi (EPM)",
+        "name":       "Anksiyete İndeksi (EPM)",
+        "name_short": "Anksiyete İndeksi",
         "desc": "Açık kol süresi ve açık kola giriş yüzdesinin ortalaması olan "
                 "bütünleşik bir anksiyete göstergesidir. Yüksek değer düşük "
                 "anksiyeteyi (daha çok keşif) ifade eder.",
         "formula": "(pct_open_arm + pct_open_arm_entries) / 2",
     },
     "pct_open_arm_entries": {
-        "name": "Açık Kola Giriş Yüzdesi (%)",
+        "name":       "Açık Kola Giriş Yüzdesi (%)",
+        "name_short": "Açık Kola Giriş %",
         "desc": "Toplam giriş sayısı içinde açık kollara yapılanların oranıdır. "
                 "Düşük olması kaçınma/anksiyete davranışını işaret eder.",
         "formula": "(left_entries + right_entries) / total_entries × 100",
     },
     "total_entries": {
-        "name": "Toplam Kol Girişi",
+        "name":       "Toplam Kol Girişi",
+        "name_short": "Toplam Giriş",
         "desc": "Seans boyunca herhangi bir kola yapılan toplam giriş sayısıdır. "
                 "Genel keşif ve lokomotor aktivitenin göstergesidir. Bir giriş "
                 "sayılması için ilgili kolda en az ~0.1 sn kalınmış olmalıdır.",
         "formula": "left + right + top + bottom kol girişlerinin toplamı",
     },
     "successive_alternation_pct": {
-        "name": "Ardışık Alternasyon (%)",
+        "name":       "Ardışık Alternasyon (%)",
+        "name_short": "Ardışık Alternasyon",
         "desc": "Ardışık iki girişin farklı kollara olma yüzdesidir. Çalışma "
                 "belleği ve yenilik araştırma davranışını yansıtır; yüksek değer "
                 "esnek keşfin işaretidir.",
         "formula": "(farklı_ardışık_giriş / (total_entries − 1)) × 100",
     },
     "perseveration_rate_pct": {
-        "name": "Perseverasyon Oranı (%)",
+        "name":       "Perseverasyon Oranı (%)",
+        "name_short": "Perseverasyon",
         "desc": "Ardışık olarak aynı kola tekrar giriş yapma oranıdır. Yüksek "
                 "değerler katı / tekrarlayıcı davranışı ve bilişsel esneklik "
                 "azalmasını işaret edebilir.",
         "formula": "(aynı_kola_ardışık_giriş / (total_entries − 1)) × 100",
     },
     "mean_speed_px_s": {
-        "name": "Ortalama Hız (px/sn)",
+        "name":       "Ortalama Hız (px/sn)",
+        "name_short": "Ortalama Hız",
         "desc": "Faredenin saniyedeki ortalama yer değiştirme miktarıdır "
                 "(piksel cinsinden). Genel motor aktivitenin doğrudan ölçüsüdür.",
         "formula": "ortalama( √(dx² + dy²) × fps ),  geçerli kareler üzerinden",
     },
     "arm_preference_index": {
-        "name": "Kol Tercih İndeksi",
+        "name":       "Kol Tercih İndeksi",
+        "name_short": "Kol Tercih İndeksi",
         "desc": "Kollar arasındaki giriş dağılımının dengesizliğidir. 0 ≈ eşit "
                 "dağılım (dengeli keşif), 1 ≈ tek bir kola yönelim "
                 "(tercih / yanlılık).",
         "formula": "(max_kol_girişi − min_kol_girişi) / total_entries",
     },
     "pct_time_junction": {
-        "name": "Kavşakta Geçen Süre (%)",
+        "name":       "Kavşakta Geçen Süre (%)",
+        "name_short": "Kavşakta Geçen Süre",
         "desc": "Faredenin EPM'nin orta (junction) bölgesinde geçirdiği zaman "
                 "yüzdesidir. Yüksek değerler duraksama / karar verme davranışını "
                 "işaret edebilir.",
@@ -322,8 +331,8 @@ def html_pred_card(label: str, proba: float, is_treated: bool) -> str:
     return (
         f'<div style="background:{bg};border:1.5px solid rgba({_hex_to_rgb(border)},0.45);'
         f'border-radius:16px;padding:1.75rem 1.25rem;text-align:center;margin-bottom:1rem;">'
-        f'<div style="font-size:0.72rem;font-weight:600;color:rgba(255,255,255,0.45);'
-        f'text-transform:uppercase;letter-spacing:0.12em;margin-bottom:10px;">Tahmin</div>'
+        f'<div style="font-size:0.74rem;font-weight:700;color:rgba(255,255,255,0.55);'
+        f'letter-spacing:0.18em;margin:0 auto 10px;text-align:center;">TAHMİN</div>'
         f'<div style="font-size:1.9rem;font-weight:800;color:{border};letter-spacing:-0.5px;">{display_label}</div>'
         f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.45);margin-top:8px;">'
         f'Güven: <strong style="color:{border}">{proba:.1%}</strong></div>'
@@ -331,13 +340,25 @@ def html_pred_card(label: str, proba: float, is_treated: bool) -> str:
     )
 
 
+# Türkçe locale farkındalıklı upper(): "i" → "İ", "ı" → "I".
+_TR_UPPER_MAP = str.maketrans({"i": "İ", "ı": "I"})
+
+
+def tr_upper(s: str) -> str:
+    return s.translate(_TR_UPPER_MAP).upper()
+
+
 def html_section(title: str) -> str:
+    label = tr_upper(title)
     return (
-        f'<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.35);'
-        f'text-transform:uppercase;letter-spacing:0.1em;'
-        f'margin:1.25rem 0 0.75rem 0;display:flex;align-items:center;gap:10px;">'
-        f'{title}'
-        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div></div>'
+        f'<div style="font-size:0.74rem;font-weight:700;color:rgba(255,255,255,0.55);'
+        f'letter-spacing:0.14em;'
+        f'margin:1.25rem 0 0.75rem 0;display:flex;align-items:center;gap:12px;'
+        f'justify-content:center;">'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>'
+        f'<span>{label}</span>'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>'
+        f'</div>'
     )
 
 
@@ -468,38 +489,52 @@ def fig_probability_bars(pred_info: dict) -> plt.Figure:
 
 def fig_feature_contributions(pred_info: dict) -> plt.Figure:
     tops   = pred_info["top_contributors"]
-    names  = [c["feature"].replace("_", " ") for c in tops]
+    names  = [
+        FEATURE_INFO.get(c["feature"], {}).get(
+            "name_short", c["feature"].replace("_", " ").title()
+        )
+        for c in tops
+    ]
     pushes = [c["push"] for c in tops]
     colors = ["#EF4444" if p > 0 else "#3B82F6" for p in pushes]
 
-    fig, ax = plt.subplots(figsize=(5.5, 3.0), facecolor=_DARK_BG)
+    fig, ax = plt.subplots(figsize=(11, 3.6), facecolor=_DARK_BG)
     _style_ax_dark(ax, fig)
 
     bars = ax.barh(names[::-1], pushes[::-1], color=colors[::-1],
-                   alpha=0.80, height=0.5, edgecolor="none")
+                   alpha=0.85, height=0.55, edgecolor="none")
     ax.axvline(0, color=_MUTED, linewidth=0.8, alpha=0.6, zorder=3)
 
-    for bar, val in zip(bars, pushes[::-1]):
-        offset = 0.004 if val >= 0 else -0.004
-        ha = "left" if val >= 0 else "right"
-        ax.text(val + offset, bar.get_y() + bar.get_height() / 2,
-                f"{val:+.3f}", va="center", ha=ha, fontsize=7.5,
-                color="#94a3b8")
+    # Sayı etiketleri için biraz daha geniş bir x ekseni — etiketler
+    # bar uçlarıyla / y-ekseni adlarıyla çakışmasın.
+    max_abs = max((abs(p) for p in pushes), default=1.0) or 1.0
+    pad = max_abs * 0.22
+    ax.set_xlim(-max_abs - pad, max_abs + pad)
+    offset = max_abs * 0.025
 
-    ax.set_xlabel("Karar Katkısı", fontsize=8)
-    ax.grid(axis="x", alpha=0.07, color="white", zorder=0)
+    for bar, val in zip(bars, pushes[::-1]):
+        ha = "left" if val >= 0 else "right"
+        dx = offset if val >= 0 else -offset
+        ax.text(val + dx, bar.get_y() + bar.get_height() / 2,
+                f"{val:+.3f}", va="center", ha=ha, fontsize=9,
+                color="#cbd5e1", fontweight="600")
+
+    ax.set_xlabel("Karar Katkısı", fontsize=10, color="#94a3b8")
+    ax.grid(axis="x", alpha=0.08, color="white", zorder=0)
     for lbl in ax.get_yticklabels():
-        lbl.set_color("#94a3b8")
-        lbl.set_fontsize(8)
+        lbl.set_color("#e2e8f0")
+        lbl.set_fontsize(10)
+        lbl.set_fontweight("500")
 
     from matplotlib.patches import Patch
     ax.legend(
-        handles=[Patch(facecolor="#EF4444", alpha=0.8, label="→ Tedavi"),
-                 Patch(facecolor="#3B82F6", alpha=0.8, label="→ Kontrol")],
-        loc="lower right", fontsize=7, framealpha=0.2,
+        handles=[Patch(facecolor="#EF4444", alpha=0.85, label="→ Tedavi"),
+                 Patch(facecolor="#3B82F6", alpha=0.85, label="→ Kontrol")],
+        loc="lower right", fontsize=9, framealpha=0.2,
         facecolor=_PANEL_BG, edgecolor=_GRID_CLR, labelcolor="#94a3b8",
     )
-    fig.tight_layout(pad=1.0)
+    # Sol kenar boşluğunu artırarak uzun Türkçe isimlere yer aç.
+    fig.subplots_adjust(left=0.22, right=0.97, top=0.93, bottom=0.18)
     return fig
 
 
@@ -898,7 +933,7 @@ with tab_pred:
     col_img, col_right = st.columns([1.35, 1], gap="large")
 
     with col_img:
-        st.markdown(html_section("Trajectory Haritası"), unsafe_allow_html=True)
+        st.markdown(html_section("Hareket Haritası"), unsafe_allow_html=True)
         st.image(overview_bytes, use_container_width=True)
 
     with col_right:
@@ -913,6 +948,20 @@ with tab_pred:
         plt.close(fp)
         st.image(buf_p.getvalue(), use_container_width=True)
 
+        # P(Kontrol) + P(Tedavi) = 1 doğrulaması
+        _pc = pred_info["proba_control"]
+        _pt = pred_info["proba_treated"]
+        st.markdown(
+            f"<div style='text-align:center;color:#94a3b8;font-size:0.85rem;"
+            f"margin:0.15rem 0 0.6rem 0;font-family:\"JetBrains Mono\",monospace;'>"
+            f"P(Kontrol) + P(Tedavi) = "
+            f"<span style='color:#3B82F6;font-weight:600;'>{_pc:.3f}</span> + "
+            f"<span style='color:#EF4444;font-weight:600;'>{_pt:.3f}</span> = "
+            f"<span style='color:#f1f5f9;font-weight:700;'>{(_pc + _pt):.3f}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
         st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
         m1, m2 = st.columns(2)
         m1.metric("Açık Kol",         f"%{row['pct_open_arm']:.1f}")
@@ -921,50 +970,45 @@ with tab_pred:
         m3.metric("Toplam Giriş",      str(int(row["total_entries"])))
         m4.metric("Alternasyon",       f"%{row.get('successive_alternation_pct', 0) or 0:.1f}")
 
-        st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
-        buf_f = io.BytesIO()
-        ff = fig_feature_contributions(pred_info)
-        ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight",
-                   facecolor=_DARK_BG)
-        plt.close(ff)
-        st.image(buf_f.getvalue(), use_container_width=True)
+    # ── Karar Katkıları — tam genişlik, alt satırda ──────────────────────────
+    st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
+    buf_f = io.BytesIO()
+    ff = fig_feature_contributions(pred_info)
+    ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight",
+               facecolor=_DARK_BG)
+    plt.close(ff)
+    st.image(buf_f.getvalue(), use_container_width=True)
 
-        st.caption("Her katkıya tıklayarak Türkçe açıklamasını ve nasıl "
-                   "hesaplandığını görebilirsiniz.")
-        for c in pred_info["top_contributors"]:
-            feat = c["feature"]
-            info = FEATURE_INFO.get(feat)
-            push  = c["push"]
-            toward = "Tedavi Grubu" if push > 0 else "Kontrol Grubu"
-            arrow_color = "#EF4444" if push > 0 else "#3B82F6"
-            display_name = info["name"] if info else feat.replace("_", " ").title()
-            value = c.get("value")
-            value_str = f"{value:.3f}" if isinstance(value, (int, float)) else "—"
+    st.caption("Her katkıya tıklayarak Türkçe açıklamasını ve nasıl "
+               "hesaplandığını görebilirsiniz.")
+    for c in pred_info["top_contributors"]:
+        feat = c["feature"]
+        info = FEATURE_INFO.get(feat)
+        push  = c["push"]
+        toward = "Tedavi Grubu" if push > 0 else "Kontrol Grubu"
+        arrow_color = "#EF4444" if push > 0 else "#3B82F6"
+        display_name = info["name"] if info else feat.replace("_", " ").title()
+        value = c.get("value")
+        value_str = f"{value:.3f}" if isinstance(value, (int, float)) else "—"
 
-            header = (
-                f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
+        header = f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
+        with st.expander(header, expanded=False):
+            if info:
+                st.markdown(f"**Açıklama.** {info['desc']}")
+                st.markdown("**Nasıl hesaplanır?**")
+                st.code(info["formula"], language="text")
+            else:
+                st.markdown("Bu özellik için açıklama tanımlanmamış.")
+            st.markdown(
+                f"<div style='font-size:0.8rem;color:rgba(255,255,255,0.55);'>"
+                f"Bu denek için ölçülen değer: <strong style='color:#f1f5f9;'>{value_str}</strong> "
+                f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
+                f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
+                f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
+                f"yönünde bir karar katkısı üretir."
+                f"</div>",
+                unsafe_allow_html=True,
             )
-            with st.expander(header, expanded=False):
-                if info:
-                    st.markdown(
-                        f"**Açıklama.** {info['desc']}"
-                    )
-                    st.markdown("**Nasıl hesaplanır?**")
-                    st.code(info["formula"], language="text")
-                else:
-                    st.markdown(
-                        "Bu özellik için açıklama tanımlanmamış."
-                    )
-                st.markdown(
-                    f"<div style='font-size:0.8rem;color:rgba(255,255,255,0.55);'>"
-                    f"Bu denek için ölçülen değer: <strong style='color:#f1f5f9;'>{value_str}</strong> "
-                    f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
-                    f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
-                    f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
-                    f"yönünde bir karar katkısı üretir."
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
