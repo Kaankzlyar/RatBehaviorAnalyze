@@ -1,0 +1,107 @@
+{
+  "subject": "OpenFieldMA1_3",
+  "csv_path": "OpenFieldMA1_3.csv",
+  "n_frames": 5082,
+  "session_s": 169.4,
+  "model_tag": "rearonly",
+  "pred": 0,
+  "label": "Control-benzeri",
+  "proba_control": 0.8092,
+  "proba_treated": 0.1908,
+  "top_contributors": [
+    {
+      "feature": "rear_early_frac",
+      "value": 0.7720488466757124,
+      "z": 1.41,
+      "coef": -1.501,
+      "push": -2.113,
+      "toward": "Control"
+    },
+    {
+      "feature": "pct_periphery",
+      "value": 74.4,
+      "z": -0.27,
+      "coef": 1.088,
+      "push": -0.294,
+      "toward": "Control"
+    },
+    {
+      "feature": "spatial_entropy",
+      "value": 0.746,
+      "z": 0.34,
+      "coef": 0.79,
+      "push": 0.272,
+      "toward": "Treated"
+    },
+    {
+      "feature": "pct_freeze",
+      "value": 8.95,
+      "z": 0.43,
+      "coef": 0.483,
+      "push": 0.206,
+      "toward": "Treated"
+    },
+    {
+      "feature": "rear_groom_ratio",
+      "value": 2.3060075093867334,
+      "z": -0.38,
+      "coef": 0.41,
+      "push": -0.157,
+      "toward": "Control"
+    }
+  ],
+  "features": {
+    "pct_periphery": 74.4,
+    "pct_center": 25.6,
+    "center_entries": 16,
+    "total_distance_px": 6384.3,
+    "mean_speed_px_s": 38.64,
+    "spatial_entropy": 0.746,
+    "pct_freeze": 8.95,
+    "freeze_bout_count": 21,
+    "rear_count": 19.0,
+    "rear_total_s": 36.85,
+    "rear_pct": 21.753246753246753,
+    "rear_mean_bout_s": 1.9394736842105265,
+    "rear_rate_per_min": 6.729634002361275,
+    "rear_early_frac": 0.7720488466757124,
+    "groom_count": 6.0,
+    "groom_total_s": 15.980000000000002,
+    "groom_pct": 9.433293978748525,
+    "groom_mean_bout_s": 2.6633333333333336,
+    "groom_bout_cv": 0.870861355930962,
+    "groom_early_frac": 0.025031289111389233,
+    "rear_groom_ratio": 2.3060075093867334,
+    "rear_per_100px": 0.29760506241874596,
+    "comfort_ratio": 0.62421875,
+    "rear_count_center": 5,
+    "rear_count_wall": 14,
+    "rear_center_frac": 0.2631578947368421,
+    "rear_total_s_center": 6.07,
+    "rear_total_s_wall": 30.78,
+    "rear_center_minus_wall": -9
+  },
+  "feature_cols_used": [
+    "pct_periphery",
+    "spatial_entropy",
+    "pct_freeze",
+    "rear_count",
+    "rear_total_s",
+    "rear_pct",
+    "rear_mean_bout_s",
+    "rear_rate_per_min",
+    "rear_early_frac",
+    "rear_groom_ratio",
+    "rear_per_100px",
+    "comfort_ratio"
+  ],
+  "n_rearing_bouts": 19,
+  "n_grooming_bouts": 6,
+  "spatial_rearing": {
+    "rear_count_center": 5,
+    "rear_count_wall": 14,
+    "rear_count_unknown": 0,
+    "rear_center_frac": 0.2632
+  },
+  "generated_at": "2026-05-14T01:44:08"
+}
