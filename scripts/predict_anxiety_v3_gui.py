@@ -595,10 +595,24 @@ def run_open_field_analysis(
         "_heatmap_histogram.png":"heatmap_histogram",
         "_bodypart_heatmaps.png":"bodypart_heatmaps",
     }
+    # Bireysel per-bodypart PNG'leri ayrı listelerde topla
+    results["orbit_individuals"]    = []
+    results["bodypart_individuals"] = []
     for file in csv_dir.glob(f"{stem}*"):
+        if "_orbit_bp_" in file.name and file.suffix == ".png":
+            bp = file.stem.split("_orbit_bp_", 1)[1]
+            results["orbit_individuals"].append((bp, file))
+            continue
+        if "_bodypart_bp_" in file.name and file.suffix == ".png":
+            bp = file.stem.split("_bodypart_bp_", 1)[1]
+            results["bodypart_individuals"].append((bp, file))
+            continue
         for suf, key in suffix_map.items():
             if file.name.endswith(suf):
                 results[key] = file
+    # Tutarlı bir sırada tut
+    results["orbit_individuals"].sort(key=lambda x: x[0])
+    results["bodypart_individuals"].sort(key=lambda x: x[0])
     return results
 
 
@@ -733,6 +747,7 @@ if not run_clicked:
 
 analysis_results: dict = {}
 analysis_images: dict[str, bytes] = {}
+analysis_individuals: dict[str, list[tuple[str, bytes]]] = {"orbit": [], "bodypart": []}
 available_outputs: set[str] = set()
 fig_images: dict[str, bytes] = {}
 
@@ -785,6 +800,14 @@ with tempfile.TemporaryDirectory() as tmp:
                     try:
                         analysis_images[key] = p.read_bytes()
                         available_outputs.add(key)
+                    except Exception:
+                        pass
+            # Bireysel per-bodypart PNG'leri yükle (İncele galerileri için)
+            for kind, key in [("orbit", "orbit_individuals"),
+                              ("bodypart", "bodypart_individuals")]:
+                for bp, fp in analysis_results.get(key, []):
+                    try:
+                        analysis_individuals[kind].append((bp, fp.read_bytes()))
                     except Exception:
                         pass
             progress_output.empty()
@@ -1004,6 +1027,47 @@ with tab_pred:
 # TAB 2 — DAVRANIŞ
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _render_gallery(kind: str, label: str):
+    """orbit_individuals / bodypart_individuals listesini yana kaydırmalı
+    şeritte gösterir. Kapatma butonu sağ üstte."""
+    items = analysis_individuals.get(kind, [])
+    if not items:
+        st.caption("Bireysel görseller bu seansta bulunamadı.")
+        return
+
+    head_cols = st.columns([10, 1])
+    head_cols[0].markdown(
+        f"<div style='font-size:0.78rem;font-weight:700;letter-spacing:0.14em;"
+        f"color:#94a3b8;text-transform:uppercase;'>{label} · {len(items)} görsel</div>",
+        unsafe_allow_html=True,
+    )
+    if head_cols[1].button("✕", key=f"close_{kind}",
+                           help="Kapat", use_container_width=True):
+        st.session_state[f"open_{kind}"] = False
+        st.rerun()
+
+    cards_html = ""
+    for bp, img_bytes in items:
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        cards_html += (
+            f"<div style='display:inline-block;vertical-align:top;margin:0 8px;"
+            f"text-align:center;'>"
+            f"  <div style='font-size:0.72rem;color:#cbd5e1;font-weight:600;"
+            f"letter-spacing:0.04em;margin-bottom:6px;'>{bp}</div>"
+            f"  <img src='data:image/png;base64,{b64}' "
+            f"style='height:340px;border-radius:10px;"
+            f"border:1px solid rgba(255,255,255,0.07);"
+            f"background:#0A0A0A;'>"
+            f"</div>"
+        )
+    st.markdown(
+        f"<div style='overflow-x:auto;white-space:nowrap;padding:0.75rem 0 1rem;"
+        f"background:rgba(255,255,255,0.02);border-radius:12px;"
+        f"border:1px solid rgba(255,255,255,0.06);'>{cards_html}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 with tab_beh:
     if not available_outputs:
         st.info(
@@ -1012,23 +1076,95 @@ with tab_beh:
             "çalıştırılmadığı için davranışsal görseller üretilmedi."
         )
     else:
-        viz_defs = [
-            ("behavior_timeline", "Davranış Zaman Çizgisi"),
-            ("orbit_grid",        "Yörünge Izgarası"),
-            ("thigmotaxis",       "Thigmotaxis (Duvar Yapışması)"),
-            ("heatmap_kde",       "KDE Aktivite Haritası"),
-            ("heatmap_histogram", "Histogram Yoğunluk"),
-            ("bodypart_heatmaps", "Bodypart Isı Haritası"),
-        ]
-        for key, title in viz_defs:
-            if key not in available_outputs:
-                continue
-            st.markdown(html_section(title), unsafe_allow_html=True)
+        # ── Davranış Zaman Çizgisi ───────────────────────────────────────────
+        if "behavior_timeline" in available_outputs:
+            st.markdown(html_section("Davranış Zaman Çizgisi"), unsafe_allow_html=True)
             _, cimg, _ = st.columns([1, 3, 1])
             with cimg:
-                st.image(analysis_images[key], use_container_width=True)
+                st.image(analysis_images["behavior_timeline"], use_container_width=True)
             st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
+        # ── Yörünge Izgarası + İncele galerisi ───────────────────────────────
+        if "orbit_grid" in available_outputs:
+            st.markdown(html_section("Yörünge Izgarası"), unsafe_allow_html=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(analysis_images["orbit_grid"], use_container_width=True)
+            _, cbtn, _ = st.columns([2, 1, 2])
+            with cbtn:
+                if st.button("🔍  İncele", key="open_orbit_btn",
+                             use_container_width=True):
+                    st.session_state["open_orbit"] = True
+            if st.session_state.get("open_orbit"):
+                _render_gallery("orbit", "Yörünge — Bodypart Galerisi")
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        # ── Thigmotaksis (merkez dışı hareket) — yan istatistik tablosu ──────
+        if "thigmotaxis" in available_outputs:
+            st.markdown(html_section("Thigmotaxis (Merkez Dışı Hareket)"),
+                        unsafe_allow_html=True)
+            col_img, col_stat = st.columns([2, 1], gap="medium")
+            with col_img:
+                st.image(analysis_images["thigmotaxis"], use_container_width=True)
+            with col_stat:
+                _pp  = feat.get("pct_periphery") or 0.0
+                _pc  = feat.get("pct_center") or 0.0
+                _pj  = max(0.0, 100.0 - _pp - _pc)
+                rows_html = (
+                    html_stat_row("Çevre (Thigmotaksis)", f"%{_pp:.1f}") +
+                    html_stat_row("Merkez",                f"%{_pc:.1f}") +
+                    html_stat_row("Diğer / kenar",         f"%{_pj:.1f}")
+                )
+                st.markdown(
+                    f"<div style='background:rgba(255,255,255,0.03);"
+                    f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                    f"padding:0.85rem 1rem;margin-top:0.4rem;'>{rows_html}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    "<div style='font-size:0.85rem;color:rgba(255,255,255,0.65);"
+                    "line-height:1.55;margin-top:0.7rem;'>"
+                    "<strong style='color:#fbbf24;'>Thigmotaksis</strong> = farenin "
+                    "arenanın <em>dış bandı</em>nda (duvar yakını) geçirdiği zamanın "
+                    "yüzdesidir. Yüksek değer kaçınma/anksiyete; düşük değer cesur "
+                    "ve merkezi keşfi işaret eder."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        # ── Isı Haritası (eski "KDE Aktivite Haritası") ──────────────────────
+        if "heatmap_kde" in available_outputs:
+            st.markdown(html_section("Isı Haritası"), unsafe_allow_html=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(analysis_images["heatmap_kde"], use_container_width=True)
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        # ── Histogram Yoğunluk ───────────────────────────────────────────────
+        if "heatmap_histogram" in available_outputs:
+            st.markdown(html_section("Histogram Yoğunluk"), unsafe_allow_html=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(analysis_images["heatmap_histogram"], use_container_width=True)
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        # ── Bodypart Isı Haritası + İncele galerisi ──────────────────────────
+        if "bodypart_heatmaps" in available_outputs:
+            st.markdown(html_section("Bodypart Isı Haritası"), unsafe_allow_html=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(analysis_images["bodypart_heatmaps"], use_container_width=True)
+            _, cbtn, _ = st.columns([2, 1, 2])
+            with cbtn:
+                if st.button("🔍  İncele", key="open_bodypart_btn",
+                             use_container_width=True):
+                    st.session_state["open_bodypart"] = True
+            if st.session_state.get("open_bodypart"):
+                _render_gallery("bodypart", "Bodypart — Bodypart Galerisi")
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        # ── Davranış Bout Tablosu ────────────────────────────────────────────
         bouts_path = analysis_results.get("behavior_bouts")
         if bouts_path and bouts_path.exists():
             st.markdown(html_section("Davranış Bout Tablosu"), unsafe_allow_html=True)
@@ -1052,13 +1188,6 @@ with tab_metrics:
 
     with mc1:
         st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
-        st.markdown(
-            "<div style='font-size:0.82rem;color:rgba(255,255,255,0.5);"
-            "margin:-0.35rem 0 0.65rem 0;text-align:center;'>"
-            "Her özelliğe tıklayarak Türkçe açıklamasını görebilirsiniz."
-            "</div>",
-            unsafe_allow_html=True,
-        )
         model_cols = pred_info.get("feature_cols", []) or list(feat.keys())
         for k in model_cols:
             info = FEATURE_INFO.get(k, {})
@@ -1102,15 +1231,15 @@ with tab_metrics:
         st.markdown(html_section("Davranış Özetleri"), unsafe_allow_html=True)
 
         beh_cards = [
-            ("Rearing",   "#10B981",
+            ("Rearing",  "#10B981",
              int(feat['rear_count']),
              feat.get('rear_total_s', 0.0) or 0.0,
              feat.get('rear_pct', 0.0) or 0.0),
-            ("Grooming",  "#A855F7",
+            ("Grooming", "#A855F7",
              int(feat['groom_count']),
              feat.get('groom_total_s', 0.0) or 0.0,
              feat.get('groom_pct', 0.0) or 0.0),
-            ("Donakalma", "#F59E0B",
+            ("Freezing", "#F59E0B",
              int(feat.get('freeze_bout_count', 0) or 0),
              None,
              feat.get('pct_freeze', 0.0) or 0.0),
@@ -1133,7 +1262,7 @@ with tab_metrics:
                 f"font-size:0.95rem;'>{name}</span>"
                 f"    </div>"
                 f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
-                f"      <span style='color:#94a3b8;'>Bout: "
+                f"      <span style='color:#94a3b8;'>Adet: "
                 f"<strong style='color:#f1f5f9;font-weight:700;'>{count}</strong></span>"
                 f"      <span style='color:#94a3b8;'>Süre: "
                 f"<strong style='color:#f1f5f9;font-weight:700;'>{total_str}</strong></span>"
@@ -1145,15 +1274,17 @@ with tab_metrics:
             )
         st.markdown(cards_html, unsafe_allow_html=True)
 
-        st.markdown(html_section("Mekansal Rearing"), unsafe_allow_html=True)
+        # Başlık literal-uppercase — tr_upper'ın "Rearing"'i "REARİNG" yapmasını
+        # engellemek için doğrudan büyük harf string verilir.
+        st.markdown(html_section("MEKANSAL REARING"), unsafe_allow_html=True)
         rc = int(feat.get('rear_count_center', 0) or 0)
         rw = int(feat.get('rear_count_wall', 0) or 0)
         rcf = feat.get('rear_center_frac')
         rcf_str = "—" if (rcf is None or (isinstance(rcf, float) and np.isnan(rcf))) else f"{rcf:.1%}"
         c1, c2, c3 = st.columns(3)
-        c1.metric("Merkez Rearing", rc)
-        c2.metric("Duvar Rearing", rw)
-        c3.metric("Merkez Oranı", rcf_str)
+        c1.metric("Merkez",        rc)
+        c2.metric("Duvar",         rw)
+        c3.metric("Merkez Oranı",  rcf_str)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1199,7 +1330,7 @@ with tab_dl:
             ("behavior_timeline", "Zaman Çizgisi"),
             ("orbit_grid",        "Yörünge"),
             ("thigmotaxis",       "Thigmotaxis"),
-            ("heatmap_kde",       "KDE Haritası"),
+            ("heatmap_kde",       "Isı Haritası"),
             ("heatmap_histogram", "Histogram"),
             ("bodypart_heatmaps", "Bodypart Izgarası"),
         ]
@@ -1218,13 +1349,3 @@ with tab_dl:
                     with st.expander("Önizleme"):
                         st.image(analysis_images[key], use_container_width=True)
 
-    if save_to_reports:
-        st.markdown(
-            f"<div style='margin-top:1rem;background:rgba(16,185,129,0.10);"
-            f"border:1px solid rgba(16,185,129,0.30);border-radius:10px;"
-            f"padding:0.85rem 1rem;color:#34d399;font-size:0.88rem;'>"
-            f"✓ Tüm çıktılar <code>{v2.DEFAULT_OUT.relative_to(ROOT)}/</code> "
-            f"altına da yazıldı."
-            f"</div>",
-            unsafe_allow_html=True,
-        )

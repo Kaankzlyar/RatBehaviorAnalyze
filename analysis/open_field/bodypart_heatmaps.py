@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import os
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -142,6 +143,10 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
     )
     axes = axes.flatten()
 
+    out_p   = Path(out_path)
+    out_dir = out_p.parent
+    stem    = out_p.stem.replace("_bodypart_heatmaps", "")
+
     for idx, bp in enumerate(bodyparts):
         ax = axes[idx]
         style_ax(ax)
@@ -173,15 +178,23 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         ax.set_xlabel("X (px)", color="#666666", fontsize=6)
         ax.set_ylabel("Y (px)", color="#666666", fontsize=6)
 
+        # ── Bireysel PNG kaydı ─────────────────────────────────────────────
+        fig_s, ax_s = plt.subplots(figsize=(6, 5.5), facecolor="#0A0A0A")
+        style_ax(ax_s)
+        ax_s.hist2d(xv, yv, bins=bins, cmap="YlOrRd", cmin=1)
+        draw_arena_zones(ax_s, arena, inner_zone)
+        ax_s.invert_yaxis()
+        ax_s.set_xlabel("X (px)", color="#888888", fontsize=9)
+        ax_s.set_ylabel("Y (px)", color="#888888", fontsize=9)
+        single_path = out_dir / f"{stem}_bodypart_bp_{bp}.png"
+        fig_s.tight_layout()
+        fig_s.savefig(single_path, dpi=130, bbox_inches="tight",
+                      facecolor=fig_s.get_facecolor())
+        plt.close(fig_s)
+
     # Hide unused subplots
     for idx in range(n, len(axes)):
         axes[idx].set_visible(False)
-
-    fig.suptitle(
-        f"Per-Bodypart Activity Heatmaps {video_name}\n"
-        f"(2D histogram density, dashed white = arena wall, dotted orange = inner boundary)",
-        color="#DDDDDD", fontsize=11, y=1.01,
-    )
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())

@@ -20,6 +20,7 @@ Usage:
 
 import argparse
 import os
+from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -239,6 +240,14 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
     )
     axes = axes.flatten()
 
+    _pad = 20
+    _xmn, _xmx, _ymn, _ymx = arena
+
+    # Bireysel (her bodypart için ayrı) PNG'leri kaydetmek için klasör ve stem
+    out_p   = Path(out_path)
+    out_dir = out_p.parent
+    stem    = out_p.stem.replace("_orbit_grid", "")
+
     for idx, bp in enumerate(bodyparts):
         ax = axes[idx]
         style_ax(ax)
@@ -250,9 +259,6 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         draw_trajectory(ax, x, y, color)
         draw_arena_zones(ax, arena, inner_zone)
 
-        # Pin to arena so all subplots share the same scale
-        _pad = 20
-        _xmn, _xmx, _ymn, _ymx = arena
         ax.set_xlim(_xmn - _pad, _xmx + _pad)
         ax.set_ylim(_ymn - _pad, _ymx + _pad)
         ax.invert_yaxis()
@@ -264,16 +270,25 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
         ax.set_xlabel("X (px)", color="#666666", fontsize=7)
         ax.set_ylabel("Y (px)", color="#666666", fontsize=7)
 
+        # ── Bireysel PNG kaydı ─────────────────────────────────────────────
+        fig_s, ax_s = plt.subplots(figsize=(6, 5.5), facecolor="#0A0A0A")
+        style_ax(ax_s)
+        draw_trajectory(ax_s, x, y, color, linewidth=1.1)
+        draw_arena_zones(ax_s, arena, inner_zone)
+        ax_s.set_xlim(_xmn - _pad, _xmx + _pad)
+        ax_s.set_ylim(_ymn - _pad, _ymx + _pad)
+        ax_s.invert_yaxis()
+        ax_s.set_xlabel("X (px)", color="#888888", fontsize=9)
+        ax_s.set_ylabel("Y (px)", color="#888888", fontsize=9)
+        single_path = out_dir / f"{stem}_orbit_bp_{bp}.png"
+        fig_s.tight_layout()
+        fig_s.savefig(single_path, dpi=130, bbox_inches="tight",
+                      facecolor=fig_s.get_facecolor())
+        plt.close(fig_s)
+
     # Hide unused subplots
     for idx in range(n, len(axes)):
         axes[idx].set_visible(False)
-
-    fig.suptitle(
-        f"Per-Bodypart Orbit ” {video_name}\n"
-        f"(dashed white = arena wall  |  dotted orange = manually selected inner boundary)\n"
-        f"circle = start  |  diamond = end  |  pale->dark = early->late",
-        color="#DDDDDD", fontsize=11, y=1.01,
-    )
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
@@ -329,11 +344,6 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=11)
-    ax.set_title(
-        f"Thigmotaxis Detail” {video_name}  [{bp}]\n"
-        f"Thigmotaxis rate: {rate_str}  (orange = border zone, blue = centre zone)",
-        color="white", fontsize=12, pad=10,
-    )
     ax.legend(loc="lower right", framealpha=0.3, facecolor="#222222",
               edgecolor="#555555", labelcolor="white", fontsize=9)
 
