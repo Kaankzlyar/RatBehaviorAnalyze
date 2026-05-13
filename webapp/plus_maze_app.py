@@ -1080,18 +1080,18 @@ with tab_metrics:
 
     with mc2:
         st.markdown(html_section("Kol Detayları"), unsafe_allow_html=True)
-        # (ad, renk, % süre, sayı, sayı_etiketi)
         arm_rows = [
-            ("Sol Kol (açık)",   "#10B981", row.get('pct_time_left',     0) or 0, int(row.get("left_entries",   0) or 0), "Giriş"),
-            ("Sağ Kol (açık)",   "#F59E0B", row.get('pct_time_right',    0) or 0, int(row.get("right_entries",  0) or 0), "Giriş"),
-            ("Alt Kol (kapalı)", "#3B82F6", row.get('pct_time_bottom',   0) or 0, int(row.get("bottom_entries", 0) or 0), "Giriş"),
-            ("Üst Kol (kapalı)", "#A855F7", row.get('pct_time_top',      0) or 0, int(row.get("top_entries",    0) or 0), "Giriş"),
-            ("Kavşak",           "#64748B", row.get('pct_time_junction', 0) or 0, int(row.get("junction_entries", 0) or 0), "Geçiş"),
+            ("Sol Kol (açık)",   "#10B981", row.get('pct_time_left',     0) or 0, int(row.get("left_entries",   0) or 0)),
+            ("Sağ Kol (açık)",   "#F59E0B", row.get('pct_time_right',    0) or 0, int(row.get("right_entries",  0) or 0)),
+            ("Alt Kol (kapalı)", "#3B82F6", row.get('pct_time_bottom',   0) or 0, int(row.get("bottom_entries", 0) or 0)),
+            ("Üst Kol (kapalı)", "#A855F7", row.get('pct_time_top',      0) or 0, int(row.get("top_entries",    0) or 0)),
+            ("Kavşak",           "#64748B", row.get('pct_time_junction', 0) or 0, None),
         ]
-        max_pct = max((p for _, _, p, _, _ in arm_rows), default=1.0) or 1.0
+        max_pct = max((p for _, _, p, _ in arm_rows), default=1.0) or 1.0
 
         cards_html = ""
-        for name, color, pct, ent, ent_label in arm_rows:
+        for name, color, pct, ent in arm_rows:
+            ent_str = str(ent) if ent is not None else "—"
             bar_w = (pct / max_pct) * 100.0
             cards_html += (
                 f"<div style='background:rgba(255,255,255,0.03);"
@@ -1106,8 +1106,8 @@ with tab_metrics:
                 f"font-size:0.95rem;'>{name}</span>"
                 f"    </div>"
                 f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
-                f"      <span style='color:#94a3b8;'>{ent_label}: "
-                f"<strong style='color:#f1f5f9;font-weight:700;'>{ent}</strong></span>"
+                f"      <span style='color:#94a3b8;'>Giriş: "
+                f"<strong style='color:#f1f5f9;font-weight:700;'>{ent_str}</strong></span>"
                 f"      <span style='color:#94a3b8;'>Süre: "
                 f"<strong style='color:{color};font-weight:700;'>{pct:.1f}%</strong></span>"
                 f"    </div>"
