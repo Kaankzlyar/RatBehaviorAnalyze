@@ -692,28 +692,19 @@ def run_visuals(csv_path: Path, arms: dict, out_dir: Path) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("""
-    <div style="padding:1rem 0 0.5rem 0;">
-        <div style="font-size:1.5rem;font-weight:800;color:#f1f5f9;letter-spacing:-0.5px;">
-            🐀 EPM Analiz
-        </div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);margin-top:3px;letter-spacing:0.03em;">
-            Elevated Plus Maze · DLC Pipeline
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:0.5rem 0 1rem 0;"></div>', unsafe_allow_html=True)
-
-    st.markdown('<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;">Model Bilgisi</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:0.78rem;font-weight:700;color:#e2e8f0;'
+        'letter-spacing:0.14em;margin:0.6rem 0 0.7rem 0;text-align:center;">'
+        'MODEL BİLGİSİ</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         html_stat_row("Algoritma",    "Lojistik Regresyon") +
         html_stat_row("Eğitim seti",  "37 sıçan (LOOCV)") +
         html_stat_row("AUC",          "0.733") +
         html_stat_row("F1 (Tedavi)",  "0.821") +
-        html_stat_row("Duyarlılık",   "76.7%") +
-        html_stat_row("Özgüllük",     "57.1%"),
+        html_stat_row("Duyarlılık",   "76.7%"),
         unsafe_allow_html=True,
     )
 
@@ -737,10 +728,10 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 
 st.markdown("""
-<div style="background:linear-gradient(135deg,#141e2e 0%,#1a2a3f 55%,#0e1520 100%);
+<div style="background:linear-gradient(135deg,#0f3a4a 0%,#134e4a 55%,#0c2236 100%);
      border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.5rem;
-     border:1px solid rgba(255,255,255,0.07);
-     box-shadow:0 8px 32px rgba(0,0,0,0.45);">
+     border:1px solid rgba(45,212,191,0.22);
+     box-shadow:0 8px 28px rgba(13,148,136,0.22);">
   <div style="display:flex;align-items:center;gap:16px;">
     <div style="font-size:2.8rem;line-height:1;">🐀</div>
     <div>
@@ -1135,7 +1126,7 @@ with tab_viz:
     else:
         viz_defs = [
             ("orbit",       "Hareket Rotası"),
-            ("heatmap_kde", "KDE Aktivite Haritası"),
+            ("heatmap_kde", "Isı Haritası"),
         ]
         for key, title in viz_defs:
             if key not in images:
@@ -1224,7 +1215,7 @@ with tab_dl:
         st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
         viz_map = [
             ("orbit",       "Hareket Rotası"),
-            ("heatmap_kde", "KDE Aktivite Haritası"),
+            ("heatmap_kde", "Isı Haritası"),
         ]
         viz_map = [(k, lbl) for k, lbl in viz_map if k in images]
         if viz_map:
