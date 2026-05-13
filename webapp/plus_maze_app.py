@@ -187,6 +187,35 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
     background: rgba(99,102,241,0.1) !important;
 }
 
+/* File uploader — Türkçe etiketler, dosya boyutu satırını gizle */
+[data-testid="stFileUploaderDropzoneInstructions"] > div > span,
+[data-testid="stFileUploaderDropzoneInstructions"] > div > small {
+    display: none !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] > div::before {
+    content: "Dosyayı buraya sürükleyip bırakın";
+    color: rgba(255,255,255,0.6);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+}
+section[data-testid="stFileUploaderDropzone"] button {
+    color: transparent !important;
+    position: relative;
+    min-width: 110px !important;
+}
+section[data-testid="stFileUploaderDropzone"] button::after {
+    content: "Dosya Seç";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,0.88);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
 /* Primary button */
 .stButton > button[kind="primary"] {
     background: #1e3a5f !important;
