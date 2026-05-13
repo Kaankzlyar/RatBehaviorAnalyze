@@ -351,13 +351,13 @@ def tr_upper(s: str) -> str:
 def html_section(title: str) -> str:
     label = tr_upper(title)
     return (
-        f'<div style="font-size:0.74rem;font-weight:700;color:rgba(255,255,255,0.55);'
-        f'letter-spacing:0.14em;'
-        f'margin:1.25rem 0 0.75rem 0;display:flex;align-items:center;gap:12px;'
+        f'<div style="font-size:1.1rem;font-weight:800;color:#e2e8f0;'
+        f'letter-spacing:0.16em;'
+        f'margin:1.5rem 0 0.85rem 0;display:flex;align-items:center;gap:14px;'
         f'justify-content:center;">'
-        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>'
         f'<span>{label}</span>'
-        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>'
         f'</div>'
     )
 
@@ -385,7 +385,6 @@ def _style_ax_dark(ax, fig=None):
 
 def fig_overview(body_x, body_y, arms: dict, pred_info: dict) -> plt.Figure:
     pred_color = "#EF4444" if pred_info["pred"] == 1 else "#10B981"
-    pred_label = "Tedavi" if pred_info["pred"] == 1 else "Kontrol"
 
     all_x = [v for (x0, x1, y0, y1) in arms.values() for v in (x0, x1)]
     all_y = [v for (x0, x1, y0, y1) in arms.values() for v in (y0, y1)]
@@ -444,10 +443,6 @@ def fig_overview(body_x, body_y, arms: dict, pred_info: dict) -> plt.Figure:
         leg = ax.legend(loc="upper right", fontsize=8, framealpha=0.25,
                         facecolor=_PANEL_BG, edgecolor=_GRID_CLR, labelcolor="#94a3b8")
 
-    ax.set_title(
-        f"Tahmin: {pred_label}   •   P(Tedavi) = {pred_info['proba_treated']:.1%}",
-        fontsize=11, fontweight="bold", color=pred_color, pad=14,
-    )
     ax.set_xlabel("x (piksel)", fontsize=9)
     ax.set_ylabel("y (piksel)", fontsize=9)
     fig.tight_layout(pad=1.2)
@@ -963,12 +958,31 @@ with tab_pred:
         )
 
         st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
-        m1, m2 = st.columns(2)
-        m1.metric("Açık Kol",         f"%{row['pct_open_arm']:.1f}")
-        m2.metric("Anksiyete İnd.",    f"{row['anxiety_index_epm']:.2f}")
-        m3, m4 = st.columns(2)
-        m3.metric("Toplam Giriş",      str(int(row["total_entries"])))
-        m4.metric("Alternasyon",       f"%{row.get('successive_alternation_pct', 0) or 0:.1f}")
+        basic_metrics = [
+            ("Açık Kol Süresi", f"%{row['pct_open_arm']:.1f}",
+             "Faredenin açık kollarda (sol + sağ) geçirdiği zamanın yüzdesi. "
+             "Düşük değer yüksek anksiyeteye işaret eder."),
+            ("Anksiyete İndeksi", f"{row['anxiety_index_epm']:.2f}",
+             "Açık kol süresi ile açık kola giriş yüzdesinin ortalaması. "
+             "Yüksek değer düşük anksiyeteyi (daha çok keşif) ifade eder."),
+            ("Toplam Giriş", str(int(row["total_entries"])),
+             "Seans boyunca herhangi bir kola yapılan toplam giriş sayısı. "
+             "Genel keşif ve lokomotor aktivitenin göstergesidir."),
+            ("Ardışık Alternasyon",
+             f"%{row.get('successive_alternation_pct', 0) or 0:.1f}",
+             "Ardışık iki girişin farklı kollara olma yüzdesi. "
+             "Çalışma belleği ve esnek keşif davranışını yansıtır."),
+        ]
+        mr1 = st.columns(2)
+        mr2 = st.columns(2)
+        for slot, (label, val, desc) in zip([*mr1, *mr2], basic_metrics):
+            with slot:
+                with st.expander(f"{label}   ·   {val}", expanded=False):
+                    st.markdown(
+                        f"<div style='font-size:0.95rem;color:#cbd5e1;"
+                        f"line-height:1.55;'>{desc}</div>",
+                        unsafe_allow_html=True,
+                    )
 
     # ── Karar Katkıları — tam genişlik, alt satırda ──────────────────────────
     st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
@@ -979,8 +993,6 @@ with tab_pred:
     plt.close(ff)
     st.image(buf_f.getvalue(), use_container_width=True)
 
-    st.caption("Her katkıya tıklayarak Türkçe açıklamasını ve nasıl "
-               "hesaplandığını görebilirsiniz.")
     for c in pred_info["top_contributors"]:
         feat = c["feature"]
         info = FEATURE_INFO.get(feat)
@@ -994,14 +1006,30 @@ with tab_pred:
         header = f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
         with st.expander(header, expanded=False):
             if info:
-                st.markdown(f"**Açıklama.** {info['desc']}")
-                st.markdown("**Nasıl hesaplanır?**")
+                st.markdown(
+                    f"<div style='font-size:0.72rem;font-weight:700;"
+                    f"letter-spacing:0.14em;color:#94a3b8;"
+                    f"margin:0.15rem 0 0.4rem 0;'>AÇIKLAMA</div>"
+                    f"<div style='font-size:0.98rem;color:#e2e8f0;"
+                    f"line-height:1.6;margin-bottom:0.9rem;'>{info['desc']}</div>"
+                    f"<div style='font-size:0.72rem;font-weight:700;"
+                    f"letter-spacing:0.14em;color:#94a3b8;"
+                    f"margin:0.2rem 0 0.4rem 0;'>NASIL HESAPLANIR</div>",
+                    unsafe_allow_html=True,
+                )
                 st.code(info["formula"], language="text")
             else:
-                st.markdown("Bu özellik için açıklama tanımlanmamış.")
+                st.markdown(
+                    "<div style='font-size:0.98rem;color:#cbd5e1;'>"
+                    "Bu özellik için açıklama tanımlanmamış.</div>",
+                    unsafe_allow_html=True,
+                )
             st.markdown(
-                f"<div style='font-size:0.8rem;color:rgba(255,255,255,0.55);'>"
-                f"Bu denek için ölçülen değer: <strong style='color:#f1f5f9;'>{value_str}</strong> "
+                f"<div style='font-size:0.92rem;color:rgba(255,255,255,0.78);"
+                f"line-height:1.6;border-top:1px solid rgba(255,255,255,0.07);"
+                f"padding-top:0.7rem;margin-top:0.7rem;'>"
+                f"Bu denek için ölçülen değer "
+                f"<strong style='color:#f1f5f9;'>{value_str}</strong> "
                 f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
                 f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
                 f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
