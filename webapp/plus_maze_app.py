@@ -241,31 +241,34 @@ def run_visuals(csv_path: Path, arms: dict, out_dir: Path) -> dict:
     for key in ("bottom_arm", "left_arm", "right_arm", "top_arm"):
         arm_args += [f"--{key.replace('_', '-')}"] + [str(v) for v in arms[key]]
 
+    # orbit_plot.py ve activity_heatmap.py --fps kabul etmiyor
     common = [
-        "--csv",        str(csv_path),
-        "--out-dir",    str(out_dir),
-        "--likelihood", "0.6",
+        "--csv",         str(csv_path),
+        "--out-dir",     str(out_dir),
+        "--likelihood",  "0.6",
         "--jump-thresh", "60",
-        "--smooth",     "5",
-        "--fps",        str(FPS),
+        "--smooth",      "5",
     ] + arm_args
 
     for script in ("orbit_plot.py", "activity_heatmap.py"):
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [sys.executable, str(PLUS_DIR / script)] + common,
-                capture_output=True, timeout=120,
+                capture_output=True, text=True, timeout=120,
             )
+            if result.returncode != 0:
+                st.warning(f"{script} hatası: {result.stderr[-300:] if result.stderr else 'bilinmiyor'}")
         except subprocess.TimeoutExpired:
-            pass
+            st.warning(f"{script} zaman aşımına uğradı (>120s)")
 
     images = {}
     stem = csv_path.stem
+    # Gerçek çıktı isimleri: *_plus_maze_orbit.png, *_plus_maze_bodyparts.png
     key_map = {
-        "orbit.png":             "orbit",
-        "bodyparts.png":         "bodyparts",
-        "heatmap_kde.png":       "heatmap_kde",
-        "heatmap_histogram.png": "heatmap_histogram",
+        "_plus_maze_orbit.png":     "orbit",
+        "_plus_maze_bodyparts.png": "bodyparts",
+        "_heatmap_kde.png":         "heatmap_kde",
+        "_heatmap_histogram.png":   "heatmap_histogram",
     }
     for f in out_dir.iterdir():
         if f.name.startswith(stem) and f.suffix == ".png":
@@ -281,7 +284,7 @@ with st.sidebar:
     st.header("Hakkında")
     st.markdown(
         "**Model:** Lojistik Regresyon  \n"
-        "**Eğitim:** 37 sıçan (LOOCV)  \n"
+        "**Eğitim:** 37 fare (LOOCV)  \n"
         "**AUC:** 0.733  \n"
         "**F1 (Tedavi):** 0.821  \n\n"
         "**Kol koordinatları** `data/arm_coords.json` dosyasından otomatik yüklenir."

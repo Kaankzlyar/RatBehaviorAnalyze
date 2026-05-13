@@ -29,6 +29,7 @@ import pathlib
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 import numpy as np
 import pandas as pd
 
@@ -142,11 +143,13 @@ def draw_trajectory(ax, x, y, color_hex, lw=0.9, alpha=0.80):
     xi, yi = x[valid], y[valid]
     t = np.where(valid)[0]
     t_norm = (t - t.min()) / max(t.max() - t.min(), 1)
-    cmap   = make_cmap(color_hex)
-    for i in range(len(xi)-1):
-        ax.plot([xi[i], xi[i+1]], [yi[i], yi[i+1]],
-                color=cmap(t_norm[i]), linewidth=lw,
-                alpha=alpha, solid_capstyle="round")
+    cmap = make_cmap(color_hex)
+    points = np.array([xi, yi]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    lc = LineCollection(segments, cmap=cmap, linewidth=lw, alpha=alpha)
+    lc.set_array(t_norm[:-1])
+    lc.set_clim(0, 1)
+    ax.add_collection(lc)
     ax.scatter(xi[0],  yi[0],  color=cmap(0.15), s=55, zorder=6,
                edgecolors="white", linewidths=0.6)
     ax.scatter(xi[-1], yi[-1], color=cmap(0.85), s=40, zorder=6,
@@ -154,12 +157,15 @@ def draw_trajectory(ax, x, y, color_hex, lw=0.9, alpha=0.80):
 
 
 def draw_zone_colored(ax, x, y, labels):
-    for i in range(len(x)-1):
-        if np.isnan(x[i]) or np.isnan(y[i]) or np.isnan(x[i+1]) or np.isnan(y[i+1]):
-            continue
-        ax.plot([x[i], x[i+1]], [y[i], y[i+1]],
-                color=ZONE_COLORS.get(labels[i], "#555555"),
-                linewidth=1.0, alpha=0.75, solid_capstyle="round")
+    valid_mask = ~(np.isnan(x[:-1]) | np.isnan(y[:-1]) |
+                   np.isnan(x[1:])  | np.isnan(y[1:]))
+    if valid_mask.sum() == 0:
+        return
+    idx = np.where(valid_mask)[0]
+    segments = np.array([[[x[i], y[i]], [x[i+1], y[i+1]]] for i in idx])
+    colors   = [ZONE_COLORS.get(labels[i], "#555555") for i in idx]
+    lc = LineCollection(segments, colors=colors, linewidth=1.0, alpha=0.75)
+    ax.add_collection(lc)
 
 
 def style_ax(ax):
