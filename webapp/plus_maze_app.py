@@ -1190,34 +1190,59 @@ with tab_dl:
 
     st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
     dc1, dc2, dc3 = st.columns(3, gap="medium")
-    dc1.download_button(
-        "⬇  Metrikler (CSV)", csv_bytes,
-        file_name=f"{subject}_epm_metrics.csv", mime="text/csv",
-        use_container_width=True,
-    )
-    dc2.download_button(
-        "⬇  Tahmin Raporu (JSON)", json_bytes,
-        file_name=f"{subject}_epm_report.json", mime="application/json",
-        use_container_width=True,
-    )
-    dc3.download_button(
-        "⬇  Genel Bakış (PNG)", overview_bytes,
-        file_name=f"{subject}_epm_overview.png", mime="image/png",
-        use_container_width=True,
-    )
+
+    with dc1:
+        st.download_button(
+            "⬇  Metrikler (CSV)", csv_bytes,
+            file_name=f"{subject}_epm_metrics.csv", mime="text/csv",
+            use_container_width=True,
+            key="dl_csv",
+        )
+        with st.expander("Önizleme"):
+            preview_df = pd.DataFrame([safe_row]).T.reset_index()
+            preview_df.columns = ["Alan", "Değer"]
+            st.dataframe(
+                preview_df, hide_index=True,
+                use_container_width=True, height=320,
+            )
+
+    with dc2:
+        st.download_button(
+            "⬇  Tahmin Raporu (JSON)", json_bytes,
+            file_name=f"{subject}_epm_report.json", mime="application/json",
+            use_container_width=True,
+            key="dl_json",
+        )
+        with st.expander("Önizleme"):
+            st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
+
+    with dc3:
+        st.download_button(
+            "⬇  Genel Bakış (PNG)", overview_bytes,
+            file_name=f"{subject}_epm_overview.png", mime="image/png",
+            use_container_width=True,
+            key="dl_overview",
+        )
+        with st.expander("Önizleme"):
+            st.image(overview_bytes, use_container_width=True)
 
     if images:
         st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
         viz_map = [
             ("orbit",       "Hareket Rotası"),
-            ("heatmap_kde", "KDE Haritası"),
+            ("heatmap_kde", "KDE Aktivite Haritası"),
         ]
-        dcols = st.columns(len(viz_map), gap="medium")
-        for (key, lbl), col in zip(viz_map, dcols):
-            if key in images:
-                col.download_button(
-                    f"⬇  {lbl} (PNG)", images[key],
-                    file_name=f"{subject}_{key}.png",
-                    mime="image/png",
-                    use_container_width=True,
-                )
+        viz_map = [(k, lbl) for k, lbl in viz_map if k in images]
+        if viz_map:
+            dcols = st.columns(len(viz_map), gap="medium")
+            for (key, lbl), col in zip(viz_map, dcols):
+                with col:
+                    st.download_button(
+                        f"⬇  {lbl} (PNG)", images[key],
+                        file_name=f"{subject}_{key}.png",
+                        mime="image/png",
+                        use_container_width=True,
+                        key=f"dl_{key}",
+                    )
+                    with st.expander("Önizleme"):
+                        st.image(images[key], use_container_width=True)
