@@ -730,14 +730,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div style="font-size:0.72rem;color:rgba(255,255,255,0.25);line-height:1.6;">'
-        'Kol koordinatları <code style="background:rgba(255,255,255,0.06);'
-        'padding:1px 5px;border-radius:4px;font-size:0.68rem;">data/arm_coords.json</code>'
-        ' dosyasından otomatik yüklenir.</div>',
-        unsafe_allow_html=True,
-    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1154,7 +1146,9 @@ with tab_viz:
                 f'margin:0.6rem 0 0.6rem 0;">{title}</div>',
                 unsafe_allow_html=True,
             )
-            st.image(images[key], use_container_width=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(images[key], use_container_width=True)
             st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
 
