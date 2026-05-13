@@ -1,0 +1,2 @@
+subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
+MA8_1,MA8,Aspartame+Grapefruit,178.8,5365,True,2747.7,15.44,477.85,0.22,99.78,0,29,18.87,10.55,0.23,33,68.9,38.53,9,8.2,4.59

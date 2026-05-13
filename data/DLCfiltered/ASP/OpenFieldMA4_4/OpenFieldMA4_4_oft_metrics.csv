@@ -1,0 +1,2 @@
+subject_id,cohort,group,session_duration_s,n_frames,bouts_csv_found,total_distance_px,mean_speed_px_s,max_speed_px_s,pct_time_center,pct_time_periphery,center_zone_entries,freeze_bout_count,total_freeze_s,pct_time_freeze,spatial_entropy_norm,rear_bout_count,rear_total_s,rear_pct_time,groom_bout_count,groom_total_s,groom_pct_time
+MA4_4,MA4,Aspartame,171.4,5143,True,7895.3,46.14,1074.48,25.07,74.93,13,3,2.17,1.26,0.8369,20,35.62,20.78,3,3.8,2.22

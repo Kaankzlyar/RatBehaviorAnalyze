@@ -1,0 +1,2 @@
+n_valid,mean_speed_px_s,median_speed_px_s,sd_speed_px_s,max_speed_px_s,p95_speed_px_s,subject_id,cohort,group,n_frames,session_s,sd_speed_raw_px_s,sd_speed_filt_px_s,sd_reduction_pct
+5337,38.428,24.265,39.951,222.782,126.52,MA6_3,MA6,Grapefruit,5337,177.9,101.415,39.951,60.6

@@ -13,8 +13,7 @@ data/dlc_output/
 *.h5
 *.pickle
 
-data/
-models/
+
 archive/
 test_data/
 # Python
