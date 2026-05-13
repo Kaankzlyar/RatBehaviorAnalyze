@@ -24,6 +24,7 @@ import os
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.collections import LineCollection
 import numpy as np
 import pandas as pd
 
@@ -169,7 +170,11 @@ def make_temporal_cmap(base_hex: str) -> mcolors.LinearSegmentedColormap:
 
 
 def draw_trajectory(ax, x, y, color_hex, linewidth=0.9, alpha=0.75):
-    """Draw a single trajectory with temporal color fade on the given axes."""
+    """Draw a single trajectory with temporal color fade on the given axes.
+
+    Tek bir LineCollection ile çizilir; eski hâli her segment için ayrı
+    ax.plot() çağırıyordu (5k+ kare × bodypart sayısı → çok yavaş).
+    """
     valid = ~(np.isnan(x) | np.isnan(y))
     if valid.sum() < 5:
         return
@@ -178,14 +183,13 @@ def draw_trajectory(ax, x, y, color_hex, linewidth=0.9, alpha=0.75):
     t  = np.where(valid)[0]
     t_norm = (t - t.min()) / max(t.max() - t.min(), 1)
     cmap = make_temporal_cmap(color_hex)
-    for i in range(len(xi) - 1):
-        ax.plot(
-            [xi[i], xi[i + 1]], [yi[i], yi[i + 1]],
-            color=cmap(t_norm[i]),
-            linewidth=linewidth,
-            alpha=alpha,
-            solid_capstyle="round",
-        )
+    points = np.array([xi, yi]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    lc = LineCollection(segments, cmap=cmap, linewidth=linewidth, alpha=alpha,
+                        capstyle="round")
+    lc.set_array(t_norm[:-1])
+    lc.set_clim(0, 1)
+    ax.add_collection(lc)
     # start (circle) / end (diamond)
     ax.scatter(xi[0],  yi[0],  color=cmap(0.15), s=50, zorder=5,
                edgecolors="white", linewidths=0.5)
