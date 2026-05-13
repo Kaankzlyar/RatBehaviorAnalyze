@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-plus_maze_app.py
-----------------
-Plus Maze (EPM) analiz ve tahmin dashboard'u.
-
+plus_maze_app.py  —  Plus Maze (EPM) analiz ve tahmin dashboard'u
 Çalıştırmak için:
-    cd webapp
-    streamlit run plus_maze_app.py
+    cd webapp && streamlit run plus_maze_app.py
 """
 from __future__ import annotations
 
@@ -20,8 +16,10 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -37,12 +35,11 @@ sys.path.insert(0, str(PLUS_DIR))
 
 from tmaze_metrics import compute_metrics, load_body_center  # noqa: E402
 
-# ── Kol koordinatları (arm_coords.json'dan ya da varsayılan) ──────────────────
+# ── Kol koordinatları ─────────────────────────────────────────────────────────
 _arm_json = ROOT / "data" / "arm_coords.json"
 if _arm_json.exists():
     with open(_arm_json, encoding="utf-8") as _f:
-        _raw = json.load(_f)
-    DEFAULT_ARMS: dict[str, tuple] = {k: tuple(v) for k, v in _raw.items()}
+        DEFAULT_ARMS: dict[str, tuple] = {k: tuple(v) for k, v in json.load(_f).items()}
 else:
     DEFAULT_ARMS = {
         "bottom_arm": (547, 603, 402, 713),
@@ -51,33 +48,447 @@ else:
         "top_arm":    (546, 604,  33, 347),
     }
 
-ZONE_COLORS = {
-    "bottom_arm": "#4FC3F7",
-    "left_arm":   "#66BB6A",
-    "right_arm":  "#FFA726",
-    "top_arm":    "#BA68C8",
+ZONE_HEX = {
+    "bottom_arm": "#3B82F6",
+    "left_arm":   "#10B981",
+    "right_arm":  "#F59E0B",
+    "top_arm":    "#A855F7",
 }
-
 ARM_LABELS = {
-    "bottom_arm": "Alt (kapalı)",
-    "left_arm":   "Sol (açık)",
-    "right_arm":  "Sağ (açık)",
-    "top_arm":    "Üst (kapalı)",
+    "bottom_arm": "Alt Kol (kapalı)",
+    "left_arm":   "Sol Kol (açık)",
+    "right_arm":  "Sağ Kol (açık)",
+    "top_arm":    "Üst Kol (kapalı)",
 }
-
 FPS = 30.0
 
-# ── Sayfa ayarları ────────────────────────────────────────────────────────────
+FEATURE_COLS = [
+    "pct_open_arm",
+    "anxiety_index_epm",
+    "pct_open_arm_entries",
+    "total_entries",
+    "successive_alternation_pct",
+    "perseveration_rate_pct",
+    "mean_speed_px_s",
+    "arm_preference_index",
+    "pct_time_junction",
+]
+
+# ── Sayfa konfigürasyonu ──────────────────────────────────────────────────────
 st.set_page_config(
     page_title="EPM Analiz & Tahmin",
     page_icon="🐀",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
-st.title("🐀 Plus Maze (EPM) Analiz & Tahmin")
-st.caption(
-    "DLC CSV yükle → EPM metrikleri → Kontrol / Tedavi tahmini + görselleştirme. "
-    "Model: Lojistik Regresyon, 37 sıçan LOOCV AUC=0.733, F1(Tedavi)=0.821."
-)
+
+# ── Custom CSS ────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+
+/* App background */
+.stApp { background: #0b0f1a; }
+.main .block-container { padding-top: 1.5rem; max-width: 1280px; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #0f1320 !important;
+    border-right: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    background: rgba(99,102,241,0.06) !important;
+    border: 1.5px dashed rgba(99,102,241,0.35) !important;
+    border-radius: 14px !important;
+    transition: all 0.25s;
+}
+[data-testid="stFileUploader"]:hover {
+    border-color: rgba(99,102,241,0.75) !important;
+    background: rgba(99,102,241,0.1) !important;
+}
+
+/* Primary button */
+.stButton > button[kind="primary"] {
+    background: #1e3a5f !important;
+    border: 1px solid rgba(99,149,210,0.35) !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    padding: 0.65rem 2.5rem !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+    letter-spacing: 0.01em !important;
+    color: #cbd5e1 !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #254d7a !important;
+    border-color: rgba(99,149,210,0.6) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45) !important;
+    color: #e2e8f0 !important;
+}
+
+/* Metric widgets */
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 12px !important;
+    padding: 1rem 1.2rem !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    color: rgba(255,255,255,0.45) !important;
+}
+[data-testid="stMetricValue"] {
+    color: #f1f5f9 !important;
+    font-weight: 700 !important;
+    font-size: 1.6rem !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+    gap: 0 !important;
+    padding: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: rgba(255,255,255,0.4) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    border: none !important;
+    padding: 0.75rem 1.4rem !important;
+    border-radius: 0 !important;
+    letter-spacing: 0.01em !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #818cf8 !important;
+    border-bottom: 2px solid #6366f1 !important;
+    background: transparent !important;
+    font-weight: 600 !important;
+}
+
+/* Progress bar */
+.stProgress > div > div {
+    background: linear-gradient(90deg, #6366f1, #8b5cf6) !important;
+    border-radius: 100px !important;
+}
+.stProgress > div {
+    background: rgba(255,255,255,0.06) !important;
+    border-radius: 100px !important;
+    height: 6px !important;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] { border-radius: 12px !important; overflow: hidden !important; }
+.dvn-scroller { border-radius: 12px !important; }
+
+/* Divider */
+hr { border-color: rgba(255,255,255,0.06) !important; }
+
+/* Alert/Info boxes */
+.stAlert { border-radius: 10px !important; }
+
+/* Expander */
+.streamlit-expanderHeader {
+    color: rgba(255,255,255,0.55) !important;
+    font-size: 0.85rem !important;
+    background: rgba(255,255,255,0.02) !important;
+    border-radius: 8px !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* Hide chrome */
+#MainMenu { visibility: hidden !important; }
+footer { visibility: hidden !important; }
+.stDeployButton { display: none !important; }
+header[data-testid="stHeader"] { background: transparent !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ── Yardımcı HTML bileşenleri ─────────────────────────────────────────────────
+
+def html_badge(text: str, color: str = "#6366f1") -> str:
+    return (
+        f'<span style="background:rgba({_hex_to_rgb(color)},0.15);'
+        f'border:1px solid rgba({_hex_to_rgb(color)},0.35);'
+        f'border-radius:100px;padding:3px 12px;font-size:0.72rem;'
+        f'font-weight:500;color:{color};letter-spacing:0.04em;">{text}</span>'
+    )
+
+
+def _hex_to_rgb(h: str) -> str:
+    h = h.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"{r},{g},{b}"
+
+
+def html_stat_row(label: str, value: str) -> str:
+    return (
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+        f'<span style="font-size:0.8rem;color:rgba(255,255,255,0.45);font-weight:500;">{label}</span>'
+        f'<span style="font-size:0.85rem;color:#f1f5f9;font-weight:600;">{value}</span>'
+        f'</div>'
+    )
+
+
+def html_pred_card(label: str, proba: float, is_treated: bool) -> str:
+    if is_treated:
+        border = "#EF4444"
+        bg     = "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.06))"
+        icon   = "⚠"
+    else:
+        border = "#10B981"
+        bg     = "linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.06))"
+        icon   = "✓"
+    return (
+        f'<div style="background:{bg};border:1.5px solid rgba({_hex_to_rgb(border)},0.45);'
+        f'border-radius:16px;padding:1.5rem 1.25rem;text-align:center;margin-bottom:1rem;">'
+        f'<div style="font-size:2.5rem;margin-bottom:6px;">{icon}</div>'
+        f'<div style="font-size:1.9rem;font-weight:800;color:{border};letter-spacing:-0.5px;">{label}</div>'
+        f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.45);margin-top:6px;">'
+        f'Güven: <strong style="color:{border}">{proba:.1%}</strong></div>'
+        f'</div>'
+    )
+
+
+def html_section(title: str) -> str:
+    return (
+        f'<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.35);'
+        f'text-transform:uppercase;letter-spacing:0.1em;'
+        f'margin:1.25rem 0 0.75rem 0;display:flex;align-items:center;gap:10px;">'
+        f'{title}'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div></div>'
+    )
+
+
+# ── Matplotlib grafikleri ─────────────────────────────────────────────────────
+
+_DARK_BG  = "#0b0f1a"
+_PANEL_BG = "#0f1320"
+_GRID_CLR = "#1e2438"
+_MUTED    = "#475569"
+
+
+def _style_ax_dark(ax, fig=None):
+    bg = _PANEL_BG
+    if fig:
+        fig.patch.set_facecolor(_DARK_BG)
+    ax.set_facecolor(bg)
+    ax.tick_params(colors=_MUTED, labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(_GRID_CLR)
+    ax.xaxis.label.set_color(_MUTED)
+    ax.yaxis.label.set_color(_MUTED)
+    ax.title.set_color("#94a3b8")
+
+
+def fig_overview(body_x, body_y, arms: dict, pred_info: dict) -> plt.Figure:
+    pred_color = "#EF4444" if pred_info["pred"] == 1 else "#10B981"
+    pred_label = "Tedavi" if pred_info["pred"] == 1 else "Kontrol"
+
+    all_x = [v for (x0, x1, y0, y1) in arms.values() for v in (x0, x1)]
+    all_y = [v for (x0, x1, y0, y1) in arms.values() for v in (y0, y1)]
+    margin = 40
+
+    fig, ax = plt.subplots(figsize=(7, 7), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+    ax.set_xlim(min(all_x) - margin, max(all_x) + margin)
+    ax.set_ylim(max(all_y) + margin, min(all_y) - margin)
+    ax.grid(alpha=0.06, color="white", linewidth=0.5, zorder=0)
+
+    for arm_key, (x0, x1, y0, y1) in arms.items():
+        c = ZONE_HEX[arm_key]
+        ax.add_patch(mpatches.Rectangle(
+            (x0, y0), x1-x0, y1-y0,
+            linewidth=0, facecolor=c, alpha=0.10, zorder=1,
+        ))
+        ax.add_patch(mpatches.Rectangle(
+            (x0, y0), x1-x0, y1-y0,
+            linewidth=1.5, edgecolor=c, facecolor="none", alpha=0.45, zorder=2,
+        ))
+        # Etiketler: yörüngeyle çakışmamak için dış kenara konumlandırılır
+        cx, cy = (x0+x1)/2, (y0+y1)/2
+        lbl = ARM_LABELS[arm_key]
+        if arm_key == "top_arm":
+            tx, ty, ha, va = cx, y0 + 10, "center", "top"
+        elif arm_key == "bottom_arm":
+            tx, ty, ha, va = cx, y1 - 10, "center", "bottom"
+        elif arm_key == "left_arm":
+            tx, ty, ha, va = x0 + 10, cy, "left", "center"
+        else:  # right_arm
+            tx, ty, ha, va = x1 - 10, cy, "right", "center"
+        ax.text(
+            tx, ty, lbl,
+            ha=ha, va=va, fontsize=7.5, fontweight="600",
+            color=c, alpha=0.85, zorder=3,
+        )
+
+    valid = ~(np.isnan(body_x) | np.isnan(body_y))
+    if valid.sum() > 5:
+        xi, yi = body_x[valid], body_y[valid]
+        t_norm = np.linspace(0, 1, len(xi))
+        points   = np.array([xi, yi]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        base_rgb = mcolors.to_rgb(pred_color)
+        dark_rgb = tuple(c * 0.20 for c in base_rgb)
+        cmap = mcolors.LinearSegmentedColormap.from_list("traj", [dark_rgb, pred_color])
+        lc = LineCollection(segments, cmap=cmap, linewidth=1.3, alpha=0.80, zorder=4)
+        lc.set_array(t_norm[:-1])
+        lc.set_clim(0, 1)
+        ax.add_collection(lc)
+        ax.scatter(xi[0],  yi[0],  color="#10B981", s=80, zorder=8,
+                   edgecolors=_DARK_BG, linewidths=1.5, label="Başlangıç")
+        ax.scatter(xi[-1], yi[-1], color="#EF4444", s=70, zorder=8,
+                   marker="D", edgecolors=_DARK_BG, linewidths=1.5, label="Bitiş")
+        leg = ax.legend(loc="upper right", fontsize=8, framealpha=0.25,
+                        facecolor=_PANEL_BG, edgecolor=_GRID_CLR, labelcolor="#94a3b8")
+
+    ax.set_title(
+        f"Tahmin: {pred_label}   •   P(Tedavi) = {pred_info['proba_treated']:.1%}",
+        fontsize=11, fontweight="bold", color=pred_color, pad=14,
+    )
+    ax.set_xlabel("x (piksel)", fontsize=9)
+    ax.set_ylabel("y (piksel)", fontsize=9)
+    fig.tight_layout(pad=1.2)
+    return fig
+
+
+def fig_probability_bars(pred_info: dict) -> plt.Figure:
+    prob_c = pred_info["proba_control"]
+    prob_t = pred_info["proba_treated"]
+    is_treated = pred_info["pred"] == 1
+
+    fig, ax = plt.subplots(figsize=(5.5, 1.6), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+
+    labels = ["P(Kontrol)", "P(Tedavi)"]
+    values = [prob_c, prob_t]
+    colors = ["#3B82F6", "#EF4444"]
+    alphas = [0.85 if not is_treated else 0.30, 0.85 if is_treated else 0.30]
+
+    bars = ax.barh(labels, values, color=colors, alpha=1.0, height=0.45,
+                   edgecolor="none")
+    for bar, a in zip(bars, alphas):
+        bar.set_alpha(a)
+
+    for bar, val, clr in zip(bars, values, colors):
+        ax.text(val + 0.025, bar.get_y() + bar.get_height() / 2,
+                f"{val:.1%}", va="center", fontsize=10, fontweight="700", color=clr)
+
+    ax.set_xlim(0, 1.18)
+    ax.set_xticks([])
+    ax.spines[["top", "right", "bottom"]].set_visible(False)
+    ax.tick_params(left=False)
+    for label in ax.get_yticklabels():
+        label.set_color("#94a3b8")
+        label.set_fontsize(9)
+    fig.tight_layout(pad=0.8)
+    return fig
+
+
+def fig_feature_contributions(pred_info: dict) -> plt.Figure:
+    tops   = pred_info["top_contributors"]
+    names  = [c["feature"].replace("_", " ") for c in tops]
+    pushes = [c["push"] for c in tops]
+    colors = ["#EF4444" if p > 0 else "#3B82F6" for p in pushes]
+
+    fig, ax = plt.subplots(figsize=(5.5, 3.0), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+
+    bars = ax.barh(names[::-1], pushes[::-1], color=colors[::-1],
+                   alpha=0.80, height=0.5, edgecolor="none")
+    ax.axvline(0, color=_MUTED, linewidth=0.8, alpha=0.6, zorder=3)
+
+    for bar, val in zip(bars, pushes[::-1]):
+        offset = 0.004 if val >= 0 else -0.004
+        ha = "left" if val >= 0 else "right"
+        ax.text(val + offset, bar.get_y() + bar.get_height() / 2,
+                f"{val:+.3f}", va="center", ha=ha, fontsize=7.5,
+                color="#94a3b8")
+
+    ax.set_xlabel("Karar Katkısı", fontsize=8)
+    ax.grid(axis="x", alpha=0.07, color="white", zorder=0)
+    for lbl in ax.get_yticklabels():
+        lbl.set_color("#94a3b8")
+        lbl.set_fontsize(8)
+
+    from matplotlib.patches import Patch
+    ax.legend(
+        handles=[Patch(facecolor="#EF4444", alpha=0.8, label="→ Tedavi"),
+                 Patch(facecolor="#3B82F6", alpha=0.8, label="→ Kontrol")],
+        loc="lower right", fontsize=7, framealpha=0.2,
+        facecolor=_PANEL_BG, edgecolor=_GRID_CLR, labelcolor="#94a3b8",
+    )
+    fig.tight_layout(pad=1.0)
+    return fig
+
+
+def fig_arm_distribution(row: dict) -> plt.Figure:
+    arms   = ["Sol\n(açık)", "Sağ\n(açık)", "Alt\n(kapalı)", "Üst\n(kapalı)", "Kavşak"]
+    times  = [
+        row.get("pct_time_left",     0) or 0,
+        row.get("pct_time_right",    0) or 0,
+        row.get("pct_time_bottom",   0) or 0,
+        row.get("pct_time_top",      0) or 0,
+        row.get("pct_time_junction", 0) or 0,
+    ]
+    colors = ["#10B981", "#F59E0B", "#3B82F6", "#A855F7", "#64748B"]
+    entries = [
+        row.get("left_entries",   0) or 0,
+        row.get("right_entries",  0) or 0,
+        row.get("bottom_entries", 0) or 0,
+        row.get("top_entries",    0) or 0,
+        None,
+    ]
+
+    fig, ax = plt.subplots(figsize=(7, 3.2), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+
+    x     = np.arange(len(arms))
+    bars  = ax.bar(x, times, color=colors, alpha=0.80, width=0.55, edgecolor="none")
+
+    for bar, val, ent in zip(bars, times, entries):
+        bx = bar.get_x() + bar.get_width() / 2
+        ax.text(bx, bar.get_height() + 0.8,
+                f"{val:.1f}%", ha="center", va="bottom",
+                fontsize=9, fontweight="700", color="white")
+        if ent is not None:
+            ax.text(bx, bar.get_height() / 2,
+                    f"{int(ent)}G", ha="center", va="center",
+                    fontsize=7.5, color="white", alpha=0.6)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(arms, fontsize=9)
+    ax.set_ylabel("Zaman (%)", fontsize=9)
+    ax.set_ylim(0, max(times) * 1.3 + 5)
+    ax.grid(axis="y", alpha=0.07, color="white", zorder=0)
+    ax.spines[["top", "right"]].set_visible(False)
+    for lbl in ax.get_xticklabels():
+        lbl.set_color("#94a3b8")
+
+    # Açık vs kapalı annotation
+    open_pct   = times[0] + times[1]
+    closed_pct = times[2] + times[3]
+    ax.set_title(
+        f"Açık kol: {open_pct:.1f}%  •  Kapalı kol: {closed_pct:.1f}%",
+        fontsize=9.5, color="#64748b", pad=10,
+    )
+    fig.tight_layout(pad=1.0)
+    return fig
 
 
 # ── EPM türetilmiş metrikler ──────────────────────────────────────────────────
@@ -93,20 +504,7 @@ def add_derived(row: dict) -> dict:
     return row
 
 
-# ── Model yükleme (pkl başarısız olursa anında eğit) ─────────────────────────
-
-FEATURE_COLS = [
-    "pct_open_arm",
-    "anxiety_index_epm",
-    "pct_open_arm_entries",
-    "total_entries",
-    "successive_alternation_pct",
-    "perseveration_rate_pct",
-    "mean_speed_px_s",
-    "arm_preference_index",
-    "pct_time_junction",
-]
-
+# ── Model yükleme ─────────────────────────────────────────────────────────────
 
 def _train_from_csv():
     data_csv = ROOT / "data" / "plus_maze_metrics_all.csv"
@@ -129,17 +527,14 @@ def _train_from_csv():
 
 @st.cache_resource
 def load_model():
-    sp = MODEL_DIR / "scaler_epm.pkl"
-    mp = MODEL_DIR / "lr_epm.pkl"
+    sp, mp = MODEL_DIR / "scaler_epm.pkl", MODEL_DIR / "lr_epm.pkl"
     if sp.exists() and mp.exists():
         try:
-            with open(sp, "rb") as f:
-                bundle = pickle.load(f)
-            with open(mp, "rb") as f:
-                clf = pickle.load(f)
+            with open(sp, "rb") as f: bundle = pickle.load(f)
+            with open(mp, "rb") as f: clf    = pickle.load(f)
             return bundle, clf
         except Exception:
-            pass  # numpy/sklearn sürüm uyumsuzluğu → anında eğit
+            pass
     return _train_from_csv()
 
 
@@ -174,74 +569,12 @@ def predict(row: dict, bundle: dict, clf) -> dict:
     }
 
 
-# ── Genel bakış grafiği ───────────────────────────────────────────────────────
-
-def fig_overview(body_x, body_y, arms: dict, pred_info: dict) -> plt.Figure:
-    pred_color = "#E53935" if pred_info["pred"] == 1 else "#1E88E5"
-    pred_label = "Tedavi" if pred_info["pred"] == 1 else "Kontrol"
-
-    # Eksen sınırlarını kollardan otomatik hesapla
-    all_x = [v for (x0, x1, y0, y1) in arms.values() for v in (x0, x1)]
-    all_y = [v for (x0, x1, y0, y1) in arms.values() for v in (y0, y1)]
-    margin = 25
-    xmin_b, xmax_b = min(all_x) - margin, max(all_x) + margin
-    ymin_b, ymax_b = min(all_y) - margin, max(all_y) + margin
-
-    fig, ax = plt.subplots(figsize=(7, 7))
-    ax.set_xlim(xmin_b, xmax_b)
-    ax.set_ylim(ymax_b, ymin_b)   # y ekseni ters (piksel koordinatı)
-
-    # Kol dikdörtgenleri — dolu dolgu + belirgin kenar
-    for arm_key, (x0, x1, y0, y1) in arms.items():
-        c = ZONE_COLORS[arm_key]
-        rect = mpatches.Rectangle(
-            (x0, y0), x1 - x0, y1 - y0,
-            linewidth=2.5, edgecolor=c,
-            facecolor=c, alpha=0.30, zorder=1,
-        )
-        ax.add_patch(rect)
-        # Etiket — beyaz arka planlı metin
-        ax.text(
-            (x0 + x1) / 2, (y0 + y1) / 2,
-            ARM_LABELS[arm_key],
-            ha="center", va="center",
-            fontsize=9, fontweight="bold", color="white", zorder=3,
-            bbox=dict(facecolor=c, alpha=0.75,
-                      edgecolor="none", boxstyle="round,pad=0.3"),
-        )
-
-    # Trajectory
-    valid = ~(np.isnan(body_x) | np.isnan(body_y))
-    if valid.any():
-        ax.plot(body_x[valid], body_y[valid],
-                color=pred_color, alpha=0.55, lw=0.9,
-                zorder=2, label="body_center")
-        ax.scatter(body_x[valid][0],  body_y[valid][0],
-                   color="#43A047", s=90, zorder=5, label="Başlangıç")
-        ax.scatter(body_x[valid][-1], body_y[valid][-1],
-                   color="#E53935", s=90, zorder=5, marker="X", label="Bitiş")
-
-    ax.set_title(
-        f"{pred_label}  —  P(Tedavi) = {pred_info['proba_treated']:.2f}",
-        fontsize=13, fontweight="bold", color=pred_color, pad=10,
-    )
-    ax.set_xlabel("x (piksel)", fontsize=10)
-    ax.set_ylabel("y (piksel)", fontsize=10)
-    ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
-    ax.grid(alpha=0.15, linestyle="--")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    return fig
-
-
-# ── Trajectory + Heatmap görselleri (subprocess) ─────────────────────────────
+# ── Görselleştirme (subprocess) ───────────────────────────────────────────────
 
 def run_visuals(csv_path: Path, arms: dict, out_dir: Path) -> dict:
     arm_args = []
     for key in ("bottom_arm", "left_arm", "right_arm", "top_arm"):
-        arm_args += [f"--{key.replace('_', '-')}"] + [str(v) for v in arms[key]]
-
-    # orbit_plot.py ve activity_heatmap.py --fps kabul etmiyor
+        arm_args += [f"--{key.replace('_','-')}"] + [str(v) for v in arms[key]]
     common = [
         "--csv",         str(csv_path),
         "--out-dir",     str(out_dir),
@@ -249,27 +582,24 @@ def run_visuals(csv_path: Path, arms: dict, out_dir: Path) -> dict:
         "--jump-thresh", "60",
         "--smooth",      "5",
     ] + arm_args
-
     for script in ("orbit_plot.py", "activity_heatmap.py"):
         try:
-            result = subprocess.run(
+            res = subprocess.run(
                 [sys.executable, str(PLUS_DIR / script)] + common,
                 capture_output=True, text=True, timeout=120,
             )
-            if result.returncode != 0:
-                st.warning(f"{script} hatası: {result.stderr[-300:] if result.stderr else 'bilinmiyor'}")
+            if res.returncode != 0:
+                st.warning(f"{script}: {res.stderr[-300:] if res.stderr else 'bilinmiyor'}")
         except subprocess.TimeoutExpired:
             st.warning(f"{script} zaman aşımına uğradı (>120s)")
-
-    images = {}
-    stem = csv_path.stem
-    # Gerçek çıktı isimleri: *_plus_maze_orbit.png, *_plus_maze_bodyparts.png
+    stem    = csv_path.stem
     key_map = {
         "_plus_maze_orbit.png":     "orbit",
         "_plus_maze_bodyparts.png": "bodyparts",
         "_heatmap_kde.png":         "heatmap_kde",
         "_heatmap_histogram.png":   "heatmap_histogram",
     }
+    images = {}
     for f in out_dir.iterdir():
         if f.name.startswith(stem) and f.suffix == ".png":
             for suffix, key in key_map.items():
@@ -278,81 +608,199 @@ def run_visuals(csv_path: Path, arms: dict, out_dir: Path) -> dict:
     return images
 
 
-# ── Sidebar — sadece dosya yükleme bilgisi ────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("Hakkında")
+    st.markdown("""
+    <div style="padding:1rem 0 0.5rem 0;">
+        <div style="font-size:1.5rem;font-weight:800;color:#f1f5f9;letter-spacing:-0.5px;">
+            🐀 EPM Analiz
+        </div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);margin-top:3px;letter-spacing:0.03em;">
+            Elevated Plus Maze · DLC Pipeline
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:0.5rem 0 1rem 0;"></div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;">Model Bilgisi</div>', unsafe_allow_html=True)
+
     st.markdown(
-        "**Model:** Lojistik Regresyon  \n"
-        "**Eğitim:** 37 fare (LOOCV)  \n"
-        "**AUC:** 0.733  \n"
-        "**F1 (Tedavi):** 0.821  \n\n"
-        "**Kol koordinatları** `data/arm_coords.json` dosyasından otomatik yüklenir."
+        html_stat_row("Algoritma",    "Lojistik Regresyon") +
+        html_stat_row("Eğitim seti",  "37 sıçan (LOOCV)") +
+        html_stat_row("AUC",          "0.733") +
+        html_stat_row("F1 (Tedavi)",  "0.821") +
+        html_stat_row("Duyarlılık",   "76.7%") +
+        html_stat_row("Özgüllük",     "57.1%"),
+        unsafe_allow_html=True,
     )
-    st.divider()
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;">Kullanım</div>', unsafe_allow_html=True)
+    for i, step in enumerate(["DLC filtered CSV yükle", "Çalıştır butonuna bas", "Sonuçları incele & indir"], 1):
+        st.markdown(
+            f'<div style="display:flex;gap:10px;align-items:center;padding:6px 0;">'
+            f'<div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.05);'
+            f'border:1px solid rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;'
+            f'font-size:0.7rem;font-weight:600;color:#94a3b8;flex-shrink:0;">{i}</div>'
+            f'<span style="font-size:0.82rem;color:rgba(255,255,255,0.55);">{step}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
     st.markdown(
-        "**Kullanım:**  \n"
-        "1. CSV dosyasını yükle  \n"
-        "2. **Çalıştır** butonuna bas  \n"
-        "3. Sonuçları incele ve indir"
+        '<div style="font-size:0.72rem;color:rgba(255,255,255,0.25);line-height:1.6;">'
+        'Kol koordinatları <code style="background:rgba(255,255,255,0.06);'
+        'padding:1px 5px;border-radius:4px;font-size:0.68rem;">data/arm_coords.json</code>'
+        ' dosyasından otomatik yüklenir.</div>',
+        unsafe_allow_html=True,
     )
 
 
-# ── Dosya yükleme ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# HERO HEADER
+# ─────────────────────────────────────────────────────────────────────────────
 
-uploaded = st.file_uploader(
-    "DLC filtered pose CSV (tek sıçan)", type=["csv"]
-)
+st.markdown("""
+<div style="background:linear-gradient(135deg,#141e2e 0%,#1a2a3f 55%,#0e1520 100%);
+     border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.5rem;
+     border:1px solid rgba(255,255,255,0.07);
+     box-shadow:0 8px 32px rgba(0,0,0,0.45);">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div style="font-size:2.8rem;line-height:1;">🐀</div>
+    <div>
+      <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:white;letter-spacing:-0.5px;">
+        Elevated Plus Maze  —  Analiz Paneli
+      </h1>
+      <p style="margin:4px 0 0 0;font-size:0.82rem;color:rgba(255,255,255,0.45);">
+        DeepLabCut pose verisi · Kaygı metrikleri · ML tabanlı grup tahmini
+      </p>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+    <span style="background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#818cf8;letter-spacing:0.04em;">Lojistik Regresyon</span>
+    <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#34d399;letter-spacing:0.04em;">LOOCV · n=37</span>
+    <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#fbbf24;letter-spacing:0.04em;">AUC 0.733</span>
+    <span style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#c084fc;letter-spacing:0.04em;">F1 0.821</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DOSYA YÜKLEME
+# ─────────────────────────────────────────────────────────────────────────────
+
+upload_col, btn_col = st.columns([3, 1], gap="medium")
+with upload_col:
+    uploaded = st.file_uploader(
+        "DLC filtered pose CSV (tek sıçan)",
+        type=["csv"],
+        label_visibility="collapsed",
+        help="DeepLabCut tarafından üretilmiş filtrelenmiş CSV dosyası",
+    )
+with btn_col:
+    st.markdown('<div style="height:0.35rem;"></div>', unsafe_allow_html=True)
+    run_clicked = st.button("▶  Çalıştır", type="primary", use_container_width=True)
+
 if uploaded is None:
-    st.info("CSV dosyası yükleyin, ardından **Çalıştır** butonuna basın.")
+    st.markdown("""
+    <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);
+         border-radius:12px;padding:1.25rem 1.5rem;margin-top:0.5rem;
+         display:flex;align-items:center;gap:12px;">
+      <span style="font-size:1.5rem;">📂</span>
+      <span style="font-size:0.875rem;color:rgba(255,255,255,0.45);">
+        Analiz başlatmak için bir CSV dosyası yükleyin, ardından
+        <strong style="color:#818cf8;">Çalıştır</strong> butonuna basın.
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
-if not st.button("▶  Çalıştır", type="primary"):
+if not run_clicked:
+    st.markdown(
+        f'<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);'
+        f'border-radius:10px;padding:0.9rem 1.2rem;margin-top:0.5rem;'
+        f'display:flex;align-items:center;gap:10px;">'
+        f'<span style="font-size:1.1rem;">📄</span>'
+        f'<span style="font-size:0.875rem;color:#34d399;font-weight:500;">{uploaded.name}</span>'
+        f'<span style="color:rgba(255,255,255,0.3);font-size:0.8rem;margin-left:auto;">'
+        f'Hazır · Çalıştır butonuna bas</span></div>',
+        unsafe_allow_html=True,
+    )
     st.stop()
 
-# ── Model kontrol ─────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODEL KONTROLÜ
+# ─────────────────────────────────────────────────────────────────────────────
 
 bundle, clf = load_model()
 if bundle is None:
     st.error(
-        "Model yüklenemedi ve eğitim verisi de bulunamadı.  \n"
-        "`data/plus_maze_metrics_all.csv` dosyasının varlığını kontrol edin."
+        "Model yüklenemedi — `data/plus_maze_metrics_all.csv` dosyasının "
+        "varlığını kontrol edin."
     )
     st.stop()
 
-# ── Pipeline ──────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PIPELINE
+# ─────────────────────────────────────────────────────────────────────────────
 
 with tempfile.TemporaryDirectory() as tmp:
     tmp_path = Path(tmp)
     csv_path = tmp_path / uploaded.name
     csv_path.write_bytes(uploaded.getvalue())
 
-    progress = st.progress(0.0, "Başlıyor…")
+    prog = st.progress(0.0)
+    status_ph = st.empty()
+
+    def _step(pct: float, msg: str):
+        prog.progress(pct)
+        status_ph.markdown(
+            f'<div style="font-size:0.8rem;color:rgba(255,255,255,0.4);'
+            f'margin:4px 0 8px 2px;">{msg}</div>',
+            unsafe_allow_html=True,
+        )
 
     try:
-        progress.progress(0.15, "[1/4] EPM metrikleri hesaplanıyor…")
-        row = compute_metrics(str(csv_path), DEFAULT_ARMS, fps=FPS)
-        row = add_derived(row)
+        _step(0.12, "⚙  EPM metrikleri hesaplanıyor…")
+        row = add_derived(compute_metrics(str(csv_path), DEFAULT_ARMS, fps=FPS))
 
-        progress.progress(0.35, "[2/4] Trajectory okunuyor…")
+        _step(0.35, "📍 Trajectory okunuyor…")
         body_x, body_y = load_body_center(
             str(csv_path), likelihood_thresh=0.6, jump_thresh=60.0, smooth=5
         )
 
-        progress.progress(0.55, "[3/4] Model tahmini…")
+        _step(0.55, "🤖 Model tahmini yapılıyor…")
         pred_info = predict(row, bundle, clf)
 
-        progress.progress(0.70, "[4/4] Görseller üretiliyor…")
+        _step(0.72, "🎨 Görselleştirmeler üretiliyor…")
         images = run_visuals(csv_path, DEFAULT_ARMS, tmp_path)
 
-        # Overview grafiğini belleğe al (temp dir kapanmadan önce)
         fig_ov = fig_overview(body_x, body_y, DEFAULT_ARMS, pred_info)
-        _buf = io.BytesIO()
-        fig_ov.savefig(_buf, format="png", dpi=140, bbox_inches="tight")
+        buf = io.BytesIO()
+        fig_ov.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                       facecolor=_DARK_BG)
         plt.close(fig_ov)
-        overview_bytes = _buf.getvalue()
+        overview_bytes = buf.getvalue()
 
-        progress.progress(1.0, "Tamamlandı ✓")
+        _step(1.0, "✓  Tamamlandı")
+        prog.empty()
+        status_ph.empty()
 
     except Exception as e:
         st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
@@ -360,140 +808,158 @@ with tempfile.TemporaryDirectory() as tmp:
         st.stop()
 
 
-# ── Görüntü ───────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# SONUÇLAR
+# ─────────────────────────────────────────────────────────────────────────────
 
-pred_label = "Tedavi" if pred_info["pred"] == 1 else "Kontrol"
+pred_label = "Tedavi"  if pred_info["pred"] == 1 else "Kontrol"
 top_proba  = pred_info["proba_treated"] if pred_info["pred"] == 1 else pred_info["proba_control"]
 subject    = Path(uploaded.name).stem
+is_treated = pred_info["pred"] == 1
 
-st.divider()
+st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
 
 tab_pred, tab_metrics, tab_viz, tab_dl = st.tabs(
-    ["EPM Tahmini", "EPM Metrikleri", "Görselleştirmeler", "İndir"]
+    ["🎯  Tahmin", "📊  Metrikler", "🖼  Görselleştirme", "⬇  İndir"]
 )
 
-# ── Tab 1: EPM Tahmini ────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 1 — TAHMİN
+# ─────────────────────────────────────────────────────────────────────────────
 
 with tab_pred:
-    col_img, col_meta = st.columns([1.3, 1])
+    col_img, col_right = st.columns([1.35, 1], gap="large")
 
     with col_img:
-        st.subheader("Genel Bakış")
+        st.markdown(html_section("Trajectory Haritası"), unsafe_allow_html=True)
         st.image(overview_bytes, use_container_width=True)
 
-    with col_meta:
-        st.subheader("Tahmin Sonucu")
-        color_md = "red" if pred_info["pred"] == 1 else "blue"
-        st.markdown(f"## :{color_md}[{pred_label}]")
-        st.metric("Güven", f"%{top_proba * 100:.0f}")
+    with col_right:
+        st.markdown(html_section("Tahmin Sonucu"), unsafe_allow_html=True)
+        st.markdown(html_pred_card(pred_label, top_proba, is_treated), unsafe_allow_html=True)
 
-        c1, c2 = st.columns(2)
-        c1.metric("P(Kontrol)", f"{pred_info['proba_control']:.3f}")
-        c2.metric("P(Tedavi)",  f"{pred_info['proba_treated']:.3f}")
+        # Probability bars
+        buf_p = io.BytesIO()
+        fp = fig_probability_bars(pred_info)
+        fp.savefig(buf_p, format="png", dpi=130, bbox_inches="tight",
+                   facecolor=_DARK_BG)
+        plt.close(fp)
+        st.image(buf_p.getvalue(), use_container_width=True)
 
-        st.subheader("Temel EPM Metrikleri")
-        oa  = row["pct_open_arm"]
-        ai  = row["anxiety_index_epm"]
-        te  = row["total_entries"]
-        oae = row.get("pct_open_arm_entries", 0) or 0
-        alt = row.get("successive_alternation_pct", 0) or 0
-        st.markdown(
-            f"- Açık kol süresi: **%{oa:.1f}**\n"
-            f"- Anksiyete indeksi: **{ai:.2f}**\n"
-            f"- Toplam giriş: **{te}**\n"
-            f"- Açık kol girişi: **%{oae:.1f}**\n"
-            f"- Alternasyon: **%{alt:.1f}**"
-        )
+        st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
+        m1, m2 = st.columns(2)
+        m1.metric("Açık Kol",         f"%{row['pct_open_arm']:.1f}")
+        m2.metric("Anksiyete İnd.",    f"{row['anxiety_index_epm']:.2f}")
+        m3, m4 = st.columns(2)
+        m3.metric("Toplam Giriş",      str(int(row["total_entries"])))
+        m4.metric("Alternasyon",       f"%{row.get('successive_alternation_pct', 0) or 0:.1f}")
 
-        st.subheader("Kararı En Çok Etkileyen Özellikler")
-        for i, c in enumerate(pred_info["top_contributors"][:3], 1):
-            sign  = "+" if c["push"] >= 0 else "−"
-            val_s = f"{c['value']:.2f}" if c["value"] is not None else "—"
-            st.markdown(
-                f"{i}. **{c['feature']}** = {val_s}  "
-                f"(z={c['z']:+.2f}, etki={sign}{abs(c['push']):.2f}) "
-                f"→ {c['toward']}"
-            )
+        st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
+        buf_f = io.BytesIO()
+        ff = fig_feature_contributions(pred_info)
+        ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight",
+                   facecolor=_DARK_BG)
+        plt.close(ff)
+        st.image(buf_f.getvalue(), use_container_width=True)
 
 
-# ── Tab 2: EPM Metrikleri ─────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 2 — METRİKLER
+# ─────────────────────────────────────────────────────────────────────────────
 
 with tab_metrics:
-    st.subheader("Tüm EPM Metrikleri")
+    st.markdown(html_section("Kol Bazlı Zaman Dağılımı"), unsafe_allow_html=True)
+    buf_a = io.BytesIO()
+    fa = fig_arm_distribution(row)
+    fa.savefig(buf_a, format="png", dpi=140, bbox_inches="tight",
+               facecolor=_DARK_BG)
+    plt.close(fa)
+    st.image(buf_a.getvalue(), use_container_width=True)
 
-    highlight = [
-        "pct_open_arm", "anxiety_index_epm", "pct_open_arm_entries",
-        "total_entries", "successive_alternation_pct", "perseveration_rate_pct",
-        "mean_speed_px_s", "arm_preference_index", "pct_time_junction",
-    ]
-    metric_rows = [
-        {
-            "Metrik": k.replace("_", " ").title(),
-            "Değer":  f"{v:.2f}" if isinstance(v, float) else str(v),
-        }
-        for k, v in row.items() if k in highlight
-    ]
-    st.dataframe(pd.DataFrame(metric_rows), use_container_width=True, hide_index=True)
+    mc1, mc2 = st.columns(2)
+    with mc1:
+        st.markdown(html_section("Model Feature'ları"), unsafe_allow_html=True)
+        feat_rows = [
+            {"Özellik": k.replace("_", " ").title(),
+             "Değer":   f"{row[k]:.3f}" if isinstance(row.get(k), float) else str(row.get(k, "—"))}
+            for k in FEATURE_COLS
+        ]
+        st.dataframe(
+            pd.DataFrame(feat_rows),
+            use_container_width=True, hide_index=True, height=340,
+        )
 
-    st.divider()
-    st.subheader("Kol Bazlı Zaman Dağılımı")
-    arm_tbl = {
-        "Kol": ["Sol (açık)", "Sağ (açık)", "Alt (kapalı)", "Üst (kapalı)", "Kavşakta"],
-        "Süre (%)": [
-            row["pct_time_left"], row["pct_time_right"],
-            row["pct_time_bottom"], row["pct_time_top"],
-            row["pct_time_junction"],
-        ],
-        "Giriş": [
-            row["left_entries"], row["right_entries"],
-            row["bottom_entries"], row["top_entries"], "—",
-        ],
-    }
-    st.dataframe(pd.DataFrame(arm_tbl), use_container_width=True, hide_index=True)
+    with mc2:
+        st.markdown(html_section("Kol Detayları"), unsafe_allow_html=True)
+        arm_tbl = pd.DataFrame({
+            "Kol":       ["Sol (açık)", "Sağ (açık)", "Alt (kapalı)", "Üst (kapalı)", "Kavşak"],
+            "Süre (%)":  [f"{row['pct_time_left']:.1f}", f"{row['pct_time_right']:.1f}",
+                          f"{row['pct_time_bottom']:.1f}", f"{row['pct_time_top']:.1f}",
+                          f"{row['pct_time_junction']:.1f}"],
+            "Giriş":     [row["left_entries"], row["right_entries"],
+                          row["bottom_entries"], row["top_entries"], "—"],
+        })
+        st.dataframe(arm_tbl, use_container_width=True, hide_index=True, height=220)
 
-    with st.expander("Giriş dizisi"):
-        seq = row.get("entry_sequence", "")
-        st.code(seq if seq else "(giriş yok)")
+        with st.expander("Giriş dizisi"):
+            seq = row.get("entry_sequence", "")
+            st.code(seq if seq else "(giriş yok)")
 
 
-# ── Tab 3: Görselleştirmeler ──────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 — GÖRSELLEŞTİRME
+# ─────────────────────────────────────────────────────────────────────────────
 
 with tab_viz:
     if not images:
-        st.warning("Görsel üretilemedi. orbit_plot.py veya activity_heatmap.py hatasını kontrol edin.")
+        st.markdown("""
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);
+             border-radius:12px;padding:1.25rem;text-align:center;color:rgba(255,255,255,0.5);">
+          ⚠️  Görseller üretilemedi.
+          <code>orbit_plot.py</code> veya <code>activity_heatmap.py</code> çıktısını kontrol edin.
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if "orbit" in images:
-                st.markdown("### Kol-Renkli Trajectory")
-                st.image(images["orbit"], use_container_width=True)
-            if "heatmap_kde" in images:
-                st.markdown("### KDE Aktivite Haritası")
-                st.image(images["heatmap_kde"], use_container_width=True)
-        with col_b:
-            if "bodyparts" in images:
-                st.markdown("### Vücut Noktaları (10 keypoint)")
-                st.image(images["bodyparts"], use_container_width=True)
-            if "heatmap_histogram" in images:
-                st.markdown("### Histogram Yoğunluk")
-                st.image(images["heatmap_histogram"], use_container_width=True)
+        viz_defs = [
+            ("orbit",             "Kol-Renkli Trajectory",  "Bölge renklerine göre hareket yolu"),
+            ("bodyparts",         "Vücut Noktaları",        "10 keypoint — zaman gradyanı"),
+            ("heatmap_kde",       "KDE Aktivite Haritası",  "Çekirdek yoğunluk tahmini"),
+            ("heatmap_histogram", "Histogram Yoğunluk",     "Piksel ziyaret frekansı"),
+        ]
+        col_a, col_b = st.columns(2, gap="medium")
+        for idx, (key, title, subtitle) in enumerate(viz_defs):
+            if key not in images:
+                continue
+            col = col_a if idx % 2 == 0 else col_b
+            with col:
+                st.markdown(
+                    f'<div style="margin-bottom:4px;">'
+                    f'<span style="font-size:0.82rem;font-weight:600;color:#94a3b8;">{title}</span>'
+                    f'<span style="font-size:0.72rem;color:rgba(255,255,255,0.25);margin-left:8px;">{subtitle}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                st.image(images[key], use_container_width=True)
+                st.markdown('<div style="height:1rem;"></div>', unsafe_allow_html=True)
 
 
-# ── Tab 4: İndir ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 4 — İNDİR
+# ─────────────────────────────────────────────────────────────────────────────
 
 with tab_dl:
-    st.subheader("Dosyaları İndir")
-
     safe_row = {
         k: (None if isinstance(v, float) and np.isnan(v) else v)
-        for k, v in row.items()
-        if not k.startswith("_")
+        for k, v in row.items() if not k.startswith("_")
     }
-    safe_row["pred_label"]    = pred_label
-    safe_row["proba_control"] = round(pred_info["proba_control"], 4)
-    safe_row["proba_treated"] = round(pred_info["proba_treated"], 4)
-
-    csv_bytes  = pd.DataFrame([safe_row]).to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+    safe_row.update({
+        "pred_label":    pred_label,
+        "proba_control": round(pred_info["proba_control"], 4),
+        "proba_treated": round(pred_info["proba_treated"], 4),
+    })
+    csv_bytes = pd.DataFrame([safe_row]).to_csv(
+        index=False, encoding="utf-8-sig").encode("utf-8-sig")
     json_bytes = json.dumps(
         {
             "subject":          subject,
@@ -508,41 +974,38 @@ with tab_dl:
         indent=2, ensure_ascii=False,
     ).encode("utf-8")
 
-    c1, c2, c3 = st.columns(3)
-    c1.download_button(
-        "⬇ Metrikler (CSV)",
-        csv_bytes,
-        file_name=f"{subject}_epm_metrics.csv",
-        mime="text/csv",
+    st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
+    dc1, dc2, dc3 = st.columns(3, gap="medium")
+    dc1.download_button(
+        "⬇  Metrikler (CSV)", csv_bytes,
+        file_name=f"{subject}_epm_metrics.csv", mime="text/csv",
+        use_container_width=True,
     )
-    c2.download_button(
-        "⬇ Tahmin Raporu (JSON)",
-        json_bytes,
-        file_name=f"{subject}_epm_report.json",
-        mime="application/json",
+    dc2.download_button(
+        "⬇  Tahmin Raporu (JSON)", json_bytes,
+        file_name=f"{subject}_epm_report.json", mime="application/json",
+        use_container_width=True,
     )
-    c3.download_button(
-        "⬇ Genel Bakış (PNG)",
-        overview_bytes,
-        file_name=f"{subject}_epm_overview.png",
-        mime="image/png",
+    dc3.download_button(
+        "⬇  Genel Bakış (PNG)", overview_bytes,
+        file_name=f"{subject}_epm_overview.png", mime="image/png",
+        use_container_width=True,
     )
 
     if images:
-        st.divider()
-        st.subheader("Analiz Görselleri")
+        st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
         viz_map = [
             ("orbit",             "Trajectory"),
             ("bodyparts",         "Vücut Noktaları"),
             ("heatmap_kde",       "KDE Haritası"),
             ("heatmap_histogram", "Histogram"),
         ]
-        cols = st.columns(len(viz_map))
-        for (key, lbl), col in zip(viz_map, cols):
+        dcols = st.columns(len(viz_map), gap="medium")
+        for (key, lbl), col in zip(viz_map, dcols):
             if key in images:
                 col.download_button(
-                    f"⬇ {lbl} (PNG)",
-                    images[key],
+                    f"⬇  {lbl} (PNG)", images[key],
                     file_name=f"{subject}_{key}.png",
                     mime="image/png",
+                    use_container_width=True,
                 )
