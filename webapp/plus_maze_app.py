@@ -6,6 +6,7 @@ plus_maze_app.py  —  Plus Maze (EPM) analiz ve tahmin dashboard'u
 """
 from __future__ import annotations
 
+import base64
 import io
 import json
 import pickle
@@ -727,117 +728,95 @@ with st.sidebar:
 # HERO HEADER
 # ─────────────────────────────────────────────────────────────────────────────
 
-st.markdown("""
+_MOUSE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
 <style>
-@keyframes epmPoseCycle {
-  0%, 28%   { opacity: 1; }
-  33%, 100% { opacity: 0; }
-}
-@keyframes epmKpPulse {
-  0%, 100% { fill-opacity: 1; }
-  50%      { fill-opacity: 0.55; }
-}
-.epm-mouse-svg .pose-g {
-  opacity: 0;
-  animation: epmPoseCycle 6s infinite;
-}
-.epm-mouse-svg .pose-1 { animation-delay: 0s; }
-.epm-mouse-svg .pose-2 { animation-delay: 2s; }
-.epm-mouse-svg .pose-3 { animation-delay: 4s; }
-.epm-mouse-svg .kp { animation: epmKpPulse 1.4s infinite ease-in-out; }
+@keyframes poseCycle { 0%, 28% { opacity: 1; } 33%, 100% { opacity: 0; } }
+@keyframes kpPulse { 0%, 100% { fill-opacity: 1; } 50% { fill-opacity: 0.55; } }
+.pose-g { opacity: 0; animation: poseCycle 6s infinite; }
+.pose-1 { animation-delay: 0s; }
+.pose-2 { animation-delay: 2s; }
+.pose-3 { animation-delay: 4s; }
+.kp { animation: kpPulse 1.4s infinite ease-in-out; }
+text { font-family: 'Inter','Segoe UI',sans-serif; font-weight: 600; letter-spacing: 0.12em; fill: #cbd5e1; }
 </style>
+<g class="pose-g pose-1">
+<ellipse cx="100" cy="58" rx="38" ry="17" fill="#94a3b8" opacity="0.85"/>
+<circle cx="142" cy="55" r="13" fill="#94a3b8" opacity="0.95"/>
+<ellipse cx="137" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
+<ellipse cx="148" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
+<circle cx="146" cy="53" r="1.4" fill="#0f172a"/>
+<circle cx="155" cy="57" r="1.4" fill="#0f172a"/>
+<line x1="152" y1="58" x2="163" y2="60" stroke="#cbd5e1" stroke-width="0.5"/>
+<line x1="152" y1="59" x2="163" y2="64" stroke="#cbd5e1" stroke-width="0.5"/>
+<path d="M 62 58 Q 40 50 28 60 Q 22 66 26 74" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+<line x1="80" y1="74" x2="76" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="95" y1="74" x2="98" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="115" y1="74" x2="113" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="128" y1="72" x2="131" y2="83" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<circle class="kp" cx="142" cy="55" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="100" cy="58" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="62" cy="58" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
+<text x="100" y="110" text-anchor="middle" font-size="9.5">YÜRÜYOR</text>
+</g>
+<g class="pose-g pose-2">
+<ellipse cx="100" cy="55" rx="16" ry="30" fill="#94a3b8" opacity="0.85" transform="rotate(-7 100 55)"/>
+<circle cx="96" cy="22" r="12" fill="#94a3b8" opacity="0.95"/>
+<ellipse cx="89" cy="13" rx="4" ry="5" fill="#cbd5e1"/>
+<ellipse cx="101" cy="13" rx="4" ry="5" fill="#cbd5e1"/>
+<circle cx="92" cy="23" r="1.4" fill="#0f172a"/>
+<circle cx="100" cy="23" r="1.4" fill="#0f172a"/>
+<circle cx="96" cy="30" r="1.5" fill="#0f172a"/>
+<line x1="86" y1="40" x2="79" y2="30" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+<line x1="116" y1="40" x2="120" y2="29" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+<line x1="91" y1="84" x2="86" y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="109" y1="84" x2="114" y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+<path d="M 110 85 Q 130 90 138 80 Q 142 74 138 67" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+<circle class="kp" cx="96" cy="22" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="100" cy="55" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="110" cy="85" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
+<text x="100" y="110" text-anchor="middle" font-size="9.5">AYAKTA</text>
+</g>
+<g class="pose-g pose-3">
+<ellipse cx="98" cy="62" rx="34" ry="20" fill="#94a3b8" opacity="0.85"/>
+<circle cx="132" cy="52" r="12" fill="#94a3b8" opacity="0.95" transform="rotate(15 132 52)"/>
+<ellipse cx="127" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
+<ellipse cx="138" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
+<circle cx="136" cy="52" r="1.4" fill="#0f172a"/>
+<circle cx="144" cy="56" r="1.5" fill="#0f172a"/>
+<line x1="127" y1="58" x2="120" y2="48" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+<line x1="135" y1="60" x2="130" y2="46" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+<line x1="80" y1="80" x2="76" y2="92" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<line x1="100" y1="82" x2="103" y2="94" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M 65 65 Q 45 65 45 50 Q 50 38 68 45" stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+<circle class="kp" cx="132" cy="52" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="98" cy="62" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
+<circle class="kp" cx="65" cy="65" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
+<text x="100" y="110" text-anchor="middle" font-size="9.5">TIMARLANIYOR</text>
+</g>
+</svg>"""
 
+_MOUSE_B64 = base64.b64encode(_MOUSE_SVG.encode("utf-8")).decode("ascii")
+_MOUSE_IMG = (
+    f'<img src="data:image/svg+xml;base64,{_MOUSE_B64}" '
+    f'width="200" height="120" alt="EPM keypoint animation" '
+    f'style="flex-shrink:0;display:block;">'
+)
+
+st.markdown(f"""
 <div style="background:linear-gradient(135deg,#1e3a5f 0%,#254d7a 55%,#0c1e36 100%);
      border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.5rem;
      border:1px solid rgba(99,149,210,0.28);
      box-shadow:0 8px 28px rgba(12,30,54,0.55);">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:16px;">
-      <div style="font-size:2.8rem;line-height:1;">🐀</div>
-      <div>
-        <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:white;letter-spacing:-0.5px;">
-          Elevated Plus Maze  —  Analiz Paneli
-        </h1>
-        <p style="margin:4px 0 0 0;font-size:0.82rem;color:rgba(255,255,255,0.45);">
-          DeepLabCut pose verisi · Kaygı metrikleri · ML tabanlı grup tahmini
-        </p>
-      </div>
-    </div>
-
-    <svg class="epm-mouse-svg" viewBox="0 0 200 120" width="200" height="120"
-         style="flex-shrink:0;">
-      <!-- ── POSE 1 · YÜRÜYOR ──────────────────────────────────────── -->
-      <g class="pose-g pose-1">
-        <ellipse cx="100" cy="58" rx="38" ry="17" fill="#94a3b8" opacity="0.85"/>
-        <circle cx="142" cy="55" r="13" fill="#94a3b8" opacity="0.95"/>
-        <ellipse cx="137" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
-        <ellipse cx="148" cy="43" rx="4" ry="5" fill="#cbd5e1"/>
-        <circle cx="146" cy="53" r="1.4" fill="#0f172a"/>
-        <circle cx="155" cy="57" r="1.4" fill="#0f172a"/>
-        <line x1="152" y1="58" x2="163" y2="60" stroke="#cbd5e1" stroke-width="0.5"/>
-        <line x1="152" y1="59" x2="163" y2="64" stroke="#cbd5e1" stroke-width="0.5"/>
-        <path d="M 62 58 Q 40 50 28 60 Q 22 66 26 74"
-              stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-        <line x1="80"  y1="74" x2="76"  y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <line x1="95"  y1="74" x2="98"  y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <line x1="115" y1="74" x2="113" y2="85" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <line x1="128" y1="72" x2="131" y2="83" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <circle class="kp" cx="142" cy="55" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="100" cy="58" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="62"  cy="58" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-        <text x="100" y="110" text-anchor="middle" font-size="9.5"
-              fill="#cbd5e1" font-family="Inter, sans-serif" font-weight="600"
-              letter-spacing="0.12em">YÜRÜYOR</text>
-      </g>
-
-      <!-- ── POSE 2 · AYAKTA ───────────────────────────────────────── -->
-      <g class="pose-g pose-2">
-        <ellipse cx="100" cy="55" rx="16" ry="30" fill="#94a3b8" opacity="0.85"
-                 transform="rotate(-7 100 55)"/>
-        <circle cx="96" cy="22" r="12" fill="#94a3b8" opacity="0.95"/>
-        <ellipse cx="89"  cy="13" rx="4" ry="5" fill="#cbd5e1"/>
-        <ellipse cx="101" cy="13" rx="4" ry="5" fill="#cbd5e1"/>
-        <circle cx="92" cy="23" r="1.4" fill="#0f172a"/>
-        <circle cx="100" cy="23" r="1.4" fill="#0f172a"/>
-        <circle cx="96" cy="30" r="1.5" fill="#0f172a"/>
-        <line x1="86"  y1="40" x2="79"  y2="30" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-        <line x1="116" y1="40" x2="120" y2="29" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-        <line x1="91"  y1="84" x2="86"  y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
-        <line x1="109" y1="84" x2="114" y2="96" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M 110 85 Q 130 90 138 80 Q 142 74 138 67"
-              stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-        <circle class="kp" cx="96"  cy="22" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="100" cy="55" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="110" cy="85" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-        <text x="100" y="110" text-anchor="middle" font-size="9.5"
-              fill="#cbd5e1" font-family="Inter, sans-serif" font-weight="600"
-              letter-spacing="0.12em">AYAKTA</text>
-      </g>
-
-      <!-- ── POSE 3 · TIMARLANIYOR ─────────────────────────────────── -->
-      <g class="pose-g pose-3">
-        <ellipse cx="98" cy="62" rx="34" ry="20" fill="#94a3b8" opacity="0.85"/>
-        <circle cx="132" cy="52" r="12" fill="#94a3b8" opacity="0.95"
-                transform="rotate(15 132 52)"/>
-        <ellipse cx="127" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
-        <ellipse cx="138" cy="42" rx="4" ry="5" fill="#cbd5e1"/>
-        <circle cx="136" cy="52" r="1.4" fill="#0f172a"/>
-        <circle cx="144" cy="56" r="1.5" fill="#0f172a"/>
-        <line x1="127" y1="58" x2="120" y2="48" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-        <line x1="135" y1="60" x2="130" y2="46" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
-        <line x1="80"  y1="80" x2="76"  y2="92" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <line x1="100" y1="82" x2="103" y2="94" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M 65 65 Q 45 65 45 50 Q 50 38 68 45"
-              stroke="#94a3b8" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-        <circle class="kp" cx="132" cy="52" r="3.2" fill="#fbbf24" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="98"  cy="62" r="3.2" fill="#fb923c" stroke="#0f172a" stroke-width="0.8"/>
-        <circle class="kp" cx="65"  cy="65" r="3.2" fill="#38bdf8" stroke="#0f172a" stroke-width="0.8"/>
-        <text x="100" y="110" text-anchor="middle" font-size="9.5"
-              fill="#cbd5e1" font-family="Inter, sans-serif" font-weight="600"
-              letter-spacing="0.12em">TIMARLANIYOR</text>
-      </g>
-    </svg>
-  </div>
+<div style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+<div style="display:flex;align-items:center;gap:16px;">
+<div style="font-size:2.8rem;line-height:1;">🐀</div>
+<div>
+<h1 style="margin:0;font-size:1.6rem;font-weight:800;color:white;letter-spacing:-0.5px;">Elevated Plus Maze  —  Analiz Paneli</h1>
+<p style="margin:4px 0 0 0;font-size:0.82rem;color:rgba(255,255,255,0.45);">DeepLabCut pose verisi · Kaygı metrikleri · ML tabanlı grup tahmini</p>
+</div>
+</div>
+{_MOUSE_IMG}
+</div>
   <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
     <span style="background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);
           border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
