@@ -245,11 +245,12 @@ def main():
     print(f"Inner zone:   X {inner_zone[0]:.0f}-{inner_zone[1]:.0f}  Y {inner_zone[2]:.0f}-{inner_zone[3]:.0f}")
 
     print("\nRendering heatmaps...")
-    plot_2d_histogram(
-        x, y, arena, inner_zone, stem,
-        os.path.join(args.out_dir, f"{stem}_heatmap_histogram.png"),
-        bins=args.bins
-    )
+    # heatmap_histogram disabled — kullanıcı isteği üzerine kaldırıldı.
+    # plot_2d_histogram(
+    #     x, y, arena, inner_zone, stem,
+    #     os.path.join(args.out_dir, f"{stem}_heatmap_histogram.png"),
+    #     bins=args.bins
+    # )
     plot_kde_heatmap(
         x, y, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_heatmap_kde.png"),

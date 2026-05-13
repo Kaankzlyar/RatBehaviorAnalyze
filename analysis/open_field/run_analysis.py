@@ -227,16 +227,17 @@ Examples:
         print("\n[skip] Skipping activity_heatmap.py")
         results["heatmap"] = None
 
-    # -- Step 3: Per-bodypart heatmap grid ------------------------------------
-    if not args.skip_bodypart:
-        results["bodypart"] = run_command(
-            "bodypart_heatmaps.py",
-            common_args,
-            "Step 3/4: Per-Bodypart Heatmap Grid"
-        )
-    else:
-        print("\n[skip] Skipping bodypart_heatmaps.py")
-        results["bodypart"] = None
+    # -- Step 3: Per-bodypart heatmap grid (disabled, kullanıcı isteği) -------
+    # if not args.skip_bodypart:
+    #     results["bodypart"] = run_command(
+    #         "bodypart_heatmaps.py",
+    #         common_args,
+    #         "Step 3/4: Per-Bodypart Heatmap Grid"
+    #     )
+    # else:
+    #     print("\n[skip] Skipping bodypart_heatmaps.py")
+    #     results["bodypart"] = None
+    results["bodypart"] = None
 
     # -- Summary --------------------------------------------------------------
     print(f"\n{'='*70}")
