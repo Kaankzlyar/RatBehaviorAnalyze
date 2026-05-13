@@ -722,7 +722,7 @@ st.markdown("""
     <div style="font-size:2.8rem;line-height:1;">🐀</div>
     <div>
       <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:white;letter-spacing:-0.5px;">
-        Open Field  —  Anksiyete Tahmin Paneli
+        Open Field  —  Tahmin Paneli
       </h1>
       <p style="margin:4px 0 0 0;font-size:0.82rem;color:rgba(255,255,255,0.45);">
         DeepLabCut pose verisi · Davranış (rearing / grooming) · Mekansal metrikler · ML tabanlı grup tahmini
