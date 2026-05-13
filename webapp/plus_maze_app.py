@@ -728,10 +728,10 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 
 st.markdown("""
-<div style="background:linear-gradient(135deg,#14352c 0%,#1a4c3a 55%,#0d1f1a 100%);
+<div style="background:linear-gradient(135deg,#1e3a5f 0%,#254d7a 55%,#0c1e36 100%);
      border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.5rem;
-     border:1px solid rgba(74,222,128,0.18);
-     box-shadow:0 8px 28px rgba(13,52,40,0.55);">
+     border:1px solid rgba(99,149,210,0.28);
+     box-shadow:0 8px 28px rgba(12,30,54,0.55);">
   <div style="display:flex;align-items:center;gap:16px;">
     <div style="font-size:2.8rem;line-height:1;">🐀</div>
     <div>
