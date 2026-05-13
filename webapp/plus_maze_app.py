@@ -80,7 +80,7 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "pct_open_arm": {
         "name":       "Açık Kol Süresi (%)",
         "name_short": "Açık Kol Süresi",
-        "desc": "Faredenin açık kollarda (sol + sağ) geçirdiği zamanın "
+        "desc": "Farenin açık kollarda (sol + sağ) geçirdiği zamanın "
                 "seansa oranıdır. EPM testinde anksiyete seviyesinin en güçlü "
                 "göstergelerindendir; düşük değer yüksek anksiyeteye işaret eder.",
         "formula": "pct_time_left + pct_time_right",
@@ -103,9 +103,10 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "total_entries": {
         "name":       "Toplam Kol Girişi",
         "name_short": "Toplam Giriş",
-        "desc": "Seans boyunca herhangi bir kola yapılan toplam giriş sayısıdır. "
-                "Genel keşif ve lokomotor aktivitenin göstergesidir. Bir giriş "
-                "sayılması için ilgili kolda en az ~0.1 sn kalınmış olmalıdır.",
+        "desc": "Farenin hareketi boyunca herhangi bir kola yaptığı toplam "
+                "giriş sayısıdır. Genel keşif ve lokomotor aktivitenin "
+                "göstergesidir. Bir giriş sayılması için ilgili kolda en az "
+                "~0.1 sn kalınmış olmalıdır.",
         "formula": "left + right + top + bottom kol girişlerinin toplamı",
     },
     "successive_alternation_pct": {
@@ -127,7 +128,7 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "mean_speed_px_s": {
         "name":       "Ortalama Hız (px/sn)",
         "name_short": "Ortalama Hız",
-        "desc": "Faredenin saniyedeki ortalama yer değiştirme miktarıdır "
+        "desc": "Farenin saniyedeki ortalama yer değiştirme miktarıdır "
                 "(piksel cinsinden). Genel motor aktivitenin doğrudan ölçüsüdür.",
         "formula": "ortalama( √(dx² + dy²) × fps ),  geçerli kareler üzerinden",
     },
@@ -142,7 +143,7 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "pct_time_junction": {
         "name":       "Kavşakta Geçen Süre (%)",
         "name_short": "Kavşakta Geçen Süre",
-        "desc": "Faredenin EPM'nin orta (junction) bölgesinde geçirdiği zaman "
+        "desc": "Farenin EPM'nin orta (junction) bölgesinde geçirdiği zaman "
                 "yüzdesidir. Yüksek değerler duraksama / karar verme davranışını "
                 "işaret edebilir.",
         "formula": "junction_kare_sayısı / geçerli_kare_sayısı × 100",
@@ -960,14 +961,15 @@ with tab_pred:
         st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
         basic_metrics = [
             ("Açık Kol Süresi", f"%{row['pct_open_arm']:.1f}",
-             "Faredenin açık kollarda (sol + sağ) geçirdiği zamanın yüzdesi. "
+             "Farenin açık kollarda (sol + sağ) geçirdiği zamanın yüzdesi. "
              "Düşük değer yüksek anksiyeteye işaret eder."),
             ("Anksiyete İndeksi", f"{row['anxiety_index_epm']:.2f}",
              "Açık kol süresi ile açık kola giriş yüzdesinin ortalaması. "
              "Yüksek değer düşük anksiyeteyi (daha çok keşif) ifade eder."),
             ("Toplam Giriş", str(int(row["total_entries"])),
-             "Seans boyunca herhangi bir kola yapılan toplam giriş sayısı. "
-             "Genel keşif ve lokomotor aktivitenin göstergesidir."),
+             "Farenin hareketi boyunca herhangi bir kola yaptığı toplam "
+             "giriş sayısı. Genel keşif ve lokomotor aktivitenin "
+             "göstergesidir."),
             ("Ardışık Alternasyon",
              f"%{row.get('successive_alternation_pct', 0) or 0:.1f}",
              "Ardışık iki girişin farklı kollara olma yüzdesi. "
