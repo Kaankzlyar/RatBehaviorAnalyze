@@ -101,8 +101,6 @@ def plot_kde(x, y, zones, name, out_path, cmap="inferno", sigma=15.0):
     draw_zones(ax, zones)
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
-    ax.set_title(f"Plus Maze Activity — {name}\n({len(xv)} frames, sigma={sigma}px)",
-                 color="white", fontsize=13, pad=10)
     ax.tick_params(colors="#666666", labelsize=9)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())

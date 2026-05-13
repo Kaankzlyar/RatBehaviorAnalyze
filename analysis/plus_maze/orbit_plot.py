@@ -211,11 +211,6 @@ def plot_zone_trajectory(tracking, zones, labels, name, out_path):
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
-    ax.set_title(
-        f"Plus Maze Trajectory — {name}  [{bp}]\n"
-        f"zone-colored  |  circle=start  diamond=end",
-        color="white", fontsize=12, pad=10,
-    )
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()

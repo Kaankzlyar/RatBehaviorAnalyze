@@ -1142,26 +1142,20 @@ with tab_viz:
         """, unsafe_allow_html=True)
     else:
         viz_defs = [
-            ("orbit",             "Kol-Renkli Trajectory",  "Bölge renklerine göre hareket yolu"),
-            ("bodyparts",         "Vücut Noktaları",        "10 keypoint — zaman gradyanı"),
-            ("heatmap_kde",       "KDE Aktivite Haritası",  "Çekirdek yoğunluk tahmini"),
-            ("heatmap_histogram", "Histogram Yoğunluk",     "Piksel ziyaret frekansı"),
+            ("orbit",       "Hareket Rotası"),
+            ("heatmap_kde", "KDE Aktivite Haritası"),
         ]
-        col_a, col_b = st.columns(2, gap="medium")
-        for idx, (key, title, subtitle) in enumerate(viz_defs):
+        for key, title in viz_defs:
             if key not in images:
                 continue
-            col = col_a if idx % 2 == 0 else col_b
-            with col:
-                st.markdown(
-                    f'<div style="margin-bottom:4px;">'
-                    f'<span style="font-size:0.82rem;font-weight:600;color:#94a3b8;">{title}</span>'
-                    f'<span style="font-size:0.72rem;color:rgba(255,255,255,0.25);margin-left:8px;">{subtitle}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-                st.image(images[key], use_container_width=True)
-                st.markdown('<div style="height:1rem;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="text-align:center;font-size:1.15rem;'
+                f'font-weight:700;color:#e2e8f0;letter-spacing:0.08em;'
+                f'margin:0.6rem 0 0.6rem 0;">{title}</div>',
+                unsafe_allow_html=True,
+            )
+            st.image(images[key], use_container_width=True)
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1215,10 +1209,8 @@ with tab_dl:
     if images:
         st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
         viz_map = [
-            ("orbit",             "Trajectory"),
-            ("bodyparts",         "Vücut Noktaları"),
-            ("heatmap_kde",       "KDE Haritası"),
-            ("heatmap_histogram", "Histogram"),
+            ("orbit",       "Hareket Rotası"),
+            ("heatmap_kde", "KDE Haritası"),
         ]
         dcols = st.columns(len(viz_map), gap="medium")
         for (key, lbl), col in zip(viz_map, dcols):
