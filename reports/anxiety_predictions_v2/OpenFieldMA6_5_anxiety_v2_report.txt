@@ -14,19 +14,19 @@
     Rearing toplam       : 19 bout, 45.6 s
     Rearing — center     : 2 bout, 4.2 s
     Rearing — wall       : 17 bout, 41.4 s
-    rear_center_frac     : 0.105  (referans: Control medyan 0.133, Treated medyan 0.075)
+    rear_center_frac     : 0.105  (eğitim datası grup medianları için: reports/spatial_rearing_stats.csv)
 ────────────────────────────────────────────────────────────
 
-🟧  TAHMİN: Treated-benzeri
-    P(Treated)=0.506    P(Control)=0.494
-    Güven      : %51
+🟧 TAHMİN: Treated-benzeri
+    P(Treated)=0.683    P(Control)=0.317
+    Güven      : %68
 
   Kararı en çok etkileyen 5 özellik (LR coef × z-skor):
-    rear_center_frac            z=-8.76  push=−3.14 → Control
-    rear_count_wall             z=+8.22  push=+1.54 → Treated
-    rear_total_s_wall           z=+9.20  push=+1.06 → Treated
     spatial_entropy             z=+0.55  push=+0.43 → Treated
     rear_early_frac             z=+0.25  push=−0.38 → Control
+    rear_mean_bout_s            z=+1.22  push=+0.36 → Treated
+    pct_freeze                  z=-0.73  push=−0.35 → Control
+    rear_per_100px              z=-0.48  push=−0.18 → Control
 
   Not: model 'Treated vs Control' ayırıyor — doğrudan 'anksiyeteli' değil.
 

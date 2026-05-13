@@ -6,47 +6,47 @@
   "model_tag": "rearonly",
   "pred": 1,
   "label": "Treated-benzeri",
-  "proba_control": 0.4936,
-  "proba_treated": 0.5064,
+  "proba_control": 0.3171,
+  "proba_treated": 0.6829,
   "top_contributors": [
-    {
-      "feature": "rear_center_frac",
-      "value": 0.10526315789473684,
-      "z": -8.76,
-      "coef": 0.359,
-      "push": -3.142,
-      "toward": "Control"
-    },
-    {
-      "feature": "rear_count_wall",
-      "value": 17.0,
-      "z": 8.22,
-      "coef": 0.188,
-      "push": 1.543,
-      "toward": "Treated"
-    },
-    {
-      "feature": "rear_total_s_wall",
-      "value": 41.4,
-      "z": 9.2,
-      "coef": 0.115,
-      "push": 1.062,
-      "toward": "Treated"
-    },
     {
       "feature": "spatial_entropy",
       "value": 0.7755,
       "z": 0.55,
-      "coef": 0.779,
-      "push": 0.426,
+      "coef": 0.79,
+      "push": 0.433,
       "toward": "Treated"
     },
     {
       "feature": "rear_early_frac",
       "value": 0.5616918693841769,
       "z": 0.25,
-      "coef": -1.493,
-      "push": -0.38,
+      "coef": -1.501,
+      "push": -0.382,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_mean_bout_s",
+      "value": 2.4015789473684213,
+      "z": 1.22,
+      "coef": 0.3,
+      "push": 0.365,
+      "toward": "Treated"
+    },
+    {
+      "feature": "pct_freeze",
+      "value": 1.36,
+      "z": -0.73,
+      "coef": 0.483,
+      "push": -0.355,
+      "toward": "Control"
+    },
+    {
+      "feature": "rear_per_100px",
+      "value": 0.23740207164544624,
+      "z": -0.48,
+      "coef": 0.368,
+      "push": -0.176,
       "toward": "Control"
     }
   ],
@@ -93,13 +93,7 @@
     "rear_early_frac",
     "rear_groom_ratio",
     "rear_per_100px",
-    "comfort_ratio",
-    "rear_count_center",
-    "rear_count_wall",
-    "rear_center_frac",
-    "rear_total_s_center",
-    "rear_total_s_wall",
-    "rear_center_minus_wall"
+    "comfort_ratio"
   ],
   "n_rearing_bouts": 19,
   "n_grooming_bouts": 13,
@@ -109,5 +103,5 @@
     "rear_count_unknown": 0,
     "rear_center_frac": 0.1053
   },
-  "generated_at": "2026-05-11T17:06:44"
+  "generated_at": "2026-05-14T01:50:09"
 }

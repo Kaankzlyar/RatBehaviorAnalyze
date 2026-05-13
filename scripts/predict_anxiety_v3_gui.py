@@ -957,7 +957,7 @@ with tab_pred:
     col_img, col_right = st.columns([1.35, 1], gap="large")
 
     with col_img:
-        st.markdown(html_section("Anksiyete Genel Bakış"), unsafe_allow_html=True)
+        st.markdown(html_section("Openfield Genel Bakış"), unsafe_allow_html=True)
         st.image(fig_images["anxiety_overview"], use_container_width=True)
 
     with col_right:
