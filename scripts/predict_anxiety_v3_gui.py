@@ -623,84 +623,44 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
     st.markdown(
-        '<div style="font-size:0.72rem;font-weight:700;color:#cbd5e1;'
-        'letter-spacing:0.14em;margin:0.4rem 0 0.7rem 0;">PIPELINE AYARLARI</div>',
+        '<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>',
         unsafe_allow_html=True,
     )
-
-    fps = st.number_input(
-        "FPS", value=float(v2.DEFAULT_FPS),
-        min_value=1.0, max_value=240.0, step=1.0,
-        help="Videonun saniyedeki kare sayısı.",
-    )
-    tag = st.text_input(
-        "Model tag", value="rearonly",
-        help="`models/anxiety_classifier/{lr,scaler}_<tag>.pkl` dosyalarını yükler.",
-    )
-
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
     st.markdown(
-        '<div style="font-size:0.72rem;font-weight:700;color:#cbd5e1;'
-        'letter-spacing:0.14em;margin:0.4rem 0 0.7rem 0;">OPEN-FIELD ANALİZİ</div>',
+        '<div style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.3);'
+        'text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.6rem;">'
+        'Kullanım</div>',
         unsafe_allow_html=True,
     )
-
-    run_analysis = st.checkbox(
-        "Detaylı analizi çalıştır",
-        value=False,
-        help="Davranış tespiti + yörünge + ısı haritası vb. çıktıları üretir (uzun sürebilir).",
-    )
-
-    if run_analysis:
+    for i, step in enumerate(
+        ["DLC filtered CSV yükle",
+         "Çalıştır butonuna bas",
+         "Sonuçları incele & indir"], 1
+    ):
         st.markdown(
-            '<div style="font-size:0.72rem;color:rgba(255,255,255,0.55);margin-bottom:4px;">Arena sınırları (px)</div>',
+            f'<div style="display:flex;gap:10px;align-items:center;padding:6px 0;">'
+            f'<div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.05);'
+            f'border:1px solid rgba(255,255,255,0.14);display:flex;align-items:center;'
+            f'justify-content:center;font-size:0.7rem;font-weight:600;color:#94a3b8;'
+            f'flex-shrink:0;">{i}</div>'
+            f'<span style="font-size:0.82rem;color:rgba(255,255,255,0.55);">{step}</span></div>',
             unsafe_allow_html=True,
         )
-        col1, col2 = st.columns(2)
-        with col1:
-            arena_xmin = st.number_input("X min", value=397, step=1)
-            arena_ymin = st.number_input("Y min", value=156, step=1)
-        with col2:
-            arena_xmax = st.number_input("X max", value=777, step=1)
-            arena_ymax = st.number_input("Y max", value=535, step=1)
 
-        mode = st.radio(
-            "Analiz modu",
-            ["Davranış Analizi", "Davranış + Yörünge Analizi", "Detaylı Analiz (Tüm Adımlar)"],
-            index=0,
-            help="Sadece bout tespiti / + trajektori / + ısı haritası bodypart grid.",
-        )
-        if mode == "Davranış Analizi":
-            skip_behavior, skip_orbit, fast_mode = False, True, True
-        elif mode == "Davranış + Yörünge Analizi":
-            skip_behavior, skip_orbit, fast_mode = False, False, True
-        else:
-            skip_behavior, skip_orbit, fast_mode = False, False, False
 
-        auto_inner = st.checkbox("İç bölgeyi otomatik hesapla (%20 margin)", value=True)
-        if not auto_inner:
-            col1, col2 = st.columns(2)
-            with col1:
-                inner_xmin = st.number_input("Inner X min", value=422, step=1)
-                inner_ymin = st.number_input("Inner Y min", value=182, step=1)
-            with col2:
-                inner_xmax = st.number_input("Inner X max", value=748, step=1)
-                inner_ymax = st.number_input("Inner Y max", value=506, step=1)
-        else:
-            inner_xmin = inner_xmax = inner_ymin = inner_ymax = None
-    else:
-        fast_mode = skip_behavior = skip_orbit = False
-        auto_inner = True
-
-    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
-
-    save_to_reports = st.checkbox(
-        "Çıktıları `reports/` altına da yaz",
-        value=False,
-        help="Kapalıyken sadece bu oturumda indirme butonuyla alınabilir.",
-    )
+# ── Pipeline varsayılanları (artık sidebar'da seçilemiyor) ───────────────────
+fps             = float(v2.DEFAULT_FPS)
+tag             = "rearonly"
+run_analysis    = True
+arena_xmin, arena_xmax = 397, 777
+arena_ymin, arena_ymax = 156, 535
+skip_behavior   = False
+skip_orbit      = False
+fast_mode       = False   # tüm adımlar (heatmap + bodypart dahil)
+auto_inner      = True
+save_to_reports = True
+inner_xmin = inner_xmax = inner_ymin = inner_ymax = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -855,7 +815,8 @@ with tempfile.TemporaryDirectory() as tmp:
         txt_name = f"{subject}_anxiety_v2_report.txt"
 
         fig_path = out_dir / f"{subject}_anxiety_v2_overview.png"
-        v2.plot_overview(csv_path, body_x, body_y, spatial, pred_info, fig_path)
+        v2.plot_overview(csv_path, body_x, body_y, spatial, pred_info, fig_path,
+                         show_title=False)
         fig_images["anxiety_overview"] = fig_path.read_bytes()
 
         json_payload = {

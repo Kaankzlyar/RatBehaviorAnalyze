@@ -303,7 +303,8 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
 
 
 def plot_overview(csv_path: Path, body_x, body_y, spatial: dict,
-                  pred_info: dict, out: Path) -> None:
+                  pred_info: dict, out: Path,
+                  show_title: bool = True) -> None:
     fig, ax = plt.subplots(figsize=(9, 8.4))
     # arena
     ax.plot([ARENA[0], ARENA[1], ARENA[1], ARENA[0], ARENA[0]],
@@ -330,9 +331,10 @@ def plot_overview(csv_path: Path, body_x, body_y, spatial: dict,
                    label=f"center rear (n={len(centers)})", zorder=5)
 
     
-    ax.set_title(f"{label_str(pred_info['pred'])}  "
-                 f"(P_treated={pred_info['proba_treated']:.2f})",
-                 fontsize=14, pad=12)
+    if show_title:
+        ax.set_title(f"{label_str(pred_info['pred'])}  "
+                     f"(P_treated={pred_info['proba_treated']:.2f})",
+                     fontsize=14, pad=12)
     ax.invert_yaxis()
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("x (px)"); ax.set_ylabel("y (px)")
