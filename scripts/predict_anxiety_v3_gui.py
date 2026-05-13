@@ -69,6 +69,35 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
     background: rgba(99,102,241,0.1) !important;
 }
 
+/* File uploader — Türkçe etiketler, dosya boyutu satırını gizle */
+[data-testid="stFileUploaderDropzoneInstructions"] > div > span,
+[data-testid="stFileUploaderDropzoneInstructions"] > div > small {
+    display: none !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] > div::before {
+    content: "Dosyayı buraya sürükleyip bırakın";
+    color: rgba(255,255,255,0.6);
+    font-size: 0.95rem;
+    font-weight: 500;
+    letter-spacing: 0.005em;
+}
+section[data-testid="stFileUploaderDropzone"] button {
+    color: transparent !important;
+    position: relative;
+    min-width: 110px !important;
+}
+section[data-testid="stFileUploaderDropzone"] button::after {
+    content: "Dosya Seç";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,0.88);
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
 .stButton > button[kind="primary"] {
     background: #1e3a5f !important;
     border: 1px solid rgba(99,149,210,0.35) !important;
@@ -267,7 +296,7 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "total_distance_px": {
         "name":       "Toplam Mesafe (px)",
         "name_short": "Toplam Mesafe",
-        "desc": "Seans boyunca farenin kat ettiği toplam yol (piksel). Genel "
+        "desc": "Farenin hareketi boyunca kat ettiği toplam yol (piksel). Genel "
                 "lokomotor aktivitenin ölçüsüdür.",
         "formula": "Σ √(dx² + dy²)",
     },
@@ -301,7 +330,8 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "rear_pct": {
         "name":       "Rearing Yüzdesi (%)",
         "name_short": "Rearing %",
-        "desc": "Toplam seans süresine oranla rearing'de geçirilen süre yüzdesi.",
+        "desc": "Farenin hareketinin toplam süresine oranla rearing'de "
+                "geçirilen süre yüzdesi.",
         "formula": "rear_total_s / session_s × 100",
     },
     "rear_mean_bout_s": {
@@ -321,9 +351,9 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "rear_early_frac": {
         "name":       "Erken Rearing Oranı",
         "name_short": "Erken Rearing",
-        "desc": "Seansın erken bölümündeki (ilk EARLY_S saniye) rearing'in "
-                "toplam rearing'e oranı. Yüksek değer seansın başında yoğun "
-                "keşfi, düşük değer sonradan ısınan keşfi gösterir.",
+        "desc": "Farenin hareketinin erken bölümündeki (ilk 90 saniye) "
+                "rearing'in toplam rearing'e oranı. Yüksek değer hareketin "
+                "başında yoğun keşfi, düşük değer sonradan ısınan keşfi gösterir.",
         "formula": "erken_pencerede_rear_süresi / toplam_rear_süresi",
     },
     "rear_count_center": {
@@ -363,7 +393,8 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "groom_pct": {
         "name":       "Grooming Yüzdesi (%)",
         "name_short": "Grooming %",
-        "desc": "Toplam seans süresine oranla grooming'de geçirilen süre yüzdesi.",
+        "desc": "Farenin hareketinin toplam süresine oranla grooming'de "
+                "geçirilen süre yüzdesi.",
         "formula": "groom_total_s / session_s × 100",
     },
     "groom_mean_bout_s": {
@@ -382,7 +413,8 @@ FEATURE_INFO: dict[str, dict[str, str]] = {
     "groom_early_frac": {
         "name":       "Erken Grooming Oranı",
         "name_short": "Erken Grooming",
-        "desc": "Seansın erken bölümündeki grooming'in toplama oranı.",
+        "desc": "Farenin hareketinin erken bölümündeki (ilk 90 saniye) "
+                "grooming'in toplama oranı.",
         "formula": "erken_pencerede_groom_süresi / toplam_groom_süresi",
     },
     "rear_groom_ratio": {
@@ -964,8 +996,8 @@ with tab_pred:
              "Hız eşiğinin altında kalan kare oranı. Yüksek değer kaygı "
              "kaynaklı immobilizasyonu ima eder."),
             ("Toplam Rearing", f"{int(feat['rear_count'])}",
-             "Seans boyunca arka ayaklar üzerinde dikilme (rearing) bout sayısı. "
-             "Keşfetme ve dikey aktivite göstergesidir."),
+             "Farenin hareketi boyunca arka ayaklar üzerinde dikilme (rearing) "
+             "bout sayısı. Keşfetme ve dikey aktivite göstergesidir."),
         ]
         mr1 = st.columns(2)
         mr2 = st.columns(2)
@@ -1079,7 +1111,7 @@ with tab_beh:
                 _pc  = feat.get("pct_center") or 0.0
                 _pj  = max(0.0, 100.0 - _pp - _pc)
                 rows_html = (
-                    html_stat_row("Çevre (Thigmotaksis)", f"%{_pp:.1f}") +
+                    html_stat_row("Çevre (Thigmotaxis)", f"%{_pp:.1f}") +
                     html_stat_row("Merkez",                f"%{_pc:.1f}") +
                     html_stat_row("Diğer / kenar",         f"%{_pj:.1f}")
                 )
@@ -1090,10 +1122,11 @@ with tab_beh:
                     f"<div style='font-size:0.85rem;color:rgba(255,255,255,0.65);"
                     f"line-height:1.55;margin-top:0.8rem;border-top:1px solid "
                     f"rgba(255,255,255,0.06);padding-top:0.7rem;'>"
-                    f"<strong style='color:#fbbf24;'>Thigmotaksis</strong> = farenin "
-                    f"arenanın <em>dış bandı</em>nda (duvar yakını) geçirdiği "
-                    f"zamanın yüzdesidir. Yüksek değer kaçınma/anksiyete; düşük "
-                    f"değer cesur ve merkezi keşfi işaret eder."
+                    f"<strong style='color:#fbbf24;'>Thigmotaxis</strong> = "
+                    f"Farenin arenanın <em>iç kısmının dışında</em> "
+                    f"(duvar yakını) geçirdiği zamanın yüzdesidir. Yüksek değer "
+                    f"kaçınma/anksiyete; düşük değer cesur ve merkezi keşfi "
+                    f"işaret eder."
                     f"</div></div>",
                     unsafe_allow_html=True,
                 )
