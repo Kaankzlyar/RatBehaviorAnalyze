@@ -1,25 +1,18 @@
+# -*- coding: utf-8 -*-
 """
-predict_anxiety_v3_gui.py
--------------------------
-Comprehensive Streamlit dashboard: integrates full open-field analysis (run_analysis.py)
-with anxiety prediction pipeline (predict_anxiety_v2).
+predict_anxiety_v3_gui.py — Open Field anksiyete tahmin ve davranış dashboard'u
 
-Pipeline outputs:
-  1. Behavior detection (rearing/grooming bouts, timeline)
-  2. Trajectory visualization (orbit plots, thigmotaxis)
-  3. Activity heatmap (KDE heatmap — primary analysis)
-  4. Per-bodypart heatmap grid
-  5. Anxiety prediction (Treated/Control classification)
+Tek farelik DLC pose CSV'si yüklenir; davranış tespiti, OFT metrikleri,
+mekansal rearing ve ML tabanlı **Kontrol / Tedavi** sınıflandırması yapılır.
+İsteğe bağlı olarak run_analysis.py üzerinden tam open-field analiz
+pipeline'ı (timeline, orbit, ısı haritası, bodypart) da çalıştırılır.
 
-Kullanım:
-    pip install streamlit
+Çalıştırmak için:
     streamlit run scripts/predict_anxiety_v3_gui.py
-
-İstersen "Çıktıları reports/ altına da yaz" seçeneği ile tüm çıktılar
-reports/anxiety_predictions_v2/ altına kaydedilir.
 """
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
@@ -28,6 +21,9 @@ from datetime import datetime
 from io import StringIO
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -39,18 +35,502 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import predict_anxiety_v2 as v2  # noqa: E402
 
 
-# ── Page setup ──────────────────────────────────────────────────────────────
-
-st.set_page_config(page_title="Deney Hayvanı Davranış Analizi", page_icon="🐀", layout="wide")
-st.title("🐀 Deney Hayvanı Davranış Analizi")
-st.caption(
-    "Complete pipeline: DLC CSV → behavior detection → open-field metrics → "
-    "trajectory/heatmap visualization → anxiety prediction (Treated/Control). "
-    "Details: `docs/anxiety_progress_2026-05-10.md`."
+# ── Sayfa konfigürasyonu ──────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="OFT Anksiyete & Davranış",
+    page_icon="🐀",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
+# ── Custom CSS ────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-# ── Helper Functions ────────────────────────────────────────────────────────
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+
+.stApp { background: #0b0f1a; }
+.main .block-container { padding-top: 1.5rem; max-width: 1280px; }
+
+[data-testid="stSidebar"] {
+    background: #0f1320 !important;
+    border-right: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+[data-testid="stFileUploader"] {
+    background: rgba(99,102,241,0.06) !important;
+    border: 1.5px dashed rgba(99,102,241,0.35) !important;
+    border-radius: 14px !important;
+    transition: all 0.25s;
+}
+[data-testid="stFileUploader"]:hover {
+    border-color: rgba(99,102,241,0.75) !important;
+    background: rgba(99,102,241,0.1) !important;
+}
+
+.stButton > button[kind="primary"] {
+    background: #1e3a5f !important;
+    border: 1px solid rgba(99,149,210,0.35) !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    padding: 0.65rem 2.5rem !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+    letter-spacing: 0.01em !important;
+    color: #cbd5e1 !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: #254d7a !important;
+    border-color: rgba(99,149,210,0.6) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45) !important;
+    color: #e2e8f0 !important;
+}
+
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 12px !important;
+    padding: 1rem 1.2rem !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    color: rgba(255,255,255,0.45) !important;
+}
+[data-testid="stMetricValue"] {
+    color: #f1f5f9 !important;
+    font-weight: 700 !important;
+    font-size: 1.6rem !important;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+    gap: 0 !important;
+    padding: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: rgba(255,255,255,0.4) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    border: none !important;
+    padding: 0.75rem 1.4rem !important;
+    border-radius: 0 !important;
+    letter-spacing: 0.01em !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #818cf8 !important;
+    border-bottom: 2px solid #6366f1 !important;
+    background: transparent !important;
+    font-weight: 600 !important;
+}
+
+.stProgress > div > div {
+    background: linear-gradient(90deg, #6366f1, #8b5cf6) !important;
+    border-radius: 100px !important;
+}
+.stProgress > div {
+    background: rgba(255,255,255,0.06) !important;
+    border-radius: 100px !important;
+    height: 6px !important;
+}
+
+[data-testid="stDataFrame"] { border-radius: 12px !important; overflow: hidden !important; }
+.dvn-scroller { border-radius: 12px !important; }
+
+hr { border-color: rgba(255,255,255,0.06) !important; }
+.stAlert { border-radius: 10px !important; }
+
+.streamlit-expanderHeader {
+    color: rgba(255,255,255,0.55) !important;
+    font-size: 0.85rem !important;
+    background: rgba(255,255,255,0.02) !important;
+    border-radius: 8px !important;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+#MainMenu { visibility: hidden !important; }
+footer { visibility: hidden !important; }
+.stDeployButton { display: none !important; }
+header[data-testid="stHeader"] { background: transparent !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ── HTML bileşenleri ──────────────────────────────────────────────────────────
+
+_TR_UPPER_MAP = str.maketrans({"i": "İ", "ı": "I"})
+
+
+def tr_upper(s: str) -> str:
+    return s.translate(_TR_UPPER_MAP).upper()
+
+
+def _hex_to_rgb(h: str) -> str:
+    h = h.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"{r},{g},{b}"
+
+
+def html_stat_row(label: str, value: str) -> str:
+    return (
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+        f'<span style="font-size:0.8rem;color:rgba(255,255,255,0.45);font-weight:500;">{label}</span>'
+        f'<span style="font-size:0.85rem;color:#f1f5f9;font-weight:600;">{value}</span>'
+        f'</div>'
+    )
+
+
+def html_section(title: str) -> str:
+    label = tr_upper(title)
+    return (
+        f'<div style="font-size:1.3rem;font-weight:800;color:#e2e8f0;'
+        f'letter-spacing:0.16em;'
+        f'margin:1.6rem 0 0.9rem 0;display:flex;align-items:center;gap:16px;'
+        f'justify-content:center;">'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>'
+        f'<span>{label}</span>'
+        f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>'
+        f'</div>'
+    )
+
+
+def html_pred_card(label: str, proba: float, is_treated: bool) -> str:
+    if is_treated:
+        border = "#EF4444"
+        bg     = "linear-gradient(135deg,rgba(239,68,68,0.12),rgba(220,38,38,0.06))"
+    else:
+        border = "#10B981"
+        bg     = "linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.06))"
+    display_label = f"{label} Grubu"
+    return (
+        f'<div style="background:{bg};border:1.5px solid rgba({_hex_to_rgb(border)},0.45);'
+        f'border-radius:16px;padding:1.75rem 1.25rem;text-align:center;margin-bottom:1rem;">'
+        f'<div style="font-size:0.74rem;font-weight:700;color:rgba(255,255,255,0.55);'
+        f'letter-spacing:0.18em;margin:0 auto 10px;text-align:center;">TAHMİN</div>'
+        f'<div style="font-size:1.9rem;font-weight:800;color:{border};letter-spacing:-0.5px;">{display_label}</div>'
+        f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.45);margin-top:8px;">'
+        f'Güven: <strong style="color:{border}">{proba:.1%}</strong></div>'
+        f'</div>'
+    )
+
+
+# ── Open-Field özelliklerinin Türkçe açıklamaları ─────────────────────────────
+
+FEATURE_INFO: dict[str, dict[str, str]] = {
+    "pct_center": {
+        "name":       "Merkez Süresi (%)",
+        "name_short": "Merkez Süresi",
+        "desc": "Farenin arenanın iç bölgesinde (center zone) geçirdiği zamanın "
+                "yüzdesidir. Düşük değer çevreye yapışma (thigmotaxis) ve yüksek "
+                "anksiyeteye işaret eder.",
+        "formula": "center_frame_sayısı / geçerli_kare_sayısı × 100",
+    },
+    "pct_periphery": {
+        "name":       "Çevre Süresi (%)",
+        "name_short": "Çevre Süresi",
+        "desc": "Farenin arenanın dış bandında (duvar kenarında) geçirdiği zamanın "
+                "yüzdesidir. Yüksek değer thigmotaxis davranışını işaret eder.",
+        "formula": "periphery_frame_sayısı / geçerli_kare_sayısı × 100",
+    },
+    "pct_freeze": {
+        "name":       "Donakalma (%)",
+        "name_short": "Donakalma",
+        "desc": "Hız eşiğinin altında kalan kare oranıdır. Yüksek değer korku / "
+                "anksiyeteye bağlı immobilizasyona işaret eder.",
+        "formula": "frozen_frame_sayısı / toplam_kare × 100",
+    },
+    "spatial_entropy": {
+        "name":       "Mekansal Entropi",
+        "name_short": "Mekansal Entropi",
+        "desc": "Farenin arenayı ne kadar dengeli kullandığını ölçer (Shannon "
+                "entropisi, 0–1 normalize). Düşük değer dar bir alana takılı "
+                "kalmayı, yüksek değer geniş keşfi gösterir.",
+        "formula": "H(p) / log(N_grid)  —  ızgara üzerindeki ziyaret olasılığı",
+    },
+    "center_entries": {
+        "name":       "Merkeze Giriş Sayısı",
+        "name_short": "Merkez Girişi",
+        "desc": "Farenin çevreden merkez bölgesine geçiş sayısıdır. Düşük değer "
+                "merkez kaçınmasını / anksiyeteyi işaret eder.",
+        "formula": "periphery → center geçişlerinin sayısı",
+    },
+    "total_distance_px": {
+        "name":       "Toplam Mesafe (px)",
+        "name_short": "Toplam Mesafe",
+        "desc": "Seans boyunca farenin kat ettiği toplam yol (piksel). Genel "
+                "lokomotor aktivitenin ölçüsüdür.",
+        "formula": "Σ √(dx² + dy²)",
+    },
+    "mean_speed_px_s": {
+        "name":       "Ortalama Hız (px/sn)",
+        "name_short": "Ortalama Hız",
+        "desc": "Geçerli karelerde ortalama yer değiştirme miktarı. Genel motor "
+                "aktivitenin doğrudan ölçüsüdür.",
+        "formula": "ortalama( √(dx² + dy²) × fps )",
+    },
+    "freeze_bout_count": {
+        "name":       "Donakalma Bout Sayısı",
+        "name_short": "Donakalma Bout",
+        "desc": "Donakalma sayılan ardışık kare bloklarının sayısı. Sayıca "
+                "fazla donakalma bouts'u kaygılı / temkinli davranış göstergesidir.",
+        "formula": "freeze rejimine giriş–çıkış geçişlerinin sayısı",
+    },
+    "rear_count": {
+        "name":       "Ayakta Durma Sayısı",
+        "name_short": "Rearing Sayısı",
+        "desc": "Farenin arka ayakları üzerinde dikildiği (rearing) bout sayısı. "
+                "Keşfetme ve dikey aktivite göstergesidir.",
+        "formula": "DLC keypoint'lerinden tespit edilen rearing bout'larının sayısı",
+    },
+    "rear_total_s": {
+        "name":       "Toplam Rearing Süresi (sn)",
+        "name_short": "Rearing Süresi",
+        "desc": "Rearing davranışında geçirilen toplam süre (saniye).",
+        "formula": "Σ rearing_bout_duration",
+    },
+    "rear_pct": {
+        "name":       "Rearing Yüzdesi (%)",
+        "name_short": "Rearing %",
+        "desc": "Toplam seans süresine oranla rearing'de geçirilen süre yüzdesi.",
+        "formula": "rear_total_s / session_s × 100",
+    },
+    "rear_mean_bout_s": {
+        "name":       "Ortalama Rearing Bout Süresi (sn)",
+        "name_short": "Ort. Rearing Bout",
+        "desc": "Bir rearing bout'unun ortalama uzunluğu. Uzun bouts daha "
+                "kararlı, kısa bouts daha çekingen keşfi yansıtabilir.",
+        "formula": "rear_total_s / rear_count",
+    },
+    "rear_rate_per_min": {
+        "name":       "Rearing Sıklığı (dk⁻¹)",
+        "name_short": "Rearing Sıklığı",
+        "desc": "Dakika başına rearing bout sayısı. Keşfetme dürtüsünün "
+                "zaman-normalize ölçüsü.",
+        "formula": "60 × rear_count / session_s",
+    },
+    "rear_early_frac": {
+        "name":       "Erken Rearing Oranı",
+        "name_short": "Erken Rearing",
+        "desc": "Seansın erken bölümündeki (ilk EARLY_S saniye) rearing'in "
+                "toplam rearing'e oranı. Yüksek değer seansın başında yoğun "
+                "keşfi, düşük değer sonradan ısınan keşfi gösterir.",
+        "formula": "erken_pencerede_rear_süresi / toplam_rear_süresi",
+    },
+    "rear_count_center": {
+        "name":       "Merkezde Rearing Sayısı",
+        "name_short": "Merkez Rearing",
+        "desc": "Merkez bölgesinde gerçekleşen rearing bout sayısı. Yüksek "
+                "değer cesur / düşük anksiyeteli keşfi gösterir.",
+        "formula": "merkez bölgesinde başlayan rearing bout'larının sayısı",
+    },
+    "rear_count_wall": {
+        "name":       "Duvarda Rearing Sayısı",
+        "name_short": "Duvar Rearing",
+        "desc": "Çevre (duvar) bölgesinde gerçekleşen rearing bout sayısı. "
+                "Yüksek değer çevreye yapışan, daha kaygılı keşfi gösterebilir.",
+        "formula": "çevre bölgesinde başlayan rearing bout'larının sayısı",
+    },
+    "rear_center_frac": {
+        "name":       "Merkez Rearing Oranı",
+        "name_short": "Merkez Rearing %",
+        "desc": "Tüm rearing'ler içinde merkezde olanların oranı (0–1). Yüksek "
+                "değer = merkezde dikilmekten çekinmiyor = düşük anksiyete.",
+        "formula": "rear_count_center / (rear_count_center + rear_count_wall)",
+    },
+    "groom_count": {
+        "name":       "Tımarlanma Sayısı",
+        "name_short": "Grooming Sayısı",
+        "desc": "Grooming (kendini tımarlama) bout sayısı. Stres altında "
+                "kompulsif olarak artabilir.",
+        "formula": "DLC keypoint'lerinden tespit edilen grooming bout sayısı",
+    },
+    "groom_total_s": {
+        "name":       "Toplam Grooming Süresi (sn)",
+        "name_short": "Grooming Süresi",
+        "desc": "Grooming davranışında geçirilen toplam saniye.",
+        "formula": "Σ grooming_bout_duration",
+    },
+    "groom_pct": {
+        "name":       "Grooming Yüzdesi (%)",
+        "name_short": "Grooming %",
+        "desc": "Toplam seans süresine oranla grooming'de geçirilen süre yüzdesi.",
+        "formula": "groom_total_s / session_s × 100",
+    },
+    "groom_mean_bout_s": {
+        "name":       "Ortalama Grooming Bout Süresi (sn)",
+        "name_short": "Ort. Groom Bout",
+        "desc": "Bir grooming bout'unun ortalama uzunluğu.",
+        "formula": "groom_total_s / groom_count",
+    },
+    "groom_bout_cv": {
+        "name":       "Grooming Bout CV",
+        "name_short": "Groom Bout CV",
+        "desc": "Grooming bout sürelerinin varyasyon katsayısı (std/mean). "
+                "Yüksek değer düzensiz bout süreleri (kompulsif kalıp) gösterebilir.",
+        "formula": "std(groom_durations) / mean(groom_durations)",
+    },
+    "groom_early_frac": {
+        "name":       "Erken Grooming Oranı",
+        "name_short": "Erken Grooming",
+        "desc": "Seansın erken bölümündeki grooming'in toplama oranı.",
+        "formula": "erken_pencerede_groom_süresi / toplam_groom_süresi",
+    },
+    "rear_groom_ratio": {
+        "name":       "Rearing / Grooming Oranı",
+        "name_short": "Rear / Groom",
+        "desc": "Toplam rearing süresinin toplam grooming süresine oranı. "
+                "Yüksek değer keşif baskın, düşük değer stres davranışı baskın.",
+        "formula": "rear_total_s / groom_total_s",
+    },
+    "rear_per_100px": {
+        "name":       "100 px Başına Rearing",
+        "name_short": "Rearing / 100px",
+        "desc": "Birim hareket başına rearing — yatay aktiviteden bağımsız bir "
+                "dikey aktivite ölçüsü.",
+        "formula": "100 × rear_count / total_distance_px",
+    },
+    "comfort_ratio": {
+        "name":       "Konfor Oranı",
+        "name_short": "Konfor Oranı",
+        "desc": "Grooming süresinin merkez süresine oranı. Yüksek değer "
+                "merkezde rahat hissettiğini, düşük değer merkezde tedirginliği "
+                "gösterebilir.",
+        "formula": "groom_total_s / pct_center",
+    },
+    "rear_total_s_center": {
+        "name":       "Merkezde Toplam Rearing (sn)",
+        "name_short": "Merkez Rear (sn)",
+        "desc": "Merkez bölgesinde gerçekleşen rearing'lerin toplam süresi.",
+        "formula": "Σ merkez_rearing_bout_duration",
+    },
+    "rear_total_s_wall": {
+        "name":       "Duvarda Toplam Rearing (sn)",
+        "name_short": "Duvar Rear (sn)",
+        "desc": "Çevre / duvar bölgesinde gerçekleşen rearing'lerin toplam süresi.",
+        "formula": "Σ duvar_rearing_bout_duration",
+    },
+    "rear_center_minus_wall": {
+        "name":       "Merkez − Duvar Rearing",
+        "name_short": "Merkez − Duvar",
+        "desc": "Merkezdeki ve duvardaki rearing bout sayıları arasındaki fark. "
+                "Pozitif değer merkez tercih, negatif değer duvar tercih.",
+        "formula": "rear_count_center − rear_count_wall",
+    },
+}
+
+
+# ── Matplotlib stil ───────────────────────────────────────────────────────────
+
+_DARK_BG  = "#0b0f1a"
+_PANEL_BG = "#0f1320"
+_GRID_CLR = "#1e2438"
+_MUTED    = "#475569"
+
+
+def _style_ax_dark(ax, fig=None):
+    if fig:
+        fig.patch.set_facecolor(_DARK_BG)
+    ax.set_facecolor(_PANEL_BG)
+    ax.tick_params(colors=_MUTED, labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(_GRID_CLR)
+    ax.xaxis.label.set_color(_MUTED)
+    ax.yaxis.label.set_color(_MUTED)
+    ax.title.set_color("#94a3b8")
+
+
+def fig_probability_bars(pred_info: dict) -> plt.Figure:
+    prob_c = pred_info["proba_control"]
+    prob_t = pred_info["proba_treated"]
+    is_treated = pred_info["pred"] == 1
+
+    fig, ax = plt.subplots(figsize=(5.5, 1.6), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+
+    labels = ["P(Kontrol)", "P(Tedavi)"]
+    values = [prob_c, prob_t]
+    colors = ["#3B82F6", "#EF4444"]
+    alphas = [0.85 if not is_treated else 0.30, 0.85 if is_treated else 0.30]
+
+    bars = ax.barh(labels, values, color=colors, alpha=1.0, height=0.45,
+                   edgecolor="none")
+    for bar, a in zip(bars, alphas):
+        bar.set_alpha(a)
+
+    for bar, val, clr in zip(bars, values, colors):
+        ax.text(val + 0.025, bar.get_y() + bar.get_height() / 2,
+                f"{val:.1%}", va="center", fontsize=10, fontweight="700", color=clr)
+
+    ax.set_xlim(0, 1.18)
+    ax.set_xticks([])
+    ax.spines[["top", "right", "bottom"]].set_visible(False)
+    ax.tick_params(left=False)
+    for label in ax.get_yticklabels():
+        label.set_color("#94a3b8")
+        label.set_fontsize(9)
+    fig.tight_layout(pad=0.8)
+    return fig
+
+
+def fig_feature_contributions(pred_info: dict) -> plt.Figure:
+    tops   = pred_info["top_contributors"]
+    names  = [
+        FEATURE_INFO.get(c["feature"], {}).get(
+            "name_short", c["feature"].replace("_", " ").title()
+        )
+        for c in tops
+    ]
+    pushes = [c["push"] for c in tops]
+    colors = ["#EF4444" if p > 0 else "#3B82F6" for p in pushes]
+
+    fig, ax = plt.subplots(figsize=(11, 3.6), facecolor=_DARK_BG)
+    _style_ax_dark(ax, fig)
+
+    bars = ax.barh(names[::-1], pushes[::-1], color=colors[::-1],
+                   alpha=0.85, height=0.55, edgecolor="none")
+    ax.axvline(0, color=_MUTED, linewidth=0.8, alpha=0.6, zorder=3)
+
+    max_abs = max((abs(p) for p in pushes), default=1.0) or 1.0
+    pad = max_abs * 0.22
+    ax.set_xlim(-max_abs - pad, max_abs + pad)
+    offset = max_abs * 0.025
+
+    for bar, val in zip(bars, pushes[::-1]):
+        ha = "left" if val >= 0 else "right"
+        dx = offset if val >= 0 else -offset
+        ax.text(val + dx, bar.get_y() + bar.get_height() / 2,
+                f"{val:+.3f}", va="center", ha=ha, fontsize=9,
+                color="#cbd5e1", fontweight="600")
+
+    ax.set_xlabel("Karar Katkısı", fontsize=10, color="#94a3b8")
+    ax.grid(axis="x", alpha=0.08, color="white", zorder=0)
+    for lbl in ax.get_yticklabels():
+        lbl.set_color("#e2e8f0")
+        lbl.set_fontsize(10)
+        lbl.set_fontweight("500")
+
+    from matplotlib.patches import Patch
+    ax.legend(
+        handles=[Patch(facecolor="#EF4444", alpha=0.85, label="→ Tedavi"),
+                 Patch(facecolor="#3B82F6", alpha=0.85, label="→ Kontrol")],
+        loc="lower right", fontsize=9, framealpha=0.2,
+        facecolor=_PANEL_BG, edgecolor=_GRID_CLR, labelcolor="#94a3b8",
+    )
+    fig.subplots_adjust(left=0.22, right=0.97, top=0.93, bottom=0.18)
+    return fig
+
+
+# ── Open-field analiz subprocess wrapper ──────────────────────────────────────
 
 def run_open_field_analysis(
     csv_path: Path,
@@ -63,130 +543,121 @@ def run_open_field_analysis(
     skip_bodypart: bool = False,
     progress_container=None,
 ) -> dict:
-    """Run open-field analysis pipeline (behavior + trajectories + heatmaps).
-    
-    Returns dict with paths to generated visualization files.
-    Outputs are saved to the CSV's directory.
-    """
+    """run_analysis.py'i alt-process olarak çalıştırır; üretilen PNG/CSV'leri
+    aynı dizinde tarar ve key → Path eşlemesi döndürür."""
     results = {
-        "behavior_bouts": None,
-        "behavior_frames": None,
-        "behavior_timeline": None,
-        "orbit_grid": None,
-        "thigmotaxis": None,
-        "heatmap_kde": None,
-        "heatmap_histogram": None,
-        "bodypart_heatmaps": None,
+        "behavior_bouts":   None,
+        "behavior_frames":  None,
+        "behavior_timeline":None,
+        "orbit_grid":       None,
+        "thigmotaxis":      None,
+        "heatmap_kde":      None,
+        "heatmap_histogram":None,
+        "bodypart_heatmaps":None,
     }
-    
-    try:
-        # Build common args for run_analysis.py
-        common_args = [
-            str(ROOT / "analysis" / "open_field" / "run_analysis.py"),
-            "--arena", *[str(x) for x in arena],
-            "--inner-zone", *[str(x) for x in inner_zone],
-            "--csv", str(csv_path),
-            "--fps", str(fps),
-            "--likelihood", "0.6",
-            "--jump-thresh", "60",
-            "--smooth", "5",
-        ]
 
-        if skip_behavior:
-            common_args.append("--skip-behavior")
-        if skip_orbit:
-            common_args.append("--skip-orbit")
-        if skip_heatmap:
-            common_args.append("--skip-heatmap")
-        if skip_bodypart:
-            common_args.append("--skip-bodypart")
-        
-        cmd = [sys.executable] + common_args
-        
-        # Stream output for real-time progress
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=str(ROOT / "analysis" / "open_field"),
-        )
-        
-        # Read output line by line
-        output_lines = []
-        for line in process.stdout:
-            output_lines.append(line.rstrip())
-            if progress_container:
-                # Update with current step
-                if "[*]" in line or "[OK]" in line or "Step" in line:
-                    progress_container.write(f"🔄 {line.rstrip()}")
-        
-        stdout, stderr = process.communicate(timeout=600)  # 10 min timeout
-        
-        if process.returncode != 0:
-            raise RuntimeError(f"Analysis failed: {stderr}")
-        
-        # Scan CSV directory for generated files
-        csv_dir = csv_path.parent
-        stem = csv_path.stem
-        for file in csv_dir.glob(f"{stem}*"):
-            if "_behavior_bouts.csv" in file.name:
-                results["behavior_bouts"] = file
-            elif "_behavior_frames.csv" in file.name:
-                results["behavior_frames"] = file
-            elif "_behavior_timeline.png" in file.name:
-                results["behavior_timeline"] = file
-            elif "_orbit_grid.png" in file.name:
-                results["orbit_grid"] = file
-            elif "_thigmotaxis.png" in file.name:
-                results["thigmotaxis"] = file
-            elif "_heatmap_kde.png" in file.name:
-                results["heatmap_kde"] = file
-            elif "_heatmap_histogram.png" in file.name:
-                results["heatmap_histogram"] = file
-            elif "_bodypart_heatmaps.png" in file.name:
-                results["bodypart_heatmaps"] = file
-        
-        return results
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("Open-field analysis timed out (> 10 min)")
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Analysis pipeline failed: {e.stderr}")
+    common_args = [
+        str(ROOT / "analysis" / "open_field" / "run_analysis.py"),
+        "--arena", *[str(x) for x in arena],
+        "--inner-zone", *[str(x) for x in inner_zone],
+        "--csv", str(csv_path),
+        "--fps", str(fps),
+        "--likelihood", "0.6",
+        "--jump-thresh", "60",
+        "--smooth", "5",
+    ]
+    if skip_behavior:  common_args.append("--skip-behavior")
+    if skip_orbit:     common_args.append("--skip-orbit")
+    if skip_heatmap:   common_args.append("--skip-heatmap")
+    if skip_bodypart:  common_args.append("--skip-bodypart")
+
+    cmd = [sys.executable] + common_args
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, cwd=str(ROOT / "analysis" / "open_field"),
+    )
+    for line in process.stdout:
+        if progress_container and ("[*]" in line or "[OK]" in line or "Step" in line):
+            progress_container.write(f"🔄 {line.rstrip()}")
+    _, stderr = process.communicate(timeout=600)
+    if process.returncode != 0:
+        raise RuntimeError(f"Analysis failed: {stderr}")
+
+    csv_dir = csv_path.parent
+    stem = csv_path.stem
+    suffix_map = {
+        "_behavior_bouts.csv":   "behavior_bouts",
+        "_behavior_frames.csv":  "behavior_frames",
+        "_behavior_timeline.png":"behavior_timeline",
+        "_orbit_grid.png":       "orbit_grid",
+        "_thigmotaxis.png":      "thigmotaxis",
+        "_heatmap_kde.png":      "heatmap_kde",
+        "_heatmap_histogram.png":"heatmap_histogram",
+        "_bodypart_heatmaps.png":"bodypart_heatmaps",
+    }
+    for file in csv_dir.glob(f"{stem}*"):
+        for suf, key in suffix_map.items():
+            if file.name.endswith(suf):
+                results[key] = file
+    return results
 
 
-def load_image_bytes(path: Path) -> bytes:
-    """Safely load image file."""
-    if path and path.exists():
-        return path.read_bytes()
-    return None
-
-
-# ── Sidebar ─────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.header("Ayarlar")
-    
-    st.subheader("Aspartam veya Greyfurt Suyu alıp almadığının Tahmini")
+    st.markdown(
+        '<div style="font-size:0.78rem;font-weight:700;color:#e2e8f0;'
+        'letter-spacing:0.14em;margin:0.6rem 0 0.7rem 0;text-align:center;">'
+        'MODEL BİLGİSİ</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        html_stat_row("Algoritma",     "Lojistik Regresyon") +
+        html_stat_row("Eğitim seti",   "29 sıçan (LOOCV)") +
+        html_stat_row("Özellik sayısı","12") +
+        html_stat_row("AUC",           "0.683") +
+        html_stat_row("F1 (Tedavi)",   "0.894") +
+        html_stat_row("Doğruluk",      "%82.8"),
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:0.72rem;font-weight:700;color:#cbd5e1;'
+        'letter-spacing:0.14em;margin:0.4rem 0 0.7rem 0;">PIPELINE AYARLARI</div>',
+        unsafe_allow_html=True,
+    )
+
     fps = st.number_input(
-        "FPS", value=float(v2.DEFAULT_FPS), min_value=1.0, max_value=240.0, step=1.0,
+        "FPS", value=float(v2.DEFAULT_FPS),
+        min_value=1.0, max_value=240.0, step=1.0,
+        help="Videonun saniyedeki kare sayısı.",
     )
     tag = st.text_input(
         "Model tag", value="rearonly",
         help="`models/anxiety_classifier/{lr,scaler}_<tag>.pkl` dosyalarını yükler.",
     )
-    
-    st.divider()
-    
-    st.subheader("Open-Field Analizi")
-    run_analysis = st.checkbox(
-        "Detaylı Analizi Çalıştır",
-        value=False,
-        help="Açılırsa, DLC CSV'ye dayalı kapsamlı bir açık alan analizi yapılır: davranış tespiti, yörünge görselleştirme, ısı haritaları vb. (Çok zaman alabilir!)",
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:0.72rem;font-weight:700;color:#cbd5e1;'
+        'letter-spacing:0.14em;margin:0.4rem 0 0.7rem 0;">OPEN-FIELD ANALİZİ</div>',
+        unsafe_allow_html=True,
     )
-    
+
+    run_analysis = st.checkbox(
+        "Detaylı analizi çalıştır",
+        value=False,
+        help="Davranış tespiti + yörünge + ısı haritası vb. çıktıları üretir (uzun sürebilir).",
+    )
+
     if run_analysis:
-        st.markdown("**Arena Sınırları**")
-        
+        st.markdown(
+            '<div style="font-size:0.72rem;color:rgba(255,255,255,0.55);margin-bottom:4px;">Arena sınırları (px)</div>',
+            unsafe_allow_html=True,
+        )
         col1, col2 = st.columns(2)
         with col1:
             arena_xmin = st.number_input("X min", value=397, step=1)
@@ -194,29 +665,22 @@ with st.sidebar:
         with col2:
             arena_xmax = st.number_input("X max", value=777, step=1)
             arena_ymax = st.number_input("Y max", value=535, step=1)
-        
-        st.markdown("**Hız Ayarları**")
+
         mode = st.radio(
             "Analiz modu",
             ["Davranış Analizi", "Davranış + Yörünge Analizi", "Detaylı Analiz (Tüm Adımlar)"],
             index=0,
-            help="Minimal: sadece rearing/grooming | Fast: + trajectories | Full: + heatmaps"
+            help="Sadece bout tespiti / + trajektori / + ısı haritası bodypart grid.",
         )
-        
-        if mode == "Minimal (~2 min)":
+        if mode == "Davranış Analizi":
             skip_behavior, skip_orbit, fast_mode = False, True, True
-            st.info("⚡ Minimal mod: sadece davranış tespiti çalışacak")
-        elif mode == "Fast (~5 min)":
+        elif mode == "Davranış + Yörünge Analizi":
             skip_behavior, skip_orbit, fast_mode = False, False, True
-            st.info("🚀 Fast mod: davranış + yörüngeler (ısı haritaları atlanacak)")
-        else:  # Full
+        else:
             skip_behavior, skip_orbit, fast_mode = False, False, False
-            st.warning("⏳ Full mod: tüm analizler yapılacak (çok uzun sürebilir!)")
 
-        auto_inner = st.checkbox("Auto-calculate inner zone (20% margin)", value=True)
-        
+        auto_inner = st.checkbox("İç bölgeyi otomatik hesapla (%20 margin)", value=True)
         if not auto_inner:
-            st.markdown("**Inner Zone** (manual)")
             col1, col2 = st.columns(2)
             with col1:
                 inner_xmin = st.number_input("Inner X min", value=422, step=1)
@@ -227,65 +691,122 @@ with st.sidebar:
         else:
             inner_xmin = inner_xmax = inner_ymin = inner_ymax = None
     else:
-        # Set defaults when run_analysis is False
         fast_mode = skip_behavior = skip_orbit = False
-    
-    st.divider()
-    
+        auto_inner = True
+
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,0.06);margin:1rem 0;"></div>', unsafe_allow_html=True)
+
     save_to_reports = st.checkbox(
-        f"Çıktıları `reports/anxiety_predictions_v2/` altına da yaz",
+        "Çıktıları `reports/` altına da yaz",
         value=False,
-        help="Kapalıysa sadece bu oturumda indirme butonu üzerinden alabilirsin.",
+        help="Kapalıyken sadece bu oturumda indirme butonuyla alınabilir.",
     )
 
 
-# ── Input ───────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# HERO HEADER
+# ─────────────────────────────────────────────────────────────────────────────
 
-uploaded = st.file_uploader("DLC filtered pose CSV", type=["csv"])
+st.markdown("""
+<div style="background:linear-gradient(135deg,#1e3a5f 0%,#254d7a 55%,#0c1e36 100%);
+     border-radius:16px;padding:1.75rem 2rem;margin-bottom:1.5rem;
+     border:1px solid rgba(99,149,210,0.28);
+     box-shadow:0 8px 28px rgba(12,30,54,0.55);">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div style="font-size:2.8rem;line-height:1;">🐀</div>
+    <div>
+      <h1 style="margin:0;font-size:1.6rem;font-weight:800;color:white;letter-spacing:-0.5px;">
+        Open Field  —  Anksiyete Tahmin Paneli
+      </h1>
+      <p style="margin:4px 0 0 0;font-size:0.82rem;color:rgba(255,255,255,0.45);">
+        DeepLabCut pose verisi · Davranış (rearing / grooming) · Mekansal metrikler · ML tabanlı grup tahmini
+      </p>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+    <span style="background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#818cf8;letter-spacing:0.04em;">Lojistik Regresyon</span>
+    <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#34d399;letter-spacing:0.04em;">LOOCV · n=29</span>
+    <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#fbbf24;letter-spacing:0.04em;">AUC 0.683</span>
+    <span style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.30);
+          border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
+          color:#c084fc;letter-spacing:0.04em;">F1 0.894</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DOSYA YÜKLEME
+# ─────────────────────────────────────────────────────────────────────────────
+
+upload_col, btn_col = st.columns([3, 1], gap="medium")
+with upload_col:
+    uploaded = st.file_uploader(
+        "DLC filtered pose CSV (tek fare)",
+        type=["csv"],
+        label_visibility="collapsed",
+        help="DeepLabCut tarafından üretilmiş filtrelenmiş CSV dosyası",
+    )
+with btn_col:
+    st.markdown('<div style="height:0.35rem;"></div>', unsafe_allow_html=True)
+    run_clicked = st.button("▶  Çalıştır", type="primary", use_container_width=True)
 
 if uploaded is None:
-    st.info("Sol panelden DLC CSV yükle, ardından **▶ Çalıştır** butonuna bas.")
+    st.info(
+        "📂 DLC CSV yükleyin ve **Çalıştır**'a basın. "
+        "Detaylı open-field analizi isterseniz sol panelden açabilirsiniz."
+    )
+    st.stop()
+if not run_clicked:
     st.stop()
 
-if not st.button("▶  Çalıştır", type="primary"):
-    st.stop()
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PIPELINE
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ── Pipeline ────────────────────────────────────────────────────────────────
+analysis_results: dict = {}
+analysis_images: dict[str, bytes] = {}
+available_outputs: set[str] = set()
+fig_images: dict[str, bytes] = {}
 
 with tempfile.TemporaryDirectory() as tmp:
     tmp_path = Path(tmp)
     csv_path = tmp_path / uploaded.name
     csv_path.write_bytes(uploaded.getvalue())
 
-    progress = st.progress(0.0, text="Başlıyor…")
-    
-    # Storage for all results
-    analysis_results = {}  # stores file paths
-    analysis_images = {}   # stores file bytes (persists after temp dir cleanup)
-    available_outputs = set()  # fast O(1) membership checks
-    fig_images = {}
+    status_ph = st.empty()
+    prog = st.progress(0.0)
+
+    def _step(p: float, msg: str):
+        prog.progress(min(max(p, 0.0), 1.0))
+        status_ph.markdown(
+            f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.5);'
+            f'padding:0.3rem 0;">{msg}</div>',
+            unsafe_allow_html=True,
+        )
 
     try:
-        # ── STEP 0: Open-Field Analysis (if requested) ──────────────────────
         if run_analysis:
-            progress.progress(0.05, text="[0/5] Open-field analysis pipeline başlıyor...")
-            
+            _step(0.05, "🧪 Open-field analiz pipeline başlıyor…")
             if auto_inner:
-                # Auto-calculate inner zone (20% margin)
                 w = arena_xmax - arena_xmin
                 h = arena_ymax - arena_ymin
                 inner_xmin = arena_xmin + 0.20 * w
                 inner_xmax = arena_xmax - 0.20 * w
                 inner_ymin = arena_ymin + 0.20 * h
                 inner_ymax = arena_ymax - 0.20 * h
-            
+
             arena_bounds = (arena_xmin, arena_xmax, arena_ymin, arena_ymax)
             inner_zone_bounds = (inner_xmin, inner_xmax, inner_ymin, inner_ymax)
-            
-            # Create progress output container
+
             progress_output = st.empty()
-            
             analysis_results = run_open_field_analysis(
                 csv_path,
                 arena_bounds,
@@ -297,55 +818,46 @@ with tempfile.TemporaryDirectory() as tmp:
                 skip_bodypart=fast_mode,
                 progress_container=progress_output,
             )
-            
-            # ── READ ALL IMAGE FILES INTO MEMORY (before temp dir cleanup) ────
-            for key in ("behavior_timeline", "orbit_grid", "thigmotaxis", "heatmap_histogram", "heatmap_kde", "bodypart_heatmaps"):
-                if analysis_results.get(key) and analysis_results[key].exists():
+            for key in ("behavior_timeline", "orbit_grid", "thigmotaxis",
+                        "heatmap_histogram", "heatmap_kde", "bodypart_heatmaps"):
+                p = analysis_results.get(key)
+                if p and p.exists():
                     try:
-                        analysis_images[key] = analysis_results[key].read_bytes()
+                        analysis_images[key] = p.read_bytes()
                         available_outputs.add(key)
                     except Exception:
                         pass
-            
-            progress.progress(0.20, text="[1/5] Open-field analysis complete ✓")
-        
-        # ── STEP 1: Behavior Detection (anxiety pipeline) ────────────────────
-        progress.progress(0.30, text="[2/5] DLC CSV → bouts (rearing / grooming)")
+            progress_output.empty()
+
+        _step(0.30, "📍 Davranış bout'ları (rearing / grooming) çıkarılıyor")
         bouts_df, n_frames = v2.detect_bouts(csv_path, fps=fps)
 
-        # ── STEP 2: OFT metrics ──────────────────────────────────────────────
-        progress.progress(0.50, text="[3/5] OFT metrikleri (locomotion / thigmotaxis / freeze / entropy)")
+        _step(0.50, "📐 OFT metrikleri (lokomosyon / thigmotaxis / freeze / entropi)")
         oft, body_x, body_y = v2.compute_oft_metrics(csv_path, fps=fps)
 
-        # ── STEP 3: Spatial rearing ──────────────────────────────────────────
-        progress.progress(0.65, text="[4/5] Spatial rearing (center vs wall)")
+        _step(0.65, "🎯 Mekansal rearing (merkez vs. duvar)")
         spatial = v2.compute_spatial_rearing(bouts_df, body_x, body_y)
-
         feat = v2.build_feature_dict(bouts_df, oft, spatial, oft["session_s"])
 
-        # ── STEP 4: Model prediction ─────────────────────────────────────────
-        progress.progress(0.80, text=f"[5/5] Model yükleme ve tahmin (tag={tag})")
+        _step(0.80, f"🧠 Model yükleme ve tahmin (tag={tag})")
         bundle, model = v2.load_model(tag)
         pred_info = v2.predict(feat, bundle, model)
 
-        progress.progress(0.90, text="Çıktılar üretiliyor")
+        _step(0.90, "📊 Rapor ve görseller üretiliyor")
 
         subject = csv_path.stem
         out_dir = tmp_path / "out"
         out_dir.mkdir()
 
-        # ── Generate anxiety report ──────────────────────────────────────────
         report_buf = StringIO()
         v2.render_summary(report_buf, csv_path, n_frames, feat, pred_info)
         report_text = report_buf.getvalue()
         txt_name = f"{subject}_anxiety_v2_report.txt"
 
-        # ── Generate anxiety overview plot ───────────────────────────────────
         fig_path = out_dir / f"{subject}_anxiety_v2_overview.png"
         v2.plot_overview(csv_path, body_x, body_y, spatial, pred_info, fig_path)
         fig_images["anxiety_overview"] = fig_path.read_bytes()
 
-        # ── JSON payload ─────────────────────────────────────────────────────
         json_payload = {
             "subject":         subject,
             "csv_path":        uploaded.name,
@@ -380,188 +892,378 @@ with tempfile.TemporaryDirectory() as tmp:
             (target / json_name).write_bytes(json_bytes)
             (target / txt_name).write_text(report_text, encoding="utf-8")
             (target / f"{subject}_anxiety_v2_overview.png").write_bytes(fig_images["anxiety_overview"])
-            
-            # Copy analysis results if available (from in-memory images)
-            if analysis_images:
-                for key, img_bytes in analysis_images.items():
-                    # Dosya adını doğrudan 'key' kelimesini kullanarak oluşturuyoruz
-                    (target / f"{subject}_{key}.png").write_bytes(img_bytes)
+            for key, img_bytes in analysis_images.items():
+                (target / f"{subject}_{key}.png").write_bytes(img_bytes)
 
-        progress.progress(1.0, text="Bitti ✓")
+        _step(1.0, "✓  Tamamlandı")
+        prog.empty()
+        status_ph.empty()
 
     except FileNotFoundError as e:
         st.error("Model dosyaları bulunamadı.")
         st.code(str(e))
         st.stop()
     except Exception as e:
-        st.error(f"Pipeline hatası: {type(e).__name__}")
+        st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
         st.exception(e)
         st.stop()
 
 
-# ── Display ─────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# SONUÇLAR
+# ─────────────────────────────────────────────────────────────────────────────
 
-pred_label = v2.label_str(pred_info["pred"])
-top_proba  = pred_info["proba_treated"] if pred_info["pred"] == 1 else pred_info["proba_control"]
+is_treated = pred_info["pred"] == 1
+pred_label = "Tedavi" if is_treated else "Kontrol"
+top_proba  = pred_info["proba_treated"] if is_treated else pred_info["proba_control"]
+subject    = Path(uploaded.name).stem
 
-st.divider()
+st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
 
-# ── TAB 1: ANXIETY PREDICTION ────────────────────────────────────────────────
-tab_anxiety, tab_analysis, tab_downloads = st.tabs(
-    ["Anxiety Prediction", "Behavioral Analysis", "Downloads & Reports"]
+tab_pred, tab_beh, tab_metrics, tab_dl = st.tabs(
+    ["🎯  Tahmin", "🧠  Davranış", "📊  Metrikler", "⬇  İndir"]
 )
 
-with tab_anxiety:
-    col_img, col_meta = st.columns([1.4, 1])
-    
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 1 — TAHMİN
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_pred:
+    col_img, col_right = st.columns([1.35, 1], gap="large")
+
     with col_img:
-        st.subheader("Anxiety Prediction Overview")
+        st.markdown(html_section("Anksiyete Genel Bakış"), unsafe_allow_html=True)
         st.image(fig_images["anxiety_overview"], use_container_width=True)
-    
-    with col_meta:
-        st.subheader("Tahmin Sonucu")
-        st.markdown(f"## {pred_label}")
-        st.metric("Güven", f"%{top_proba * 100:.0f}")
-        
-        c1, c2 = st.columns(2)
-        c1.metric("P(Control)", f"{pred_info['proba_control']:.3f}")
-        c2.metric("P(Treated)", f"{pred_info['proba_treated']:.3f}")
-        
-        st.subheader("Temel Metrikler")
+
+    with col_right:
+        st.markdown(html_section("Tahmin Sonucu"), unsafe_allow_html=True)
+        st.markdown(html_pred_card(pred_label, top_proba, is_treated), unsafe_allow_html=True)
+
+        buf_p = io.BytesIO()
+        fp = fig_probability_bars(pred_info)
+        fp.savefig(buf_p, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
+        plt.close(fp)
+        st.image(buf_p.getvalue(), use_container_width=True)
+
+        _pc = pred_info["proba_control"]
+        _pt = pred_info["proba_treated"]
         st.markdown(
-            f"- Merkezde süre: **%{feat['pct_center']:.1f}**\n"
-            f"- Duvar kenarında: **%{feat['pct_periphery']:.1f}**\n"
-            f"- Donakalma: **%{feat['pct_freeze']:.1f}**\n"
-            f"- Rearing toplam: **{int(feat['rear_count'])}** bout ({feat['rear_total_s']:.1f} s)\n"
-            f"- Rearing center: **{int(feat['rear_count_center'])}** | wall: **{int(feat['rear_count_wall'])}**"
+            f"<div style='text-align:center;color:#94a3b8;font-size:0.85rem;"
+            f"margin:0.15rem 0 0.6rem 0;font-family:\"JetBrains Mono\",monospace;'>"
+            f"P(Kontrol) + P(Tedavi) = "
+            f"<span style='color:#3B82F6;font-weight:600;'>{_pc:.3f}</span> + "
+            f"<span style='color:#EF4444;font-weight:600;'>{_pt:.3f}</span> = "
+            f"<span style='color:#f1f5f9;font-weight:700;'>{(_pc + _pt):.3f}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
         )
-        
-        st.subheader("En Önemli Özellikler")
-        for i, c in enumerate(pred_info["top_contributors"][:3], 1):
-            st.markdown(
-                f"{i}. **{c['feature']}** (z={c['z']:+.2f}) → {c['toward']}"
-            )
-    
-    st.divider()
-    st.subheader("Detaylı Rapor")
-    st.code(report_text, language="text")
 
-# ── TAB 2: BEHAVIORAL ANALYSIS ───────────────────────────────────────────────
-with tab_analysis:
-    if available_outputs:
-        st.subheader("Open-Field Behavioral Analysis")
-        
-        # ── Behavior Detection ───────────────────────────────────────────────
-        if "behavior_timeline" in available_outputs:
-            st.markdown("### 1. Behavior Detection (Rearing & Grooming Timeline)")
-            st.image(analysis_images["behavior_timeline"], use_container_width=True)
-            st.caption("Bout detection timeline across session")
-        
-        # ── Trajectories ─────────────────────────────────────────────────────
-        col_traj1, col_traj2 = st.columns(2)
-        
-        with col_traj1:
-            if "orbit_grid" in available_outputs:
-                st.markdown("### 2a. Trajectory Grid (Per-Bodypart)")
-                st.image(analysis_images["orbit_grid"], use_container_width=True)
-        
-        with col_traj2:
-            if "thigmotaxis" in available_outputs:
-                st.markdown("### 2b. Thigmotaxis (Wall Hugging)")
-                st.image(analysis_images["thigmotaxis"], use_container_width=True)
-        
-        # ── Heatmaps ─────────────────────────────────────────────────────────
-        st.markdown("### 3. Activity Heatmaps (PRIMARY ANALYSIS)")
-        
-        col_heat1, col_heat2 = st.columns(2)
-        
-        with col_heat1:
-            if "heatmap_histogram" in available_outputs:
-                st.markdown("**Histogram Density**")
-                st.image(analysis_images["heatmap_histogram"], use_container_width=True)
-        
-        with col_heat2:
-            if "heatmap_kde" in available_outputs:
-                st.markdown("**KDE Heatmap (Smooth)**")
-                st.image(analysis_images["heatmap_kde"], use_container_width=True)
-        
-        # ── Per-bodypart grid ────────────────────────────────────────────────
-        if "bodypart_heatmaps" in available_outputs:
-            st.markdown("### 4. Per-Bodypart Heatmap Grid (4×3)")
-            st.image(analysis_images["bodypart_heatmaps"], use_container_width=True)
-            st.caption("Individual bodypart activity distribution")
-        
-        # ── Behavior data summary ────────────────────────────────────────────
-        if analysis_results.get("behavior_bouts") and analysis_results["behavior_bouts"].exists():
-            st.markdown("### 5. Behavior Bout Summary")
-            try:
-                bouts_data = pd.read_csv(analysis_results["behavior_bouts"])
-                st.dataframe(bouts_data.head(10), use_container_width=True)
-                st.caption(f"Total bouts: {len(bouts_data)}")
-            except Exception as e:
-                st.warning(f"Could not load bout summary: {e}")
-    else:
-        st.info("Open-field analysis not selected or no results. Enable in sidebar and check 'Detaylı Analizi Çalıştır' to view comprehensive behavioral results.")
-
-# ── TAB 3: DOWNLOADS ─────────────────────────────────────────────────────────
-with tab_downloads:
-    st.subheader("Report Files")
-    
-    d1, d2, d3 = st.columns(3)
-    
-    with d1:
-        st.download_button(
-            "📝 Anxiety Report (TXT)",
-            report_text,
-            file_name=txt_name,
-            mime="text/plain"
-        )
-    
-    with d2:
-        st.download_button(
-            "📊 Anxiety Report (JSON)",
-            json_bytes,
-            file_name=json_name,
-            mime="application/json"
-        )
-    
-    with d3:
-        st.download_button(
-            "📷 Anxiety Overview (PNG)",
-            fig_images["anxiety_overview"],
-            file_name=f"{subject}_anxiety_v2_overview.png",
-            mime="image/png"
-        )
-    
-    if available_outputs:
-        st.divider()
-        st.subheader("Analysis Visualizations")
-        
-        cols = st.columns(3)
-        col_idx = 0
-        
-        viz_items = [
-            ("behavior_timeline", "Timeline"),
-            ("orbit_grid", "Trajectories"),
-            ("thigmotaxis", "Thigmotaxis"),
-            ("heatmap_histogram", "Histogram"),
-            ("heatmap_kde", "KDE Heatmap"),
-            ("bodypart_heatmaps", "Bodypart Grid"),
+        st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
+        basic_metrics = [
+            ("Merkez Süresi", f"%{feat['pct_center']:.1f}",
+             "Arenanın iç bölgesinde geçen sürenin yüzdesi. Düşük değer "
+             "merkez kaçınmasına / anksiyeteye işaret eder."),
+            ("Çevre Süresi", f"%{feat['pct_periphery']:.1f}",
+             "Duvar kenarında geçen sürenin yüzdesi. Yüksek değer "
+             "thigmotaxis (duvara yapışma) davranışını işaret eder."),
+            ("Donakalma", f"%{feat['pct_freeze']:.1f}",
+             "Hız eşiğinin altında kalan kare oranı. Yüksek değer kaygı "
+             "kaynaklı immobilizasyonu ima eder."),
+            ("Toplam Rearing", f"{int(feat['rear_count'])}",
+             "Seans boyunca arka ayaklar üzerinde dikilme (rearing) bout sayısı. "
+             "Keşfetme ve dikey aktivite göstergesidir."),
         ]
-        
-        for key, label in viz_items:
-            if key in available_outputs:
-                img_bytes = analysis_images[key]
-                fpath = analysis_results.get(key)
-                with cols[col_idx % 3]:
-                    st.download_button(
-                        f"📸 {label}",
-                        img_bytes,
-                        file_name=fpath.name if fpath else f"{label}.png",
-                        mime="image/png"
+        mr1 = st.columns(2)
+        mr2 = st.columns(2)
+        for slot, (label, val, desc) in zip([*mr1, *mr2], basic_metrics):
+            with slot:
+                with st.expander(f"{label}   ·   {val}", expanded=False):
+                    st.markdown(
+                        f"<div style='font-size:0.95rem;color:#cbd5e1;"
+                        f"line-height:1.55;'>{desc}</div>",
+                        unsafe_allow_html=True,
                     )
-                col_idx += 1
-    
+
+    # Karar Katkıları — tam genişlik
+    st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
+    buf_f = io.BytesIO()
+    ff = fig_feature_contributions(pred_info)
+    ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
+    plt.close(ff)
+    st.image(buf_f.getvalue(), use_container_width=True)
+
+    for c in pred_info["top_contributors"]:
+        feat_key = c["feature"]
+        info = FEATURE_INFO.get(feat_key)
+        push  = c["push"]
+        toward = "Tedavi Grubu" if push > 0 else "Kontrol Grubu"
+        arrow_color = "#EF4444" if push > 0 else "#3B82F6"
+        display_name = info["name"] if info else feat_key.replace("_", " ").title()
+        value = c.get("value")
+        value_str = f"{value:.3f}" if isinstance(value, (int, float)) else "—"
+
+        header = f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
+        with st.expander(header, expanded=False):
+            if info:
+                st.markdown(
+                    f"<div style='font-size:0.72rem;font-weight:700;"
+                    f"letter-spacing:0.14em;color:#94a3b8;"
+                    f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
+                    f"<div style='font-size:0.98rem;color:#e2e8f0;"
+                    f"line-height:1.6;margin-bottom:0.9rem;'>{info['desc']}</div>"
+                    f"<div style='font-size:0.72rem;font-weight:700;"
+                    f"letter-spacing:0.14em;color:#94a3b8;"
+                    f"margin:0.2rem 0 0.4rem 0;'>NASIL HESAPLANIR</div>",
+                    unsafe_allow_html=True,
+                )
+                st.code(info["formula"], language="text")
+            else:
+                st.markdown(
+                    "<div style='font-size:0.98rem;color:#cbd5e1;'>"
+                    "Bu özellik için açıklama tanımlanmamış.</div>",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f"<div style='font-size:0.92rem;color:rgba(255,255,255,0.78);"
+                f"line-height:1.6;border-top:1px solid rgba(255,255,255,0.07);"
+                f"padding-top:0.7rem;margin-top:0.7rem;'>"
+                f"Bu denek için ölçülen değer "
+                f"<strong style='color:#f1f5f9;'>{value_str}</strong> "
+                f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
+                f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
+                f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
+                f"yönünde bir karar katkısı üretir."
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 2 — DAVRANIŞ
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_beh:
+    if not available_outputs:
+        st.info(
+            "Bu sekme, sol paneldeki **Detaylı analizi çalıştır** seçeneği "
+            "aktif olduğunda dolar. Şu an Open-Field analiz pipeline'ı "
+            "çalıştırılmadığı için davranışsal görseller üretilmedi."
+        )
+    else:
+        viz_defs = [
+            ("behavior_timeline", "Davranış Zaman Çizgisi"),
+            ("orbit_grid",        "Yörünge Izgarası"),
+            ("thigmotaxis",       "Thigmotaxis (Duvar Yapışması)"),
+            ("heatmap_kde",       "KDE Aktivite Haritası"),
+            ("heatmap_histogram", "Histogram Yoğunluk"),
+            ("bodypart_heatmaps", "Bodypart Isı Haritası"),
+        ]
+        for key, title in viz_defs:
+            if key not in available_outputs:
+                continue
+            st.markdown(html_section(title), unsafe_allow_html=True)
+            _, cimg, _ = st.columns([1, 3, 1])
+            with cimg:
+                st.image(analysis_images[key], use_container_width=True)
+            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+
+        bouts_path = analysis_results.get("behavior_bouts")
+        if bouts_path and bouts_path.exists():
+            st.markdown(html_section("Davranış Bout Tablosu"), unsafe_allow_html=True)
+            try:
+                bouts_data = pd.read_csv(bouts_path)
+                st.dataframe(
+                    bouts_data.head(20),
+                    use_container_width=True, hide_index=True,
+                )
+                st.caption(f"Toplam bout sayısı: {len(bouts_data)}")
+            except Exception as e:
+                st.warning(f"Bout dosyası okunamadı: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 3 — METRİKLER
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_metrics:
+    mc1, mc2 = st.columns(2)
+
+    with mc1:
+        st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
+        st.markdown(
+            "<div style='font-size:0.82rem;color:rgba(255,255,255,0.5);"
+            "margin:-0.35rem 0 0.65rem 0;text-align:center;'>"
+            "Her özelliğe tıklayarak Türkçe açıklamasını görebilirsiniz."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        model_cols = pred_info.get("feature_cols", []) or list(feat.keys())
+        for k in model_cols:
+            info = FEATURE_INFO.get(k, {})
+            name = info.get("name", k.replace("_", " ").title())
+            val = feat.get(k)
+            if isinstance(val, float):
+                val_str = "—" if np.isnan(val) else f"{val:.3f}"
+            elif val is None:
+                val_str = "—"
+            else:
+                val_str = str(val)
+
+            with st.expander(f"{name}   ·   {val_str}", expanded=False):
+                desc = info.get("desc")
+                formula = info.get("formula")
+                if desc:
+                    st.markdown(
+                        f"<div style='font-size:0.72rem;font-weight:700;"
+                        f"letter-spacing:0.14em;color:#94a3b8;"
+                        f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
+                        f"<div style='font-size:0.95rem;color:#e2e8f0;"
+                        f"line-height:1.55;margin-bottom:0.7rem;'>{desc}</div>",
+                        unsafe_allow_html=True,
+                    )
+                if formula:
+                    st.markdown(
+                        "<div style='font-size:0.72rem;font-weight:700;"
+                        "letter-spacing:0.14em;color:#94a3b8;"
+                        "margin:0.1rem 0 0.35rem 0;'>NASIL HESAPLANIR</div>",
+                        unsafe_allow_html=True,
+                    )
+                    st.code(formula, language="text")
+                if not desc and not formula:
+                    st.markdown(
+                        "<div style='font-size:0.95rem;color:#cbd5e1;'>"
+                        "Bu özellik için açıklama tanımlanmamış.</div>",
+                        unsafe_allow_html=True,
+                    )
+
+    with mc2:
+        st.markdown(html_section("Davranış Özetleri"), unsafe_allow_html=True)
+
+        beh_cards = [
+            ("Rearing",   "#10B981",
+             int(feat['rear_count']),
+             feat.get('rear_total_s', 0.0) or 0.0,
+             feat.get('rear_pct', 0.0) or 0.0),
+            ("Grooming",  "#A855F7",
+             int(feat['groom_count']),
+             feat.get('groom_total_s', 0.0) or 0.0,
+             feat.get('groom_pct', 0.0) or 0.0),
+            ("Donakalma", "#F59E0B",
+             int(feat.get('freeze_bout_count', 0) or 0),
+             None,
+             feat.get('pct_freeze', 0.0) or 0.0),
+        ]
+
+        cards_html = ""
+        for name, color, count, total_s, pct in beh_cards:
+            total_str = "—" if total_s is None else f"{total_s:.1f} sn"
+            pct_str = f"%{pct:.1f}"
+            cards_html += (
+                f"<div style='background:rgba(255,255,255,0.03);"
+                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                f"padding:0.85rem 1rem;margin-bottom:8px;'>"
+                f"  <div style='display:flex;justify-content:space-between;"
+                f"align-items:center;'>"
+                f"    <div style='display:flex;align-items:center;gap:10px;'>"
+                f"      <div style='width:10px;height:10px;border-radius:50%;"
+                f"background:{color};box-shadow:0 0 8px {color}66;'></div>"
+                f"      <span style='color:#e2e8f0;font-weight:600;"
+                f"font-size:0.95rem;'>{name}</span>"
+                f"    </div>"
+                f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
+                f"      <span style='color:#94a3b8;'>Bout: "
+                f"<strong style='color:#f1f5f9;font-weight:700;'>{count}</strong></span>"
+                f"      <span style='color:#94a3b8;'>Süre: "
+                f"<strong style='color:#f1f5f9;font-weight:700;'>{total_str}</strong></span>"
+                f"      <span style='color:#94a3b8;'>%: "
+                f"<strong style='color:{color};font-weight:700;'>{pct_str}</strong></span>"
+                f"    </div>"
+                f"  </div>"
+                f"</div>"
+            )
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+        st.markdown(html_section("Mekansal Rearing"), unsafe_allow_html=True)
+        rc = int(feat.get('rear_count_center', 0) or 0)
+        rw = int(feat.get('rear_count_wall', 0) or 0)
+        rcf = feat.get('rear_center_frac')
+        rcf_str = "—" if (rcf is None or (isinstance(rcf, float) and np.isnan(rcf))) else f"{rcf:.1%}"
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Merkez Rearing", rc)
+        c2.metric("Duvar Rearing", rw)
+        c3.metric("Merkez Oranı", rcf_str)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TAB 4 — İNDİR
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_dl:
+    st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
+
+    dc1, dc2, dc3 = st.columns(3, gap="medium")
+
+    with dc1:
+        st.download_button(
+            "⬇  Rapor (TXT)", report_text,
+            file_name=txt_name, mime="text/plain",
+            use_container_width=True, key="dl_txt",
+        )
+        with st.expander("Önizleme"):
+            st.code(report_text, language="text")
+
+    with dc2:
+        st.download_button(
+            "⬇  Tahmin Raporu (JSON)", json_bytes,
+            file_name=json_name, mime="application/json",
+            use_container_width=True, key="dl_json",
+        )
+        with st.expander("Önizleme"):
+            st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
+
+    with dc3:
+        st.download_button(
+            "⬇  Genel Bakış (PNG)", fig_images["anxiety_overview"],
+            file_name=f"{subject}_anxiety_v2_overview.png",
+            mime="image/png",
+            use_container_width=True, key="dl_overview",
+        )
+        with st.expander("Önizleme"):
+            st.image(fig_images["anxiety_overview"], use_container_width=True)
+
+    if available_outputs:
+        st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
+        viz_map = [
+            ("behavior_timeline", "Zaman Çizgisi"),
+            ("orbit_grid",        "Yörünge"),
+            ("thigmotaxis",       "Thigmotaxis"),
+            ("heatmap_kde",       "KDE Haritası"),
+            ("heatmap_histogram", "Histogram"),
+            ("bodypart_heatmaps", "Bodypart Izgarası"),
+        ]
+        viz_map = [(k, lbl) for k, lbl in viz_map if k in available_outputs]
+        for i in range(0, len(viz_map), 3):
+            row = viz_map[i:i+3]
+            cols = st.columns(len(row), gap="medium")
+            for (key, lbl), col in zip(row, cols):
+                with col:
+                    st.download_button(
+                        f"⬇  {lbl} (PNG)", analysis_images[key],
+                        file_name=f"{subject}_{key}.png",
+                        mime="image/png",
+                        use_container_width=True, key=f"dl_{key}",
+                    )
+                    with st.expander("Önizleme"):
+                        st.image(analysis_images[key], use_container_width=True)
+
     if save_to_reports:
-        st.divider()
-        st.success(f"✓ Tüm çıktılar `{v2.DEFAULT_OUT.relative_to(ROOT)}/` altına yazıldı.")
+        st.markdown(
+            f"<div style='margin-top:1rem;background:rgba(16,185,129,0.10);"
+            f"border:1px solid rgba(16,185,129,0.30);border-radius:10px;"
+            f"padding:0.85rem 1rem;color:#34d399;font-size:0.88rem;'>"
+            f"✓ Tüm çıktılar <code>{v2.DEFAULT_OUT.relative_to(ROOT)}/</code> "
+            f"altına da yazıldı."
+            f"</div>",
+            unsafe_allow_html=True,
+        )
