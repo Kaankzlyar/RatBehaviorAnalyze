@@ -329,10 +329,6 @@ def plot_overview(csv_path: Path, body_x, body_y, spatial: dict,
                    color="lime", edgecolor="black", s=110, marker="*",
                    label=f"center rear (n={len(centers)})", zorder=5)
 
-    
-    ax.set_title(f"{label_str(pred_info['pred'])}  "
-                 f"(P_treated={pred_info['proba_treated']:.2f})",
-                 fontsize=14, pad=12)
     ax.invert_yaxis()
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("x (px)"); ax.set_ylabel("y (px)")

@@ -125,11 +125,6 @@ def plot_2d_histogram(x, y, arena, inner_zone, video_name: str, out_path: str,
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
-    ax.set_title(
-        f"Activity Heatmap {video_name}\n"
-        f"(body_center density, {len(xv)} valid frames)",
-        color="white", fontsize=13, pad=10,
-    )
     ax.tick_params(colors="#666666", labelsize=9)
 
     plt.tight_layout()
@@ -196,11 +191,6 @@ def plot_kde_heatmap(x, y, arena, inner_zone, video_name: str, out_path: str,
 
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=12)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=12)
-    ax.set_title(
-        f"Activity Density” {video_name}\n"
-        f"(body_center, {len(xv)} frames, Ïƒ={sigma}px)",
-        color="white", fontsize=13, pad=10,
-    )
     ax.tick_params(colors="#666666", labelsize=9)
 
     plt.tight_layout()

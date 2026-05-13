@@ -177,12 +177,6 @@ def plot_bodypart_heatmaps_grid(tracking: dict, arena: tuple, inner_zone: tuple,
     for idx in range(n, len(axes)):
         axes[idx].set_visible(False)
 
-    fig.suptitle(
-        f"Per-Bodypart Activity Heatmaps {video_name}\n"
-        f"(2D histogram density, dashed white = arena wall, dotted orange = inner boundary)",
-        color="#DDDDDD", fontsize=11, y=1.01,
-    )
-
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()

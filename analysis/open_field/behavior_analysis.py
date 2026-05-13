@@ -213,11 +213,6 @@ def plot_comparison(df: pd.DataFrame, out_path: str) -> None:
     np.random.seed(42)
 
     fig, axes = plt.subplots(3, 3, figsize=(14, 11))
-    fig.suptitle(
-        "Open Field Test — Behavioral Profile Comparison\n"
-        "Control  vs  Aspartame  vs  Grapefruit  vs  Aspartame+Grapefruit",
-        fontsize=12, fontweight="bold", y=1.01
-    )
     fig.patch.set_facecolor("#FAFAFA")
     for ax in axes.flat:
         ax.set_facecolor("#F5F5F5")
@@ -263,8 +258,6 @@ def plot_grooming_fragmentation(df: pd.DataFrame, out_path: str) -> None:
     """
     np.random.seed(42)
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
-    fig.suptitle("Grooming Pattern Analysis — Fragmentation",
-                 fontsize=11, fontweight="bold")
     fig.patch.set_facecolor("#FAFAFA")
 
     # left: scatter count vs total duration

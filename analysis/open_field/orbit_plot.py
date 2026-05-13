@@ -264,13 +264,6 @@ def plot_grid(tracking: dict, arena: tuple, inner_zone: tuple,
     for idx in range(n, len(axes)):
         axes[idx].set_visible(False)
 
-    fig.suptitle(
-        f"Per-Bodypart Orbit ” {video_name}\n"
-        f"(dashed white = arena wall  |  dotted orange = manually selected inner boundary)\n"
-        f"circle = start  |  diamond = end  |  pale->dark = early->late",
-        color="#DDDDDD", fontsize=11, y=1.01,
-    )
-
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
@@ -325,11 +318,6 @@ def plot_thigmotaxis_detail(tracking: dict, arena: tuple, inner_zone: tuple,
     ax.invert_yaxis()
     ax.set_xlabel("X (pixels)", color="#CCCCCC", fontsize=11)
     ax.set_ylabel("Y (pixels)", color="#CCCCCC", fontsize=11)
-    ax.set_title(
-        f"Thigmotaxis Detail” {video_name}  [{bp}]\n"
-        f"Thigmotaxis rate: {rate_str}  (orange = border zone, blue = centre zone)",
-        color="white", fontsize=12, pad=10,
-    )
     ax.legend(loc="lower right", framealpha=0.3, facecolor="#222222",
               edgecolor="#555555", labelcolor="white", fontsize=9)
 
