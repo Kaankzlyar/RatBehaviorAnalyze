@@ -352,9 +352,9 @@ def tr_upper(s: str) -> str:
 def html_section(title: str) -> str:
     label = tr_upper(title)
     return (
-        f'<div style="font-size:1.1rem;font-weight:800;color:#e2e8f0;'
+        f'<div style="font-size:1.3rem;font-weight:800;color:#e2e8f0;'
         f'letter-spacing:0.16em;'
-        f'margin:1.5rem 0 0.85rem 0;display:flex;align-items:center;gap:14px;'
+        f'margin:1.6rem 0 0.9rem 0;display:flex;align-items:center;gap:16px;'
         f'justify-content:center;">'
         f'<div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>'
         f'<span>{label}</span>'
@@ -544,13 +544,6 @@ def fig_arm_distribution(row: dict) -> plt.Figure:
         row.get("pct_time_junction", 0) or 0,
     ]
     colors = ["#10B981", "#F59E0B", "#3B82F6", "#A855F7", "#64748B"]
-    entries = [
-        row.get("left_entries",   0) or 0,
-        row.get("right_entries",  0) or 0,
-        row.get("bottom_entries", 0) or 0,
-        row.get("top_entries",    0) or 0,
-        None,
-    ]
 
     fig, ax = plt.subplots(figsize=(7, 3.2), facecolor=_DARK_BG)
     _style_ax_dark(ax, fig)
@@ -558,15 +551,11 @@ def fig_arm_distribution(row: dict) -> plt.Figure:
     x     = np.arange(len(arms))
     bars  = ax.bar(x, times, color=colors, alpha=0.80, width=0.55, edgecolor="none")
 
-    for bar, val, ent in zip(bars, times, entries):
+    for bar, val in zip(bars, times):
         bx = bar.get_x() + bar.get_width() / 2
         ax.text(bx, bar.get_height() + 0.8,
                 f"{val:.1f}%", ha="center", va="bottom",
                 fontsize=9, fontweight="700", color="white")
-        if ent is not None:
-            ax.text(bx, bar.get_height() / 2,
-                    f"{int(ent)}G", ha="center", va="center",
-                    fontsize=7.5, color="white", alpha=0.6)
 
     ax.set_xticks(x)
     ax.set_xticklabels(arms, fontsize=9)
@@ -577,13 +566,6 @@ def fig_arm_distribution(row: dict) -> plt.Figure:
     for lbl in ax.get_xticklabels():
         lbl.set_color("#94a3b8")
 
-    # Açık vs kapalı annotation
-    open_pct   = times[0] + times[1]
-    closed_pct = times[2] + times[3]
-    ax.set_title(
-        f"Açık kol: {open_pct:.1f}%  •  Kapalı kol: {closed_pct:.1f}%",
-        fontsize=9.5, color="#64748b", pad=10,
-    )
     fig.tight_layout(pad=1.0)
     return fig
 
@@ -1056,7 +1038,7 @@ with tab_metrics:
 
     mc1, mc2 = st.columns(2)
     with mc1:
-        st.markdown(html_section("Model Feature'ları"), unsafe_allow_html=True)
+        st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
         feat_rows = [
             {"Özellik": k.replace("_", " ").title(),
              "Değer":   f"{row[k]:.3f}" if isinstance(row.get(k), float) else str(row.get(k, "—"))}
