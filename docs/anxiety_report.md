@@ -13,13 +13,13 @@
 
 ### 1.1. Bir cümlede iddia
 
-> "29 hayvan üzerinde DeepLabCut tabanlı uçtan uca yeniden üretilebilir bir davranış-analizi pipeline'ı geliştirildi; pipeline, rearing davranışının mekansal dağılımı (center vs wall) üzerinden Control vs Treated için **LOOCV AUC = 0.73** elde etti ve uncorrected anlamlılıkta (`rear_center_frac` MW p=0.030, Cohen's d=−0.92) pilot kanıt sağladı."
+> "29 hayvan üzerinde DeepLabCut tabanlı uçtan uca yeniden üretilebilir bir davranış-analizi pipeline'ı geliştirildi; pipeline, rearing davranışının mekansal dağılımı (center vs wall) üzerinden Control vs Treated için **LOOCV AUC = 0.683** (balanced accuracy = 0.738) elde etti ve uncorrected anlamlılıkta (`rear_center_frac` MW p=0.030, Cohen's d=−0.92) pilot kanıt sağladı."
 
 ### 1.2. Üç ana çıktı
 
-1. **Pipeline:** Video → DLC → rule-based bouts → OFT metrics → spatial rearing → 18-feature → LR / RF / SVM (LOOCV). CLI ([`predict_anxiety_v2.py`](../scripts/predict_anxiety_v2.py)) ve Streamlit GUI ([`predict_anxiety_v3_gui.py`](../scripts/predict_anxiety_v3_gui.py)).
-2. **Empirik bulgu:** Spatial rearing (center vs wall) en güçlü grup-ayırıcı sinyal. Treated grup merkezde rearing fraksiyonunu ~yarıya düşürmüş.
-3. **Model:** Logistic regression rear-only (18 feature, LOOCV AUC = 0.73). RF yakın (0.65). SVM dar feature setiyle bozuluyor (0.21).
+1. **Pipeline:** Video → DLC → rule-based bouts → OFT metrics → spatial rearing → 12-feature → LR / RF / SVM (LOOCV). CLI ([`predict_anxiety_v2.py`](../scripts/predict_anxiety_v2.py)) ve Streamlit GUI ([`predict_anxiety_v3_gui.py`](../scripts/predict_anxiety_v3_gui.py)).
+2. **Empirik bulgu:** Spatial rearing (center vs wall) en güçlü univariate grup-ayırıcı sinyal (`rear_center_frac` MW p=0.030, d=−0.92). Treated grup merkezde rearing fraksiyonunu ~yarıya düşürmüş. (Not: bu özellikler final modele girmedi — bkz. §3.4 ve §12.)
+3. **Model:** Logistic regression rear-only (12 feature, LOOCV AUC = 0.683). RF zayıf (0.525). SVM dar feature setiyle bozuluyor (0.358).
 
 ### 1.3. Doğru çerçeveleme
 
@@ -51,9 +51,9 @@ Rearing + grooming bouts
    ↓ OFT metrics                               (analysis/open_field/oft_metrics.py)
 Locomotion · thigmotaxis · freeze · entropy
    ↓ Spatial rearing                           (src/anxiety/spatial_rearing.py)
-Her bout center / wall
+Her bout center / wall (univariate analiz — final modele girmiyor)
    ↓ Feature matrix builder                    (src/anxiety/profile.py)
-18 rear-only feature
+12 rear-only feature
    ↓ LOOCV classifier (LR / RF / SVM)          (src/anxiety/classifier.py)
 models/anxiety_classifier/{lr,rf,svm}_rearonly.pkl + scaler
 
@@ -62,15 +62,17 @@ Inference (single subject):
    streamlit run scripts/predict_anxiety_v3_gui.py  (Tarayıcı GUI)
 ```
 
-### 2.3. Feature seti (rear-only, 18 sütun)
+### 2.3. Feature seti (rear-only, 12 sütun)
 
-Regex `rear|pct_periphery|pct_freeze|spatial_entropy|comfort` ile filtrelenmiş:
+Regex `rear|pct_periphery|pct_freeze|spatial_entropy|comfort` ile filtrelenmiş; final konfigürasyonda 6 spatial-rearing varyantı (center/wall split) **çıkarılmış** — bkz. §3.4 ve §12 (LOOCV varyansı + multicollinearity gerekçesi).
 
-**Davranışsal — rearing (14):** `rear_count`, `rear_total_s`, `rear_pct`, `rear_mean_bout_s`, `rear_rate_per_min`, `rear_early_frac`, `rear_groom_ratio`, `rear_per_100px`, `rear_count_center`, `rear_count_wall`, `rear_total_s_center`, `rear_total_s_wall`, `rear_center_frac`, `rear_center_minus_wall`
+**Davranışsal — rearing (8):** `rear_count`, `rear_total_s`, `rear_pct`, `rear_mean_bout_s`, `rear_rate_per_min`, `rear_early_frac`, `rear_groom_ratio`, `rear_per_100px`
 
 **Mekansal (3):** `pct_periphery`, `pct_freeze`, `spatial_entropy`
 
 **Türetilmiş (1):** `comfort_ratio = groom_total_s / pct_center`
+
+**Eski sürümdeki 6 spatial-rearing özelliği — final modele girmedi:** `rear_count_center`, `rear_count_wall`, `rear_total_s_center`, `rear_total_s_wall`, `rear_center_frac`, `rear_center_minus_wall`. Bu özellikler univariate analizde (§3.2) en güçlü pilot bulguyu sağladı; ancak LOOCV (n=29) içinde yüksek korelasyonlu 6 varyantın hepsini birlikte taşımak modeli istikrarsızlaştırdı (18-feat AUC 0.733 → 0.617, aynı konfigte tek günlük yeniden eğitim). Final 12-feature seti spatial rearing'i univariate kanıt katmanında bırakıp classifier'a daha düşük varyanslı genel-rearing + spatial context veriyor.
 
 ### 2.4. Inner zone tanımı (kritik metodolojik karar)
 
@@ -91,9 +93,10 @@ INNER_ZONE   = _derive_inner(ARENA, 0.20)
 | `rear_center_frac` MW p | **0.030** | 0.281 |
 | `rear_center_frac` Cohen's d | **−0.92** | +0.31 (yön TERS) |
 | `rear_count_wall` (Treated medyan) | 18 | 1 |
-| LR LOOCV AUC | **0.73** | 0.62 |
+| LR LOOCV AUC (18-feat, hist.) | 0.73 | 0.62 |
+| LR LOOCV AUC (12-feat, final) | **0.683** | — (re-run yapılmadı) |
 
-Manuel zone'da neredeyse tüm rear bout'ları "center" sınıfına düşüyor → sınıf sabit → grup ayrımcı sinyal yok. Final karar: arena ve inner zone artık tek bir kaynaktan (`src/anxiety/config.py`) gelir, **%20 margin standardı kilitlendi** (commit `dd5943b`).
+Manuel zone'da neredeyse tüm rear bout'ları "center" sınıfına düşüyor → sınıf sabit → grup ayrımcı sinyal yok. Final karar: arena ve inner zone artık tek bir kaynaktan (`src/anxiety/config.py`) gelir, **%20 margin standardı kilitlendi** (commit `dd5943b`). Manuel-zone sensitivity satırı 18-feature dönemindendir; 12-feature konfigte tekrarlanmadı çünkü sonuç çıkarımı (manuel zone sinyali çökertir) feature sayısından bağımsız.
 
 > "Spatial rearing classification was performed using the literature-standard 20% margin from the arena edge (Choleris et al. 2001 OFT convention; Carter & Shieh 2010). A sensitivity analysis with a wider center definition (~7% margin, ~85% of arena classified as center) showed the spatial signal collapses, confirming that the metric measures the thigmotaxis-ring versus inner-area distinction rather than wall contact per se."
 
@@ -133,16 +136,16 @@ Top 6'nın 5'i rearing → sinyal rearing davranışında yoğunlaşmış. BH-FD
 
 ### 3.3. Binary classifier — Control vs Treated
 
-[`reports/anxiety_classifier_metrics_rearonly.csv`](../reports/anxiety_classifier_metrics_rearonly.csv) — rear-only 18-feature LOOCV (n=29, `class_weight=balanced`):
+[`reports/anxiety_classifier_metrics_rearonly.csv`](../reports/anxiety_classifier_metrics_rearonly.csv) — rear-only 12-feature LOOCV (n=29, `class_weight=balanced`):
 
 | Model | Accuracy | Bal-Acc | F1_treated | F1_control | **AUC** | Tag |
 |---|---|---|---|---|---|---|
-| **Logistic Regression L2** | 0.69 | 0.58 | 0.78 | 0.40 | **0.73** | rearonly |
-| Random Forest | 0.79 | 0.56 | 0.87 | 0.25 | 0.65 | rearonly |
-| SVM-RBF | 0.72 | 0.52 | 0.83 | 0.00 | 0.21 | rearonly |
-| LR L2 (24-feature baseline) | 0.72 | 0.60 | 0.83 | 0.33 | 0.57 | — |
+| **Logistic Regression L2** | 0.83 | 0.74 | 0.89 | 0.55 | **0.683** | rearonly |
+| Random Forest | 0.76 | 0.46 | 0.86 | 0.00 | 0.525 | rearonly |
+| SVM-RBF | 0.76 | 0.46 | 0.86 | 0.00 | 0.358 | rearonly |
+| LR L2 (24-feature baseline, hist.) | 0.72 | 0.60 | 0.83 | 0.33 | 0.57 | — |
 
-Rear-only 18-feature LR → **AUC 0.57 → 0.73** (+0.16). RF de iyileşti (0.43 → 0.65). SVM bozuldu — RBF + dense subset zayıf kombinasyon.
+Rear-only LR iterasyon eğrisi: **24-feat 0.57 → 18-feat 0.73 → (config bug fix, 18-feat retrain) 0.617 → 12-feat (spatial-rearing variantları kaldırıldı) 0.683 (final)**. LR balanced accuracy 0.738 ile sınıf-dengesiz n=29'da en güvenilir metrik; sadece 5 Control varken AUC ±0.10 LOOCV varyansı normal. RF / SVM minority sınıfı (Control) düşürdü (F1_control = 0); LR doğru metrikte yegane sağlam model.
 
 **Baseline kontroller:**
 - Trivial "her zaman Treated": accuracy = 24/29 = 0.83 → ham accuracy yanıltıcı.
@@ -150,19 +153,19 @@ Rear-only 18-feature LR → **AUC 0.57 → 0.73** (+0.16). RF de iyileşti (0.43
 
 ### 3.4. Feature importance — spatial özellikler dominant
 
-[`reports/anxiety_classifier_importance_rearonly.csv`](../reports/anxiety_classifier_importance_rearonly.csv) (RF):
+[`reports/anxiety_classifier_importance_rearonly.csv`](../reports/anxiety_classifier_importance_rearonly.csv) (RF, final 12-feature):
 
 | Sıra | Feature | RF importance |
 |---|---|---|
-| 1 | `rear_early_frac` | 0.165 |
-| 2 | **`rear_center_frac`** | **0.118** |
-| 3 | **`rear_total_s_center`** | **0.113** |
-| 4 | **`rear_center_minus_wall`** | **0.088** |
-| 5 | `spatial_entropy` | 0.064 |
+| 1 | `rear_early_frac` | 0.219 |
+| 2 | `pct_periphery` | 0.164 |
+| 3 | `spatial_entropy` | 0.123 |
+| 4 | `pct_freeze` | 0.087 |
+| 5 | `rear_rate_per_min` | 0.069 |
 | ... | | |
-| 16 | `rear_count` | 0.026 |
+| 12 | `rear_count` | 0.028 |
 
-Top 5'in 3'ü §3.2'de tanıtılan spatial rearing özelliği. Niteliksel iddianın niceliksel onayı: model `rear_count` (sıra #16) yerine spatial varyantlardan discriminative gücünü alıyor.
+**Narrative shift (12-feature retrain):** önceki 18-feature konfigte top-5'in üçü spatial rearing varyantıydı (`rear_center_frac`, `rear_total_s_center`, `rear_center_minus_wall`). Bu özellikler güçlü univariate sinyal verirken (§3.2) LOOCV'de yüksek korelasyonlu 6 varyantın hepsini taşımak modeli istikrarsızlaştırıyordu (18-feat AUC 0.733 → 0.617, aynı konfigte tek günlük yeniden eğitim). 12-feature retrain spatial rearing'i univariate kanıt katmanında bıraktı; classifier şimdi keşif zamanlaması (`rear_early_frac`), periferik bağlanma (`pct_periphery`), uzaysal dağılım (`spatial_entropy`) ve donma (`pct_freeze`) bileşimini kullanıyor. Genel-rearing temposu (`rear_count`, sıra #12) hâlâ en zayıf discriminator.
 
 ### 3.5. Composite anxiety index — negatif bulgu
 
@@ -200,7 +203,7 @@ Bu bölüm jüri sorusu "modeliniz neye bakarak karar veriyor" için hazır ceva
 ### 4.1. Mimari: lojistik regresyon
 
 ```
-18 raw feature (per subject)
+12 raw feature (per subject)
    ↓ SimpleImputer(median)              fold-içi fit
    ↓ StandardScaler(z-score)            fold-içi fit
    ↓ LogisticRegression(L2, C=1.0, class_weight=balanced)
@@ -217,7 +220,7 @@ Raporlarda her feature için `push = coefᵢ × zᵢ`. İşaret:
 - **`push > 0`** → Treated yönüne çekiş
 - **`push < 0`** → Control yönüne çekiş
 
-Output'taki top-5 push (mutlak değerce sıralı) görsel kolaylık için; geri kalan 13 + intercept de toplama dahildir.
+Output'taki top-5 push (mutlak değerce sıralı) görsel kolaylık için; geri kalan 7 + intercept de toplama dahildir.
 
 **Karar oy çokluğu değil, ağırlıklı toplam.** Üç feature Treated derken iki Control derse, magnitude (büyük |coef|×|z|) ne tarafta ise kazanan o olur.
 
@@ -227,15 +230,17 @@ Output'taki top-5 push (mutlak değerce sıralı) görsel kolaylık için; geri 
 
 | Feature | LR coef | Anlam |
 |---|---|---|
-| **`rear_early_frac`** | **−1.49** | Yüksek erken rearing = sağlıklı keşif = **Control** |
-| **`pct_periphery`** | **+1.08** | Çok periferde kalmak = anksiyete-benzeri = **Treated** |
-| **`spatial_entropy`** | **+0.78** | Dağınık keşif = **Treated** |
+| **`rear_early_frac`** | **−1.50** | Yüksek erken rearing = sağlıklı keşif = **Control** |
+| **`pct_periphery`** | **+1.09** | Çok periferde kalmak = anksiyete-benzeri = **Treated** |
+| **`spatial_entropy`** | **+0.79** | Dağınık keşif = **Treated** |
 | **`pct_freeze`** | **+0.48** | Çok donakalma = **Treated** |
-| **`comfort_ratio`** | **+0.48** | Grooming / center yüksek = **Treated** (rahatlama davranışı) |
+| **`comfort_ratio`** | **+0.41** | Grooming / center yüksek = **Treated** (rahatlama davranışı) |
 
 Yön literatürle uyumlu — özellikle yüksek `pct_periphery` → anksiyete benzeri.
 
 ### 4.4. Vaka çalışması: MA4_1 (gerçek grup: Aspartame)
+
+> **Tarihsel not (2026-05-11):** Aşağıdaki push değerleri 18-feature modelden alınmıştır; final 12-feature modelde top-5 ve push büyüklükleri biraz farklıdır (spatial-rearing varyantları artık feature setinde yok, dolayısıyla `rear_center_frac` benzeri uç z-skor uyarıları da kaybolur). Sonuç (doğru sınıflandırma, P_treated ≈ 0.78) korunmuştur. 12-feature push örneği için `python scripts/predict_anxiety_v2.py data/DLCfiltered/Aspartame/MA4_1/MA4_1.csv` ile güncel çıktıyı üretebilirsiniz.
 
 v3 GUI output (retrain sonrası, 2026-05-11):
 
@@ -512,11 +517,11 @@ streamlit run scripts/predict_anxiety_v3_gui.py
 
 ### 10.2. Model (Methods §X.2)
 
-> "A logistic regression classifier (L2, C=1.0, `class_weight='balanced'`) was trained on 18 rearing-focused features (regex pattern `rear|pct_periphery|pct_freeze|spatial_entropy|comfort`) to discriminate Control (n=5) vs Treated (n=24, pooling Aspartame / Grapefruit / Aspartame+Grapefruit). Leave-one-out cross-validation was used owing to sample size constraints; no held-out test set was retained. Feature space and zone definition were iteratively refined through LOOCV; the final configuration corresponds to LR LOOCV AUC = 0.73 (RF AUC = 0.65, SVM-RBF AUC = 0.21). The 'Treated' label is heterogeneous, pooling anxiogenic (aspartame) and anxiolytic (grapefruit) interventions; the model is therefore best interpreted as a **treatment-induced behavioral shift detector** rather than an anxiety classifier."
+> "A logistic regression classifier (L2, C=1.0, `class_weight='balanced'`) was trained on 12 rearing-focused features (regex pattern `rear|pct_periphery|pct_freeze|spatial_entropy|comfort`, after dropping six highly correlated spatial-rearing center/wall variants identified as a source of LOOCV variance during iterative refinement) to discriminate Control (n=5) vs Treated (n=24, pooling Aspartame / Grapefruit / Aspartame+Grapefruit). Leave-one-out cross-validation was used owing to sample size constraints; no held-out test set was retained. Feature space and zone definition were iteratively refined through LOOCV; the final configuration corresponds to LR LOOCV AUC = 0.683 (balanced accuracy = 0.738; RF AUC = 0.525, SVM-RBF AUC = 0.358). The 'Treated' label is heterogeneous, pooling anxiogenic (aspartame) and anxiolytic (grapefruit) interventions; the model is therefore best interpreted as a **treatment-induced behavioral shift detector** rather than an anxiety classifier."
 
 ### 10.3. Inference (Methods §X.3)
 
-> "The final classifier is deployed via two equivalent interfaces: a command-line tool (`scripts/predict_anxiety_v2.py`) and a Streamlit web GUI (`scripts/predict_anxiety_v3_gui.py`). Both compute the 18-feature vector from a single DLC pose CSV, apply the saved median imputer + standard scaler + LR pickle, and report (a) predicted class with probability, (b) top-5 contributing features with their standardized z-values and coefficient-weighted contributions (`push = coef × z`), (c) an arena overlay PNG showing trajectory and per-bout rearing locations colored by center / wall classification."
+> "The final classifier is deployed via two equivalent interfaces: a command-line tool (`scripts/predict_anxiety_v2.py`) and a Streamlit web GUI (`scripts/predict_anxiety_v3_gui.py`). Both compute the 12-feature vector from a single DLC pose CSV, apply the saved median imputer + standard scaler + LR pickle, and report (a) predicted class with probability, (b) top-5 contributing features with their standardized z-values and coefficient-weighted contributions (`push = coef × z`), (c) an arena overlay PNG showing trajectory and per-bout rearing locations colored by center / wall classification."
 
 ### 10.4. Sınırlılıklar (Discussion §X)
 
@@ -526,7 +531,7 @@ streamlit run scripts/predict_anxiety_v3_gui.py
 
 ## 11. Tezdeki tek-cümle mesaj
 
-> "29 hayvan üzerinde DeepLabCut tabanlı uçtan uca yeniden üretilebilir bir davranış-analizi pipeline'ı geliştirildi; pipeline, rearing davranışının mekansal dağılımı (center vs wall) üzerinden Control vs Treated için LOOCV AUC=0.73 elde etti ve uncorrected anlamlılıkta (`rear_center_frac` MW p=0.030, Cohen's d=−0.92) pilot kanıt sağladı; Bonferroni sonrası bu eşik geçilmemekle birlikte, etki büyüklüğü ve yön literatürdeki aspartam-anksiyojenik / flavonoid-anksiyolitik hipoteziyle uyumludur ve ≥20 hayvan/grup ile %80 güçte replikasyon için a-priori temel oluşturmaktadır."
+> "29 hayvan üzerinde DeepLabCut tabanlı uçtan uca yeniden üretilebilir bir davranış-analizi pipeline'ı geliştirildi; pipeline, rearing davranışının mekansal dağılımı (center vs wall) üzerinden Control vs Treated için LOOCV AUC=0.683 (balanced accuracy=0.738) elde etti ve uncorrected anlamlılıkta (`rear_center_frac` MW p=0.030, Cohen's d=−0.92) pilot kanıt sağladı; Bonferroni sonrası bu eşik geçilmemekle birlikte, etki büyüklüğü ve yön literatürdeki aspartam-anksiyojenik / flavonoid-anksiyolitik hipoteziyle uyumludur ve ≥20 hayvan/grup ile %80 güçte replikasyon için a-priori temel oluşturmaktadır."
 
 **Bu cümle:**
 - Anlamlılık iddia etmiyor (Bonferroni sonrası eşiği geçmediği belirtildi)
@@ -545,15 +550,16 @@ Bizim yaptığımız: **iteratif feature engineering ve hyperparameter tuning**:
 | İterasyon | Değişen | LR AUC |
 |---|---|---|
 | 1 | Full 24 feature, default zone | 0.57 |
-| 2 | Rear-only 18 feature, %20 zone | 0.73 |
+| 2 | Rear-only 18 feature, %20 zone (ilk eğitim) | 0.73 |
 | 3 | Manuel zone (sensitivity test) | 0.62 |
-| 4 | %20 margin lock + retrain (config bug fix) | 0.73 (final) |
+| 4 | %20 margin lock + retrain (config bug fix, 18 feat) | 0.617 |
+| 5 | 12 feature (6 spatial-rearing varyantı kaldırıldı — multicollinearity / LOOCV varyans) | **0.683 (final)** |
 
 Her iterasyonda **konfigürasyon kararı** öğreniliyor, ağırlıklar değil.
 
 **Methods bölümü için doğru ifade:**
 
-> "Feature space and zone definition were iteratively refined through leave-one-out cross-validation on n=29 subjects; the final configuration consists of (a) feature pattern matching `rear|pct_periphery|pct_freeze|spatial_entropy|comfort` (18 features), (b) center zone defined as 20% margin from arena bounds. Reported AUC values are from LOOCV on the final configuration; no held-out test set was retained owing to sample size constraints. No pre-trained weights were carried across iterations; each LOOCV run is a fresh fit."
+> "Feature space and zone definition were iteratively refined through leave-one-out cross-validation on n=29 subjects; the final configuration consists of (a) feature pattern matching `rear|pct_periphery|pct_freeze|spatial_entropy|comfort` (12 features, after dropping six highly correlated spatial-rearing center/wall variants whose joint inclusion produced unstable LOOCV AUC estimates; e.g., the 18-feature configuration produced AUC 0.733 on the first fit and 0.617 on a same-config retrain), (b) center zone defined as 20% margin from arena bounds. Reported AUC values are from LOOCV on the final configuration; no held-out test set was retained owing to sample size constraints. No pre-trained weights were carried across iterations; each LOOCV run is a fresh fit."
 
 ---
 
@@ -569,6 +575,7 @@ Her iterasyonda **konfigürasyon kararı** öğreniliyor, ağırlıklar değil.
 | 2026-05-11 | v2.5 | `archive/` reorganization, `docs/REPO_MAP.md`, README anxiety pipeline'ı yansıtacak şekilde yenilendi |
 | 2026-05-11 | v3 | Streamlit GUI (`predict_anxiety_v3_gui.py`) |
 | 2026-05-11 | v3.1 | **Config mismatch bug yakalandı**, retrain helper eklendi, v2 hardcoded reference temizlendi |
+| 2026-05-11 | v3.2 | Feature seti 18 → 12 (6 spatial-rearing varyantı kaldırıldı — LOOCV varyans / multicollinearity). LR AUC 0.617 → 0.683, balanced acc 0.617 → 0.738, F1_control 0.364 → 0.545 |
 
 Eski rapor dosyaları artık tarihsel kayıt (bu doküman ikisini birleştirir):
 - [`docs/anxiety_findings_report.md`](anxiety_findings_report.md) — 2026-05-10 baseline + 9 numaralı follow-up
