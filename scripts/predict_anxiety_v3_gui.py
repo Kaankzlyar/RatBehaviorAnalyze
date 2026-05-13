@@ -1083,14 +1083,6 @@ with tab_beh:
                 st.image(analysis_images["behavior_timeline"], use_container_width=True)
             st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
-        # ── Yörünge Izgarası ─────────────────────────────────────────────────
-        if "orbit_grid" in available_outputs:
-            st.markdown(html_section("Yörünge Izgarası"), unsafe_allow_html=True)
-            _, cimg, _ = st.columns([1, 3, 1])
-            with cimg:
-                st.image(analysis_images["orbit_grid"], use_container_width=True)
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
         # ── Thigmotaksis — yan istatistik tablosu (dikey ortalı) ─────────────
         if "thigmotaxis" in available_outputs:
             # Başlık literal-uppercase — tr_upper'ın "Thigmotaxis"'i "THİGMOTAXİS"
@@ -1137,22 +1129,6 @@ with tab_beh:
             _, cimg, _ = st.columns([1, 3, 1])
             with cimg:
                 st.image(analysis_images["heatmap_kde"], use_container_width=True)
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
-        # ── Histogram Yoğunluk ───────────────────────────────────────────────
-        if "heatmap_histogram" in available_outputs:
-            st.markdown(html_section("Histogram Yoğunluk"), unsafe_allow_html=True)
-            _, cimg, _ = st.columns([1, 3, 1])
-            with cimg:
-                st.image(analysis_images["heatmap_histogram"], use_container_width=True)
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
-        # ── Bodypart Isı Haritası ────────────────────────────────────────────
-        if "bodypart_heatmaps" in available_outputs:
-            st.markdown(html_section("Bodypart Isı Haritası"), unsafe_allow_html=True)
-            _, cimg, _ = st.columns([1, 3, 1])
-            with cimg:
-                st.image(analysis_images["bodypart_heatmaps"], use_container_width=True)
             st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
 
         # ── Davranış Bout Tablosu ────────────────────────────────────────────

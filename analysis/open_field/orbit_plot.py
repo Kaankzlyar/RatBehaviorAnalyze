@@ -388,10 +388,11 @@ def main():
     print(f"\nThigmotaxis rate [{REF_BP}]: {ref_rate*100:.1f}%  {bar}")
 
     print("\nRendering plots...")
-    plot_grid(
-        tracking, arena, inner_zone, stem,
-        os.path.join(args.out_dir, f"{stem}_orbit_grid.png"),
-    )
+    # orbit_grid (per-bodypart) disabled — kullanıcı isteği üzerine kaldırıldı.
+    # plot_grid(
+    #     tracking, arena, inner_zone, stem,
+    #     os.path.join(args.out_dir, f"{stem}_orbit_grid.png"),
+    # )
     plot_thigmotaxis_detail(
         tracking, arena, inner_zone, stem,
         os.path.join(args.out_dir, f"{stem}_thigmotaxis.png"),
