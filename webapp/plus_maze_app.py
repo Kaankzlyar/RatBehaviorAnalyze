@@ -653,6 +653,10 @@ def predict(row: dict, bundle: dict, clf) -> dict:
     x       = np.array([[row.get(c, np.nan) for c in feats]], dtype=float)
     x_i     = bundle["imputer"].transform(x)
     x_s     = bundle["scaler"].transform(x_i)
+    # scikit-learn 1.7+ uyumluluğu — eski pkl'larda olmayan multi_class
+    # attribute'ünü predict_proba çağırırken set et (binary için "auto" yeterli).
+    if not hasattr(clf, "multi_class"):
+        clf.multi_class = "auto"
     pred    = int(clf.predict(x_s)[0])
     proba   = clf.predict_proba(x_s)[0]
     coef    = clf.coef_.ravel()
