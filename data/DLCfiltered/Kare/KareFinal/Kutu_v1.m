@@ -424,8 +424,8 @@ function pushbutton1_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 [v_file,v_path] = uigetfile( ...
     {'*.avi;*.mp4;*.mov;',...
-    'Video Dosyasý (*.avi;*.mp4;*.mov;)'},...
-    'Deney Kaydýnýn Tutulduðu Video Dosyasýný Seçiniz.');
+    'Video Dosyasï¿½ (*.avi;*.mp4;*.mov;)'},...
+    'Deney Kaydï¿½nï¿½n Tutulduï¿½u Video Dosyasï¿½nï¿½ Seï¿½iniz.');
 handles.filename = v_file(1:find(v_file=='.',1)-1);
 handles.vid = VideoReader([v_path,v_file]);
 handles.slider2.Max = handles.vid.Duration;
@@ -579,7 +579,8 @@ P2 = [handles.pnt5;handles.pnt6;handles.pnt7;handles.pnt8;handles.pnt5];
 handles.X = P(:,1)'; handles.Y = P(:,2)';
 handles.X2 = P2(:,1)'; handles.Y2 = P2(:,2)';
 % mask = double(poly2mask(handles.X,handles.Y,handles.vid.Height,handles.vid.Width));
-mask = double(poly2mask(handles.X2,handles.Y2,handles.vid.Height,handles.vid.Width));
+[xg, yg] = meshgrid(1:handles.vid.Width, 1:handles.vid.Height);
+mask = double(inpolygon(xg, yg, handles.X2, handles.Y2));
 Frame = double(handles.Frame);
 RFrame = Frame(:,:,1);
 GFrame = Frame(:,:,2);
@@ -737,7 +738,7 @@ close(handles.v);
 
 handles.axes5.Visible = 'on';
 axes(handles.axes5);
-plot(t,sgolayfilt(xc,1,51),'b',t,sgolayfilt(yc,1,51),'r')
+plot(t,movmean(xc,51),'b',t,movmean(yc,51),'r')
 
 save([handles.filename,'_res.mat'],'Center','Sides',...
     'amn','amx','bmn','bmx','xc','yc')
