@@ -1038,382 +1038,395 @@ div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
 </style>
 """, unsafe_allow_html=True)
 
-active_tab = st.radio(
-    "Sekme", _TAB_LABELS,
-    key="active_tab",
-    horizontal=True,
-    label_visibility="collapsed",
-)
+
+# st.fragment (Streamlit 1.37+) sayesinde sekme değişimi yalnızca bu
+# fonksiyonu yeniden çalıştırır — hero / upload / pipeline kısmı yeniden
+# render edilmez, bu da sekmeler arası "flash up/down" sıçramasını ortadan
+# kaldırır. Eski sürümde fragment yoksa no-op decorator'a düşer (eski davranış).
+_fragment = getattr(st, "fragment", None) or (lambda f: f)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 1 — TAHMİN
-# ─────────────────────────────────────────────────────────────────────────────
-
-if active_tab == _TAB_LABELS[0]:
-    col_img, col_right = st.columns([1.35, 1], gap="large")
-
-    with col_img:
-        st.markdown(html_section("Hareket Haritası"), unsafe_allow_html=True)
-        st.image(fig_images["anxiety_overview"], use_container_width=True)
-
-    with col_right:
-        st.markdown(html_section("Tahmin Sonucu"), unsafe_allow_html=True)
-        st.markdown(html_pred_card(pred_label, top_proba, is_treated), unsafe_allow_html=True)
-
-        buf_p = io.BytesIO()
-        fp = fig_probability_bars(pred_info)
-        fp.savefig(buf_p, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
-        plt.close(fp)
-        st.image(buf_p.getvalue(), use_container_width=True)
-
-        _pc = pred_info["proba_control"]
-        _pt = pred_info["proba_treated"]
-        st.markdown(
-            f"<div style='text-align:center;color:#94a3b8;font-size:0.85rem;"
-            f"margin:0.15rem 0 0.6rem 0;font-family:\"JetBrains Mono\",monospace;'>"
-            f"P(Kontrol) + P(Tedavi) = "
-            f"<span style='color:#3B82F6;font-weight:600;'>{_pc:.3f}</span> + "
-            f"<span style='color:#EF4444;font-weight:600;'>{_pt:.3f}</span> = "
-            f"<span style='color:#f1f5f9;font-weight:700;'>{(_pc + _pt):.3f}</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
-        basic_metrics = [
-            ("Merkez Süresi", f"%{feat['pct_center']:.1f}",
-             "Arenanın iç bölgesinde geçen sürenin yüzdesi. Düşük değer "
-             "merkez kaçınmasına / anksiyeteye işaret eder."),
-            ("Çevre Süresi", f"%{feat['pct_periphery']:.1f}",
-             "Duvar kenarında geçen sürenin yüzdesi. Yüksek değer "
-             "thigmotaxis (duvara yapışma) davranışını işaret eder."),
-            ("Donakalma", f"%{feat['pct_freeze']:.1f}",
-             "Hız eşiğinin altında kalan kare oranı. Yüksek değer kaygı "
-             "kaynaklı immobilizasyonu ima eder."),
-            ("Toplam Rearing", f"{int(feat['rear_count'])}",
-             "Farenin hareketi boyunca arka ayaklar üzerinde dikilme (rearing) "
-             "bout sayısı. Keşfetme ve dikey aktivite göstergesidir."),
-        ]
-        mr1 = st.columns(2)
-        mr2 = st.columns(2)
-        for slot, (label, val, desc) in zip([*mr1, *mr2], basic_metrics):
-            with slot:
-                with st.expander(f"{label}   ·   {val}", expanded=False):
-                    st.markdown(
-                        f"<div style='font-size:0.95rem;color:#cbd5e1;"
-                        f"line-height:1.55;'>{desc}</div>",
-                        unsafe_allow_html=True,
-                    )
-
-    # Karar Katkıları — tam genişlik
-    st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
-    buf_f = io.BytesIO()
-    ff = fig_feature_contributions(pred_info)
-    ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
-    plt.close(ff)
-    st.image(buf_f.getvalue(), use_container_width=True)
-
-    for c in pred_info["top_contributors"]:
-        feat_key = c["feature"]
-        info = FEATURE_INFO.get(feat_key)
-        push  = c["push"]
-        toward = "Tedavi Grubu" if push > 0 else "Kontrol Grubu"
-        arrow_color = "#EF4444" if push > 0 else "#3B82F6"
-        display_name = info["name"] if info else feat_key.replace("_", " ").title()
-        value = c.get("value")
-        value_str = f"{value:.3f}" if isinstance(value, (int, float)) else "—"
-
-        header = f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
-        with st.expander(header, expanded=False):
-            if info:
-                st.markdown(
-                    f"<div style='font-size:0.72rem;font-weight:700;"
-                    f"letter-spacing:0.14em;color:#94a3b8;"
-                    f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
-                    f"<div style='font-size:0.98rem;color:#e2e8f0;"
-                    f"line-height:1.6;margin-bottom:0.9rem;'>{info['desc']}</div>"
-                    f"<div style='font-size:0.72rem;font-weight:700;"
-                    f"letter-spacing:0.14em;color:#94a3b8;"
-                    f"margin:0.2rem 0 0.4rem 0;'>NASIL HESAPLANIR</div>",
-                    unsafe_allow_html=True,
-                )
-                st.code(info["formula"], language="text")
-            else:
-                st.markdown(
-                    "<div style='font-size:0.98rem;color:#cbd5e1;'>"
-                    "Bu özellik için açıklama tanımlanmamış.</div>",
-                    unsafe_allow_html=True,
-                )
+@_fragment
+def _render_tab_section():
+    active_tab = st.radio(
+        "Sekme", _TAB_LABELS,
+        key="active_tab",
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 1 — TAHMİN
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    if active_tab == _TAB_LABELS[0]:
+        col_img, col_right = st.columns([1.35, 1], gap="large")
+    
+        with col_img:
+            st.markdown(html_section("Hareket Haritası"), unsafe_allow_html=True)
+            st.image(fig_images["anxiety_overview"], use_container_width=True)
+    
+        with col_right:
+            st.markdown(html_section("Tahmin Sonucu"), unsafe_allow_html=True)
+            st.markdown(html_pred_card(pred_label, top_proba, is_treated), unsafe_allow_html=True)
+    
+            buf_p = io.BytesIO()
+            fp = fig_probability_bars(pred_info)
+            fp.savefig(buf_p, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
+            plt.close(fp)
+            st.image(buf_p.getvalue(), use_container_width=True)
+    
+            _pc = pred_info["proba_control"]
+            _pt = pred_info["proba_treated"]
             st.markdown(
-                f"<div style='font-size:0.92rem;color:rgba(255,255,255,0.78);"
-                f"line-height:1.6;border-top:1px solid rgba(255,255,255,0.07);"
-                f"padding-top:0.7rem;margin-top:0.7rem;'>"
-                f"Bu denek için ölçülen değer "
-                f"<strong style='color:#f1f5f9;'>{value_str}</strong> "
-                f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
-                f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
-                f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
-                f"yönünde bir karar katkısı üretir."
+                f"<div style='text-align:center;color:#94a3b8;font-size:0.85rem;"
+                f"margin:0.15rem 0 0.6rem 0;font-family:\"JetBrains Mono\",monospace;'>"
+                f"P(Kontrol) + P(Tedavi) = "
+                f"<span style='color:#3B82F6;font-weight:600;'>{_pc:.3f}</span> + "
+                f"<span style='color:#EF4444;font-weight:600;'>{_pt:.3f}</span> = "
+                f"<span style='color:#f1f5f9;font-weight:700;'>{(_pc + _pt):.3f}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 2 — DAVRANIŞ
-# ─────────────────────────────────────────────────────────────────────────────
-
-if active_tab == _TAB_LABELS[1]:
-    if not available_outputs:
-        st.info(
-            "Bu sekme, sol paneldeki **Detaylı analizi çalıştır** seçeneği "
-            "aktif olduğunda dolar. Şu an Open-Field analiz pipeline'ı "
-            "çalıştırılmadığı için davranışsal görseller üretilmedi."
-        )
-    else:
-        # ── Davranış Zaman Çizgisi ───────────────────────────────────────────
-        if "behavior_timeline" in available_outputs:
-            st.markdown(html_section("Davranış Zaman Çizgisi"), unsafe_allow_html=True)
-            _, cimg, _ = st.columns([1, 3, 1])
-            with cimg:
-                st.image(analysis_images["behavior_timeline"], use_container_width=True)
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
-        # ── Thigmotaksis — yan istatistik tablosu (dikey ortalı) ─────────────
-        if "thigmotaxis" in available_outputs:
-            # Başlık literal-uppercase — tr_upper'ın "Thigmotaxis"'i "THİGMOTAXİS"
-            # yapmasını engellemek için doğrudan uppercase verilir.
-            st.markdown(html_section("THIGMOTAXIS"), unsafe_allow_html=True)
-            try:
-                col_img, col_stat = st.columns(
-                    [2, 1], gap="medium", vertical_alignment="center",
-                )
-            except TypeError:
-                # Streamlit < 1.36 fallback (vertical_alignment yok)
-                col_img, col_stat = st.columns([2, 1], gap="medium")
-            with col_img:
-                st.image(analysis_images["thigmotaxis"], use_container_width=True)
-            with col_stat:
-                _pp  = feat.get("pct_periphery") or 0.0
-                _pc  = feat.get("pct_center") or 0.0
-                _pj  = max(0.0, 100.0 - _pp - _pc)
-                rows_html = (
-                    html_stat_row("Çevre (Thigmotaxis)", f"%{_pp:.1f}") +
-                    html_stat_row("Merkez",                f"%{_pc:.1f}") +
-                    html_stat_row("Diğer / kenar",         f"%{_pj:.1f}")
-                )
-                st.markdown(
-                    f"<div style='background:rgba(255,255,255,0.03);"
-                    f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
-                    f"padding:0.85rem 1rem;'>{rows_html}"
-                    f"<div style='font-size:0.85rem;color:rgba(255,255,255,0.65);"
-                    f"line-height:1.55;margin-top:0.8rem;border-top:1px solid "
-                    f"rgba(255,255,255,0.06);padding-top:0.7rem;'>"
-                    f"<strong style='color:#fbbf24;'>Thigmotaxis</strong> = "
-                    f"Farenin arenanın <em>iç kısmının dışında</em> "
-                    f"(duvar yakını) geçirdiği zamanın yüzdesidir. Yüksek değer "
-                    f"kaçınma/anksiyete; düşük değer cesur ve merkezi keşfi "
-                    f"işaret eder."
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
-        # ── Isı Haritası (eski "KDE Aktivite Haritası") ──────────────────────
-        if "heatmap_kde" in available_outputs:
-            st.markdown(html_section("Isı Haritası"), unsafe_allow_html=True)
-            _, cimg, _ = st.columns([1, 3, 1])
-            with cimg:
-                st.image(analysis_images["heatmap_kde"], use_container_width=True)
-            st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
-
-        # ── Davranış Bout Tablosu ────────────────────────────────────────────
-        bouts_path = analysis_results.get("behavior_bouts")
-        if bouts_path and bouts_path.exists():
-            st.markdown(html_section("Davranış Bout Tablosu"), unsafe_allow_html=True)
-            try:
-                bouts_data = pd.read_csv(bouts_path)
-                st.dataframe(
-                    bouts_data.head(20),
-                    use_container_width=True, hide_index=True,
-                )
-                st.caption(f"Toplam bout sayısı: {len(bouts_data)}")
-            except Exception as e:
-                st.warning(f"Bout dosyası okunamadı: {e}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 3 — METRİKLER
-# ─────────────────────────────────────────────────────────────────────────────
-
-if active_tab == _TAB_LABELS[2]:
-    # ── Üst satır: MODEL ÖZELLİKLERİ — tam genişlik ──────────────────────────
-    st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
-    model_cols = pred_info.get("feature_cols", []) or list(feat.keys())
-    feat_cols = st.columns(2, gap="medium")
-    for i, k in enumerate(model_cols):
-        info = FEATURE_INFO.get(k, {})
-        name = info.get("name", k.replace("_", " ").title())
-        val = feat.get(k)
-        if isinstance(val, float):
-            val_str = "—" if np.isnan(val) else f"{val:.3f}"
-        elif val is None:
-            val_str = "—"
-        else:
-            val_str = str(val)
-
-        with feat_cols[i % 2]:
-            with st.expander(f"{name}   ·   {val_str}", expanded=False):
-                desc = info.get("desc")
-                formula = info.get("formula")
-                if desc:
+    
+            st.markdown(html_section("Temel Metrikler"), unsafe_allow_html=True)
+            basic_metrics = [
+                ("Merkez Süresi", f"%{feat['pct_center']:.1f}",
+                 "Arenanın iç bölgesinde geçen sürenin yüzdesi. Düşük değer "
+                 "merkez kaçınmasına / anksiyeteye işaret eder."),
+                ("Çevre Süresi", f"%{feat['pct_periphery']:.1f}",
+                 "Duvar kenarında geçen sürenin yüzdesi. Yüksek değer "
+                 "thigmotaxis (duvara yapışma) davranışını işaret eder."),
+                ("Donakalma", f"%{feat['pct_freeze']:.1f}",
+                 "Hız eşiğinin altında kalan kare oranı. Yüksek değer kaygı "
+                 "kaynaklı immobilizasyonu ima eder."),
+                ("Toplam Rearing", f"{int(feat['rear_count'])}",
+                 "Farenin hareketi boyunca arka ayaklar üzerinde dikilme (rearing) "
+                 "bout sayısı. Keşfetme ve dikey aktivite göstergesidir."),
+            ]
+            mr1 = st.columns(2)
+            mr2 = st.columns(2)
+            for slot, (label, val, desc) in zip([*mr1, *mr2], basic_metrics):
+                with slot:
+                    with st.expander(f"{label}   ·   {val}", expanded=False):
+                        st.markdown(
+                            f"<div style='font-size:0.95rem;color:#cbd5e1;"
+                            f"line-height:1.55;'>{desc}</div>",
+                            unsafe_allow_html=True,
+                        )
+    
+        # Karar Katkıları — tam genişlik
+        st.markdown(html_section("Karar Katkıları"), unsafe_allow_html=True)
+        buf_f = io.BytesIO()
+        ff = fig_feature_contributions(pred_info)
+        ff.savefig(buf_f, format="png", dpi=130, bbox_inches="tight", facecolor=_DARK_BG)
+        plt.close(ff)
+        st.image(buf_f.getvalue(), use_container_width=True)
+    
+        for c in pred_info["top_contributors"]:
+            feat_key = c["feature"]
+            info = FEATURE_INFO.get(feat_key)
+            push  = c["push"]
+            toward = "Tedavi Grubu" if push > 0 else "Kontrol Grubu"
+            arrow_color = "#EF4444" if push > 0 else "#3B82F6"
+            display_name = info["name"] if info else feat_key.replace("_", " ").title()
+            value = c.get("value")
+            value_str = f"{value:.3f}" if isinstance(value, (int, float)) else "—"
+    
+            header = f"{display_name}   ·   katkı {push:+.3f}   →   {toward}"
+            with st.expander(header, expanded=False):
+                if info:
                     st.markdown(
                         f"<div style='font-size:0.72rem;font-weight:700;"
                         f"letter-spacing:0.14em;color:#94a3b8;"
                         f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
-                        f"<div style='font-size:0.95rem;color:#e2e8f0;"
-                        f"line-height:1.55;margin-bottom:0.7rem;'>{desc}</div>",
+                        f"<div style='font-size:0.98rem;color:#e2e8f0;"
+                        f"line-height:1.6;margin-bottom:0.9rem;'>{info['desc']}</div>"
+                        f"<div style='font-size:0.72rem;font-weight:700;"
+                        f"letter-spacing:0.14em;color:#94a3b8;"
+                        f"margin:0.2rem 0 0.4rem 0;'>NASIL HESAPLANIR</div>",
                         unsafe_allow_html=True,
                     )
-                if formula:
+                    st.code(info["formula"], language="text")
+                else:
                     st.markdown(
-                        "<div style='font-size:0.72rem;font-weight:700;"
-                        "letter-spacing:0.14em;color:#94a3b8;"
-                        "margin:0.1rem 0 0.35rem 0;'>NASIL HESAPLANIR</div>",
-                        unsafe_allow_html=True,
-                    )
-                    st.code(formula, language="text")
-                if not desc and not formula:
-                    st.markdown(
-                        "<div style='font-size:0.95rem;color:#cbd5e1;'>"
+                        "<div style='font-size:0.98rem;color:#cbd5e1;'>"
                         "Bu özellik için açıklama tanımlanmamış.</div>",
                         unsafe_allow_html=True,
                     )
-
-    # ── Alt satır: DAVRANIŞ ÖZETLERİ  ⟂  MEKANSAL REARING ────────────────────
-    mc1, mc2 = st.columns(2, gap="medium")
-
-    with mc1:
-        st.markdown(html_section("Davranış Özetleri"), unsafe_allow_html=True)
-
-        beh_cards = [
-            ("Rearing",  "#10B981",
-             int(feat['rear_count']),
-             feat.get('rear_total_s', 0.0) or 0.0,
-             feat.get('rear_pct', 0.0) or 0.0),
-            ("Grooming", "#A855F7",
-             int(feat['groom_count']),
-             feat.get('groom_total_s', 0.0) or 0.0,
-             feat.get('groom_pct', 0.0) or 0.0),
-            ("Freezing", "#F59E0B",
-             int(feat.get('freeze_bout_count', 0) or 0),
-             None,
-             feat.get('pct_freeze', 0.0) or 0.0),
-        ]
-
-        cards_html = ""
-        for name, color, count, total_s, pct in beh_cards:
-            total_str = "—" if total_s is None else f"{total_s:.1f} sn"
-            pct_str = f"%{pct:.1f}"
-            cards_html += (
-                f"<div style='background:rgba(255,255,255,0.03);"
-                f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
-                f"padding:0.85rem 1rem;margin-bottom:8px;'>"
-                f"  <div style='display:flex;justify-content:space-between;"
-                f"align-items:center;'>"
-                f"    <div style='display:flex;align-items:center;gap:10px;'>"
-                f"      <div style='width:10px;height:10px;border-radius:50%;"
-                f"background:{color};box-shadow:0 0 8px {color}66;'></div>"
-                f"      <span style='color:#e2e8f0;font-weight:600;"
-                f"font-size:0.95rem;'>{name}</span>"
-                f"    </div>"
-                f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
-                f"      <span style='color:#94a3b8;'>Adet: "
-                f"<strong style='color:#f1f5f9;font-weight:700;'>{count}</strong></span>"
-                f"      <span style='color:#94a3b8;'>Süre: "
-                f"<strong style='color:#f1f5f9;font-weight:700;'>{total_str}</strong></span>"
-                f"      <span style='color:#94a3b8;'>%: "
-                f"<strong style='color:{color};font-weight:700;'>{pct_str}</strong></span>"
-                f"    </div>"
-                f"  </div>"
-                f"</div>"
+                st.markdown(
+                    f"<div style='font-size:0.92rem;color:rgba(255,255,255,0.78);"
+                    f"line-height:1.6;border-top:1px solid rgba(255,255,255,0.07);"
+                    f"padding-top:0.7rem;margin-top:0.7rem;'>"
+                    f"Bu denek için ölçülen değer "
+                    f"<strong style='color:#f1f5f9;'>{value_str}</strong> "
+                    f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
+                    f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
+                    f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
+                    f"yönünde bir karar katkısı üretir."
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 2 — DAVRANIŞ
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    if active_tab == _TAB_LABELS[1]:
+        if not available_outputs:
+            st.info(
+                "Bu sekme, sol paneldeki **Detaylı analizi çalıştır** seçeneği "
+                "aktif olduğunda dolar. Şu an Open-Field analiz pipeline'ı "
+                "çalıştırılmadığı için davranışsal görseller üretilmedi."
             )
-        st.markdown(cards_html, unsafe_allow_html=True)
-
-    with mc2:
-        # Başlık literal-uppercase — tr_upper'ın "Rearing"'i "REARİNG" yapmasını
-        # engellemek için doğrudan büyük harf string verilir.
-        st.markdown(html_section("MEKANSAL REARING"), unsafe_allow_html=True)
-        rc = int(feat.get('rear_count_center', 0) or 0)
-        rw = int(feat.get('rear_count_wall', 0) or 0)
-        rcf = feat.get('rear_center_frac')
-        rcf_str = "—" if (rcf is None or (isinstance(rcf, float) and np.isnan(rcf))) else f"{rcf:.1%}"
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Merkez",        rc)
-        c2.metric("Duvar",         rw)
-        c3.metric("Merkez Oranı",  rcf_str)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TAB 4 — İNDİR
-# ─────────────────────────────────────────────────────────────────────────────
-
-if active_tab == _TAB_LABELS[3]:
-    st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
-
-    dc1, dc2, dc3 = st.columns(3, gap="medium")
-
-    with dc1:
-        st.download_button(
-            "⬇  Rapor (TXT)", report_text,
-            file_name=txt_name, mime="text/plain",
-            use_container_width=True, key="dl_txt",
-        )
-        with st.expander("Önizleme"):
-            st.code(report_text, language="text")
-
-    with dc2:
-        st.download_button(
-            "⬇  Tahmin Raporu (JSON)", json_bytes,
-            file_name=json_name, mime="application/json",
-            use_container_width=True, key="dl_json",
-        )
-        with st.expander("Önizleme"):
-            st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
-
-    with dc3:
-        st.download_button(
-            "⬇  Genel Bakış (PNG)", fig_images["anxiety_overview"],
-            file_name=f"{subject}_anxiety_v2_overview.png",
-            mime="image/png",
-            use_container_width=True, key="dl_overview",
-        )
-        with st.expander("Önizleme"):
-            st.image(fig_images["anxiety_overview"], use_container_width=True)
-
-    if available_outputs:
-        st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
-        viz_map = [
-            ("behavior_timeline", "Zaman Çizgisi"),
-            ("orbit_grid",        "Yörünge"),
-            ("thigmotaxis",       "Thigmotaxis"),
-            ("heatmap_kde",       "Isı Haritası"),
-            ("heatmap_histogram", "Histogram"),
-            ("bodypart_heatmaps", "Bodypart Izgarası"),
-        ]
-        viz_map = [(k, lbl) for k, lbl in viz_map if k in available_outputs]
-        for i in range(0, len(viz_map), 3):
-            row = viz_map[i:i+3]
-            cols = st.columns(len(row), gap="medium")
-            for (key, lbl), col in zip(row, cols):
-                with col:
-                    st.download_button(
-                        f"⬇  {lbl} (PNG)", analysis_images[key],
-                        file_name=f"{subject}_{key}.png",
-                        mime="image/png",
-                        use_container_width=True, key=f"dl_{key}",
+        else:
+            # ── Davranış Zaman Çizgisi ───────────────────────────────────────────
+            if "behavior_timeline" in available_outputs:
+                st.markdown(html_section("Davranış Zaman Çizgisi"), unsafe_allow_html=True)
+                _, cimg, _ = st.columns([1, 3, 1])
+                with cimg:
+                    st.image(analysis_images["behavior_timeline"], use_container_width=True)
+                st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+    
+            # ── Thigmotaksis — yan istatistik tablosu (dikey ortalı) ─────────────
+            if "thigmotaxis" in available_outputs:
+                # Başlık literal-uppercase — tr_upper'ın "Thigmotaxis"'i "THİGMOTAXİS"
+                # yapmasını engellemek için doğrudan uppercase verilir.
+                st.markdown(html_section("THIGMOTAXIS"), unsafe_allow_html=True)
+                try:
+                    col_img, col_stat = st.columns(
+                        [2, 1], gap="medium", vertical_alignment="center",
                     )
-                    with st.expander("Önizleme"):
-                        st.image(analysis_images[key], use_container_width=True)
+                except TypeError:
+                    # Streamlit < 1.36 fallback (vertical_alignment yok)
+                    col_img, col_stat = st.columns([2, 1], gap="medium")
+                with col_img:
+                    st.image(analysis_images["thigmotaxis"], use_container_width=True)
+                with col_stat:
+                    _pp  = feat.get("pct_periphery") or 0.0
+                    _pc  = feat.get("pct_center") or 0.0
+                    _pj  = max(0.0, 100.0 - _pp - _pc)
+                    rows_html = (
+                        html_stat_row("Çevre (Thigmotaxis)", f"%{_pp:.1f}") +
+                        html_stat_row("Merkez",                f"%{_pc:.1f}") +
+                        html_stat_row("Diğer / kenar",         f"%{_pj:.1f}")
+                    )
+                    st.markdown(
+                        f"<div style='background:rgba(255,255,255,0.03);"
+                        f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                        f"padding:0.85rem 1rem;'>{rows_html}"
+                        f"<div style='font-size:0.85rem;color:rgba(255,255,255,0.65);"
+                        f"line-height:1.55;margin-top:0.8rem;border-top:1px solid "
+                        f"rgba(255,255,255,0.06);padding-top:0.7rem;'>"
+                        f"<strong style='color:#fbbf24;'>Thigmotaxis</strong> = "
+                        f"Farenin arenanın <em>iç kısmının dışında</em> "
+                        f"(duvar yakını) geçirdiği zamanın yüzdesidir. Yüksek değer "
+                        f"kaçınma/anksiyete; düşük değer cesur ve merkezi keşfi "
+                        f"işaret eder."
+                        f"</div></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+    
+            # ── Isı Haritası (eski "KDE Aktivite Haritası") ──────────────────────
+            if "heatmap_kde" in available_outputs:
+                st.markdown(html_section("Isı Haritası"), unsafe_allow_html=True)
+                _, cimg, _ = st.columns([1, 3, 1])
+                with cimg:
+                    st.image(analysis_images["heatmap_kde"], use_container_width=True)
+                st.markdown('<div style="height:1.25rem;"></div>', unsafe_allow_html=True)
+    
+            # ── Davranış Bout Tablosu ────────────────────────────────────────────
+            bouts_path = analysis_results.get("behavior_bouts")
+            if bouts_path and bouts_path.exists():
+                st.markdown(html_section("Davranış Bout Tablosu"), unsafe_allow_html=True)
+                try:
+                    bouts_data = pd.read_csv(bouts_path)
+                    st.dataframe(
+                        bouts_data.head(20),
+                        use_container_width=True, hide_index=True,
+                    )
+                    st.caption(f"Toplam bout sayısı: {len(bouts_data)}")
+                except Exception as e:
+                    st.warning(f"Bout dosyası okunamadı: {e}")
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 3 — METRİKLER
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    if active_tab == _TAB_LABELS[2]:
+        # ── Üst satır: MODEL ÖZELLİKLERİ — tam genişlik ──────────────────────────
+        st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
+        model_cols = pred_info.get("feature_cols", []) or list(feat.keys())
+        feat_cols = st.columns(2, gap="medium")
+        for i, k in enumerate(model_cols):
+            info = FEATURE_INFO.get(k, {})
+            name = info.get("name", k.replace("_", " ").title())
+            val = feat.get(k)
+            if isinstance(val, float):
+                val_str = "—" if np.isnan(val) else f"{val:.3f}"
+            elif val is None:
+                val_str = "—"
+            else:
+                val_str = str(val)
+    
+            with feat_cols[i % 2]:
+                with st.expander(f"{name}   ·   {val_str}", expanded=False):
+                    desc = info.get("desc")
+                    formula = info.get("formula")
+                    if desc:
+                        st.markdown(
+                            f"<div style='font-size:0.72rem;font-weight:700;"
+                            f"letter-spacing:0.14em;color:#94a3b8;"
+                            f"margin:0.1rem 0 0.4rem 0;'>AÇIKLAMA</div>"
+                            f"<div style='font-size:0.95rem;color:#e2e8f0;"
+                            f"line-height:1.55;margin-bottom:0.7rem;'>{desc}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    if formula:
+                        st.markdown(
+                            "<div style='font-size:0.72rem;font-weight:700;"
+                            "letter-spacing:0.14em;color:#94a3b8;"
+                            "margin:0.1rem 0 0.35rem 0;'>NASIL HESAPLANIR</div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.code(formula, language="text")
+                    if not desc and not formula:
+                        st.markdown(
+                            "<div style='font-size:0.95rem;color:#cbd5e1;'>"
+                            "Bu özellik için açıklama tanımlanmamış.</div>",
+                            unsafe_allow_html=True,
+                        )
+    
+        # ── Alt satır: DAVRANIŞ ÖZETLERİ  ⟂  MEKANSAL REARING ────────────────────
+        mc1, mc2 = st.columns(2, gap="medium")
+    
+        with mc1:
+            st.markdown(html_section("Davranış Özetleri"), unsafe_allow_html=True)
+    
+            beh_cards = [
+                ("Rearing",  "#10B981",
+                 int(feat['rear_count']),
+                 feat.get('rear_total_s', 0.0) or 0.0,
+                 feat.get('rear_pct', 0.0) or 0.0),
+                ("Grooming", "#A855F7",
+                 int(feat['groom_count']),
+                 feat.get('groom_total_s', 0.0) or 0.0,
+                 feat.get('groom_pct', 0.0) or 0.0),
+                ("Freezing", "#F59E0B",
+                 int(feat.get('freeze_bout_count', 0) or 0),
+                 None,
+                 feat.get('pct_freeze', 0.0) or 0.0),
+            ]
+    
+            cards_html = ""
+            for name, color, count, total_s, pct in beh_cards:
+                total_str = "—" if total_s is None else f"{total_s:.1f} sn"
+                pct_str = f"%{pct:.1f}"
+                cards_html += (
+                    f"<div style='background:rgba(255,255,255,0.03);"
+                    f"border:1px solid rgba(255,255,255,0.07);border-radius:12px;"
+                    f"padding:0.85rem 1rem;margin-bottom:8px;'>"
+                    f"  <div style='display:flex;justify-content:space-between;"
+                    f"align-items:center;'>"
+                    f"    <div style='display:flex;align-items:center;gap:10px;'>"
+                    f"      <div style='width:10px;height:10px;border-radius:50%;"
+                    f"background:{color};box-shadow:0 0 8px {color}66;'></div>"
+                    f"      <span style='color:#e2e8f0;font-weight:600;"
+                    f"font-size:0.95rem;'>{name}</span>"
+                    f"    </div>"
+                    f"    <div style='display:flex;gap:18px;font-size:0.85rem;'>"
+                    f"      <span style='color:#94a3b8;'>Adet: "
+                    f"<strong style='color:#f1f5f9;font-weight:700;'>{count}</strong></span>"
+                    f"      <span style='color:#94a3b8;'>Süre: "
+                    f"<strong style='color:#f1f5f9;font-weight:700;'>{total_str}</strong></span>"
+                    f"      <span style='color:#94a3b8;'>%: "
+                    f"<strong style='color:{color};font-weight:700;'>{pct_str}</strong></span>"
+                    f"    </div>"
+                    f"  </div>"
+                    f"</div>"
+                )
+            st.markdown(cards_html, unsafe_allow_html=True)
+    
+        with mc2:
+            # Başlık literal-uppercase — tr_upper'ın "Rearing"'i "REARİNG" yapmasını
+            # engellemek için doğrudan büyük harf string verilir.
+            st.markdown(html_section("MEKANSAL REARING"), unsafe_allow_html=True)
+            rc = int(feat.get('rear_count_center', 0) or 0)
+            rw = int(feat.get('rear_count_wall', 0) or 0)
+            rcf = feat.get('rear_center_frac')
+            rcf_str = "—" if (rcf is None or (isinstance(rcf, float) and np.isnan(rcf))) else f"{rcf:.1%}"
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Merkez",        rc)
+            c2.metric("Duvar",         rw)
+            c3.metric("Merkez Oranı",  rcf_str)
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # TAB 4 — İNDİR
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    if active_tab == _TAB_LABELS[3]:
+        st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
+    
+        dc1, dc2, dc3 = st.columns(3, gap="medium")
+    
+        with dc1:
+            st.download_button(
+                "⬇  Rapor (TXT)", report_text,
+                file_name=txt_name, mime="text/plain",
+                use_container_width=True, key="dl_txt",
+            )
+            with st.expander("Önizleme"):
+                st.code(report_text, language="text")
+    
+        with dc2:
+            st.download_button(
+                "⬇  Tahmin Raporu (JSON)", json_bytes,
+                file_name=json_name, mime="application/json",
+                use_container_width=True, key="dl_json",
+            )
+            with st.expander("Önizleme"):
+                st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
+    
+        with dc3:
+            st.download_button(
+                "⬇  Genel Bakış (PNG)", fig_images["anxiety_overview"],
+                file_name=f"{subject}_anxiety_v2_overview.png",
+                mime="image/png",
+                use_container_width=True, key="dl_overview",
+            )
+            with st.expander("Önizleme"):
+                st.image(fig_images["anxiety_overview"], use_container_width=True)
+    
+        if available_outputs:
+            st.markdown(html_section("Analiz Görselleri"), unsafe_allow_html=True)
+            viz_map = [
+                ("behavior_timeline", "Zaman Çizgisi"),
+                ("orbit_grid",        "Yörünge"),
+                ("thigmotaxis",       "Thigmotaxis"),
+                ("heatmap_kde",       "Isı Haritası"),
+                ("heatmap_histogram", "Histogram"),
+                ("bodypart_heatmaps", "Bodypart Izgarası"),
+            ]
+            viz_map = [(k, lbl) for k, lbl in viz_map if k in available_outputs]
+            for i in range(0, len(viz_map), 3):
+                row = viz_map[i:i+3]
+                cols = st.columns(len(row), gap="medium")
+                for (key, lbl), col in zip(row, cols):
+                    with col:
+                        st.download_button(
+                            f"⬇  {lbl} (PNG)", analysis_images[key],
+                            file_name=f"{subject}_{key}.png",
+                            mime="image/png",
+                            use_container_width=True, key=f"dl_{key}",
+                        )
+                        with st.expander("Önizleme"):
+                            st.image(analysis_images[key], use_container_width=True)
+
+
+_render_tab_section()
 

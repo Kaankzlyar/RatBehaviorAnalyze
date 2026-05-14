@@ -24,7 +24,7 @@ seaborn>=0.13
 opencv-python>=4.8
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
-streamlit>=1.30
+streamlit>=1.37        # 1.37+ gerekli — sekme geçişlerinde st.fragment ile akıcı render
 
 # ── Notebook ──────────────────────────────────────────────────────────────────
 jupyterlab>=4.0
