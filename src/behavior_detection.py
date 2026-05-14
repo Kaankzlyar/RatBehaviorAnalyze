@@ -503,7 +503,6 @@ def plot_timeline(
 
     fig, axes = plt.subplots(3, 1, figsize=(18, 6), sharex=True,
                               gridspec_kw={"height_ratios": [1, 1, 1]})
-    fig.suptitle("Behaviour Timeline — Rearing & Grooming Detection", fontsize=13, y=1.01)
 
     row_labels   = ["Ground Truth", "Detected", "Frame Labels"]
     row_data     = [
