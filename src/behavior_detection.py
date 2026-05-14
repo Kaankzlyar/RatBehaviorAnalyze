@@ -483,9 +483,44 @@ GROUND_TRUTH_BY_SUBJECT: dict[str, dict[str, list[tuple[int, int]]]] = {
 }
 
 
+GT_CSV_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "behavior_ground_truth.csv",
+)
+
+
+def _load_gt_from_csv(subject: str) -> dict[str, list[tuple[int, int]]]:
+    """Read bouts for ``subject`` from data/behavior_ground_truth.csv if present."""
+    out: dict[str, list[tuple[int, int]]] = {"rearing": [], "grooming": []}
+    if not os.path.exists(GT_CSV_PATH):
+        return out
+    try:
+        df = pd.read_csv(GT_CSV_PATH)
+    except Exception:
+        return out
+    if "subject_id" not in df.columns or df.empty:
+        return out
+    sub = df[df["subject_id"] == subject]
+    for _, row in sub.iterrows():
+        label = str(row.get("label", "")).strip().lower()
+        if label in out:
+            try:
+                s = int(row["start_frame"])
+                e = int(row["end_frame"])
+            except (ValueError, TypeError):
+                continue
+            out[label].append((s, e))
+    return out
+
+
 def ground_truth_for(base: str) -> dict[str, list[tuple[int, int]]]:
-    """Return the GT dict for a given CSV basename, or empty if unknown."""
-    return GROUND_TRUTH_BY_SUBJECT.get(base, {"rearing": [], "grooming": []})
+    """Return GT bouts for ``base`` from the in-code table and the GT CSV."""
+    in_code = GROUND_TRUTH_BY_SUBJECT.get(base, {"rearing": [], "grooming": []})
+    from_csv = _load_gt_from_csv(base)
+    return {
+        "rearing":  sorted(set(in_code.get("rearing", []))  | set(from_csv.get("rearing", []))),
+        "grooming": sorted(set(in_code.get("grooming", [])) | set(from_csv.get("grooming", []))),
+    }
 
 
 def plot_timeline(
@@ -501,32 +536,28 @@ def plot_timeline(
     n_frames = len(labels)
     time_s   = np.arange(n_frames) / fps
 
-    fig, axes = plt.subplots(3, 1, figsize=(18, 6), sharex=True,
-                              gridspec_kw={"height_ratios": [1, 1, 1]})
+    has_gt = any(ground_truth.get(b) for b in ("rearing", "grooming"))
+    n_rows = 3 if has_gt else 2
+    fig, axes = plt.subplots(n_rows, 1, figsize=(18, 2 * n_rows), sharex=True,
+                              gridspec_kw={"height_ratios": [1] * n_rows})
 
-    row_labels   = ["Ground Truth", "Detected", "Frame Labels"]
-    row_data     = [
-        # ground truth (from the confirmed windows above)
-        None,
-        # detected bouts
-        None,
-        # per-frame colour strip
-        None,
-    ]
+    idx = 0
 
-    # ── Row 0: ground truth ──
-    ax0 = axes[0]
-    ax0.set_ylabel("Ground\nTruth", rotation=0, ha="right", va="center", fontsize=9)
-    ax0.set_yticks([])
-    ax0.set_ylim(0, 1)
-    for beh, color in [("rearing", BEHAVIOUR_COLORS["rearing"]),
-                        ("grooming", BEHAVIOUR_COLORS["grooming"])]:
-        for s, e in ground_truth.get(beh, []):
-            ax0.axvspan(s / fps, e / fps, ymin=0, ymax=1,
-                        color=color, alpha=0.6, label=beh)
+    # ── Row 0: ground truth (only if any GT bouts exist) ──
+    if has_gt:
+        ax0 = axes[idx]
+        ax0.set_ylabel("Ground\nTruth", rotation=0, ha="right", va="center", fontsize=9)
+        ax0.set_yticks([])
+        ax0.set_ylim(0, 1)
+        for beh, color in [("rearing", BEHAVIOUR_COLORS["rearing"]),
+                            ("grooming", BEHAVIOUR_COLORS["grooming"])]:
+            for s, e in ground_truth.get(beh, []):
+                ax0.axvspan(s / fps, e / fps, ymin=0, ymax=1,
+                            color=color, alpha=0.6, label=beh)
+        idx += 1
 
-    # ── Row 1: detected bouts ──
-    ax1 = axes[1]
+    # ── Detected bouts ──
+    ax1 = axes[idx]
     ax1.set_ylabel("Detected\nBouts", rotation=0, ha="right", va="center", fontsize=9)
     ax1.set_yticks([])
     ax1.set_ylim(0, 1)
@@ -536,9 +567,10 @@ def plot_timeline(
     for s, e in groom_bouts:
         ax1.axvspan(s / fps, e / fps, ymin=0, ymax=1,
                     color=BEHAVIOUR_COLORS["grooming"], alpha=0.6)
+    idx += 1
 
-    # ── Row 2: per-frame colour strip ──
-    ax2 = axes[2]
+    # ── Per-frame colour strip ──
+    ax2 = axes[idx]
     ax2.set_ylabel("Per-Frame\nLabel", rotation=0, ha="right", va="center", fontsize=9)
     ax2.set_yticks([])
     ax2.set_ylim(0, 1)
