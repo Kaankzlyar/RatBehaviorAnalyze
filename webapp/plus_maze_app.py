@@ -1200,6 +1200,10 @@ with tab_viz:
 # TAB 4 — İNDİR
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _stick_to_dl_tab() -> None:
+    st.session_state["_return_to_dl_tab"] = True
+
+
 with tab_dl:
     safe_row = {
         k: (None if isinstance(v, float) and np.isnan(v) else v)
@@ -1235,6 +1239,7 @@ with tab_dl:
             file_name=f"{subject}_epm_metrics.csv", mime="text/csv",
             use_container_width=True,
             key="dl_csv",
+            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             preview_df = pd.DataFrame([safe_row]).T.reset_index()
@@ -1250,6 +1255,7 @@ with tab_dl:
             file_name=f"{subject}_epm_report.json", mime="application/json",
             use_container_width=True,
             key="dl_json",
+            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
@@ -1260,6 +1266,7 @@ with tab_dl:
             file_name=f"{subject}_epm_overview.png", mime="image/png",
             use_container_width=True,
             key="dl_overview",
+            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             st.image(overview_bytes, use_container_width=True)
@@ -1281,6 +1288,41 @@ with tab_dl:
                         mime="image/png",
                         use_container_width=True,
                         key=f"dl_{key}",
+                        on_click=_stick_to_dl_tab,
                     )
                     with st.expander("Önizleme"):
                         st.image(images[key], use_container_width=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RERUN sonrası İndir sekmesine geri dön (download_button rerun tetikler)
+# ─────────────────────────────────────────────────────────────────────────────
+
+if st.session_state.pop("_return_to_dl_tab", False):
+    st.components.v1.html(
+        """
+        <script>
+        (function () {
+          const doc = window.parent.document;
+          const targetLabel = 'İndir';
+          const click = () => {
+            const tabs = doc.querySelectorAll('button[role="tab"]');
+            for (const t of tabs) {
+              if ((t.innerText || '').includes(targetLabel)) {
+                if (t.getAttribute('aria-selected') !== 'true') t.click();
+                return true;
+              }
+            }
+            return false;
+          };
+          if (!click()) {
+            let tries = 0;
+            const iv = setInterval(() => {
+              if (click() || ++tries > 20) clearInterval(iv);
+            }, 50);
+          }
+        })();
+        </script>
+        """,
+        height=0,
+    )
