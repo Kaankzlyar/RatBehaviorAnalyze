@@ -993,8 +993,56 @@ subject    = Path(uploaded.name).stem
 
 st.markdown('<div style="height:0.5rem;"></div>', unsafe_allow_html=True)
 
-tab_pred, tab_beh, tab_metrics, tab_dl = st.tabs(
-    ["🎯  Tahmin", "🧠  Davranış", "📊  Metrikler", "⬇  İndir"]
+# Sekme bar'ı st.radio ile — st.tabs aktif sekmeyi rerun'da koruyamadığı için
+# session_state üzerinden seçim hatırlanır (download butonu sonrası "İndir"
+# sekmesinde kalmaya devam eder).
+_TAB_LABELS = ["🎯  Tahmin", "🧠  Davranış", "📊  Metrikler", "⬇  İndir"]
+
+st.markdown("""
+<style>
+/* radio'yu yatay tab-pill bar'ı gibi göster */
+div[data-testid="stRadio"] > label {
+    display: none;
+}
+div[data-testid="stRadio"] > div[role="radiogroup"] {
+    display: flex;
+    gap: 0.4rem;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+div[data-testid="stRadio"] label[data-baseweb="radio"] {
+    flex: 1;
+    margin: 0;
+    padding: 0.55rem 0.9rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    color: rgba(255,255,255,0.55);
+}
+div[data-testid="stRadio"] label[data-baseweb="radio"]:hover {
+    background: rgba(255,255,255,0.04);
+    color: #e2e8f0;
+}
+div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+    display: none !important;     /* radyo nokta gizle */
+}
+div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
+    background: rgba(99,102,241,0.18);
+    border: 1px solid rgba(99,102,241,0.35);
+    color: #c7d2fe;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
+
+active_tab = st.radio(
+    "Sekme", _TAB_LABELS,
+    key="active_tab",
+    horizontal=True,
+    label_visibility="collapsed",
 )
 
 
@@ -1002,7 +1050,7 @@ tab_pred, tab_beh, tab_metrics, tab_dl = st.tabs(
 # TAB 1 — TAHMİN
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tab_pred:
+if active_tab == _TAB_LABELS[0]:
     col_img, col_right = st.columns([1.35, 1], gap="large")
 
     with col_img:
@@ -1116,7 +1164,7 @@ with tab_pred:
 # TAB 2 — DAVRANIŞ
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tab_beh:
+if active_tab == _TAB_LABELS[1]:
     if not available_outputs:
         st.info(
             "Bu sekme, sol paneldeki **Detaylı analizi çalıştır** seçeneği "
@@ -1199,7 +1247,7 @@ with tab_beh:
 # TAB 3 — METRİKLER
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tab_metrics:
+if active_tab == _TAB_LABELS[2]:
     # ── Üst satır: MODEL ÖZELLİKLERİ — tam genişlik ──────────────────────────
     st.markdown(html_section("Model Özellikleri"), unsafe_allow_html=True)
     model_cols = pred_info.get("feature_cols", []) or list(feat.keys())
@@ -1311,7 +1359,7 @@ with tab_metrics:
 # TAB 4 — İNDİR
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tab_dl:
+if active_tab == _TAB_LABELS[3]:
     st.markdown(html_section("Rapor Dosyaları"), unsafe_allow_html=True)
 
     dc1, dc2, dc3 = st.columns(3, gap="medium")
