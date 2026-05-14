@@ -12,6 +12,7 @@ pipeline'ı (timeline, orbit, ısı haritası, bodypart) da çalıştırılır.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -777,7 +778,25 @@ if uploaded is None:
     """, unsafe_allow_html=True)
     st.stop()
 
-if not run_clicked:
+# ── Yüklenen dosyanın kimliğini hash'le; aynı dosyada rerun olunca cache'ten oku ──
+_h = hashlib.sha256()
+_h.update(uploaded.name.encode("utf-8"))
+_h.update(b"|")
+_h.update(uploaded.getvalue())
+current_key = _h.hexdigest()
+
+prev_key = st.session_state.get("v3_results_key")
+if prev_key is not None and prev_key != current_key:
+    # Yeni bir dosya yüklendi → eski sonuçları unut
+    st.session_state.pop("v3_results", None)
+    st.session_state.pop("v3_results_key", None)
+
+cache_hit = (
+    st.session_state.get("v3_results_key") == current_key
+    and "v3_results" in st.session_state
+)
+
+if not cache_hit and not run_clicked:
     st.markdown(
         f'<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);'
         f'border-radius:10px;padding:0.9rem 1.2rem;margin-top:0.5rem;'
@@ -800,137 +819,167 @@ analysis_images: dict[str, bytes] = {}
 available_outputs: set[str] = set()
 fig_images: dict[str, bytes] = {}
 
-with tempfile.TemporaryDirectory() as tmp:
-    tmp_path = Path(tmp)
-    csv_path = tmp_path / uploaded.name
-    csv_path.write_bytes(uploaded.getvalue())
+if cache_hit:
+    # Aynı dosya hâlâ yüklü; pipeline'ı yeniden çalıştırma, cache'ten yükle.
+    _r = st.session_state["v3_results"]
+    pred_info         = _r["pred_info"]
+    feat              = _r["feat"]
+    report_text       = _r["report_text"]
+    json_bytes        = _r["json_bytes"]
+    txt_name          = _r["txt_name"]
+    json_name         = _r["json_name"]
+    fig_images        = _r["fig_images"]
+    analysis_images   = _r["analysis_images"]
+    available_outputs = _r["available_outputs"]
+    analysis_results  = _r.get("analysis_results", {})
+else:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        csv_path = tmp_path / uploaded.name
+        csv_path.write_bytes(uploaded.getvalue())
 
-    status_ph = st.empty()
-    prog = st.progress(0.0)
+        status_ph = st.empty()
+        prog = st.progress(0.0)
 
-    def _step(p: float, msg: str):
-        prog.progress(min(max(p, 0.0), 1.0))
-        status_ph.markdown(
-            f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.5);'
-            f'padding:0.3rem 0;">{msg}</div>',
-            unsafe_allow_html=True,
-        )
-
-    try:
-        if run_analysis:
-            _step(0.05, "🧪 Open-field analiz pipeline başlıyor…")
-            if auto_inner:
-                w = arena_xmax - arena_xmin
-                h = arena_ymax - arena_ymin
-                inner_xmin = arena_xmin + 0.20 * w
-                inner_xmax = arena_xmax - 0.20 * w
-                inner_ymin = arena_ymin + 0.20 * h
-                inner_ymax = arena_ymax - 0.20 * h
-
-            arena_bounds = (arena_xmin, arena_xmax, arena_ymin, arena_ymax)
-            inner_zone_bounds = (inner_xmin, inner_xmax, inner_ymin, inner_ymax)
-
-            progress_output = st.empty()
-            analysis_results = run_open_field_analysis(
-                csv_path,
-                arena_bounds,
-                inner_zone_bounds,
-                fps=fps,
-                skip_behavior=skip_behavior,
-                skip_orbit=skip_orbit,
-                skip_heatmap=fast_mode,
-                skip_bodypart=fast_mode,
-                progress_container=progress_output,
+        def _step(p: float, msg: str):
+            prog.progress(min(max(p, 0.0), 1.0))
+            status_ph.markdown(
+                f'<div style="font-size:0.85rem;color:rgba(255,255,255,0.5);'
+                f'padding:0.3rem 0;">{msg}</div>',
+                unsafe_allow_html=True,
             )
-            for key in ("behavior_timeline", "orbit_grid", "thigmotaxis",
-                        "heatmap_histogram", "heatmap_kde", "bodypart_heatmaps"):
-                p = analysis_results.get(key)
-                if p and p.exists():
-                    try:
-                        analysis_images[key] = p.read_bytes()
-                        available_outputs.add(key)
-                    except Exception:
-                        pass
-            progress_output.empty()
 
-        _step(0.30, "📍 Davranış bout'ları (rearing / grooming) çıkarılıyor")
-        bouts_df, n_frames = v2.detect_bouts(csv_path, fps=fps)
+        try:
+            if run_analysis:
+                _step(0.05, "🧪 Open-field analiz pipeline başlıyor…")
+                if auto_inner:
+                    w = arena_xmax - arena_xmin
+                    h = arena_ymax - arena_ymin
+                    inner_xmin = arena_xmin + 0.20 * w
+                    inner_xmax = arena_xmax - 0.20 * w
+                    inner_ymin = arena_ymin + 0.20 * h
+                    inner_ymax = arena_ymax - 0.20 * h
 
-        _step(0.50, "📐 OFT metrikleri (lokomosyon / thigmotaxis / freeze / entropi)")
-        oft, body_x, body_y = v2.compute_oft_metrics(csv_path, fps=fps)
+                arena_bounds = (arena_xmin, arena_xmax, arena_ymin, arena_ymax)
+                inner_zone_bounds = (inner_xmin, inner_xmax, inner_ymin, inner_ymax)
 
-        _step(0.65, "🎯 Mekansal rearing (merkez vs. duvar)")
-        spatial = v2.compute_spatial_rearing(bouts_df, body_x, body_y)
-        feat = v2.build_feature_dict(bouts_df, oft, spatial, oft["session_s"])
+                progress_output = st.empty()
+                analysis_results = run_open_field_analysis(
+                    csv_path,
+                    arena_bounds,
+                    inner_zone_bounds,
+                    fps=fps,
+                    skip_behavior=skip_behavior,
+                    skip_orbit=skip_orbit,
+                    skip_heatmap=fast_mode,
+                    skip_bodypart=fast_mode,
+                    progress_container=progress_output,
+                )
+                for key in ("behavior_timeline", "orbit_grid", "thigmotaxis",
+                            "heatmap_histogram", "heatmap_kde", "bodypart_heatmaps"):
+                    p = analysis_results.get(key)
+                    if p and p.exists():
+                        try:
+                            analysis_images[key] = p.read_bytes()
+                            available_outputs.add(key)
+                        except Exception:
+                            pass
+                progress_output.empty()
 
-        _step(0.80, f"🧠 Model yükleme ve tahmin (tag={tag})")
-        bundle, model = v2.load_model(tag)
-        pred_info = v2.predict(feat, bundle, model)
+            _step(0.30, "📍 Davranış bout'ları (rearing / grooming) çıkarılıyor")
+            bouts_df, n_frames = v2.detect_bouts(csv_path, fps=fps)
 
-        _step(0.90, "📊 Rapor ve görseller üretiliyor")
+            _step(0.50, "📐 OFT metrikleri (lokomosyon / thigmotaxis / freeze / entropi)")
+            oft, body_x, body_y = v2.compute_oft_metrics(csv_path, fps=fps)
 
-        subject = csv_path.stem
-        out_dir = tmp_path / "out"
-        out_dir.mkdir()
+            _step(0.65, "🎯 Mekansal rearing (merkez vs. duvar)")
+            spatial = v2.compute_spatial_rearing(bouts_df, body_x, body_y)
+            feat = v2.build_feature_dict(bouts_df, oft, spatial, oft["session_s"])
 
-        report_buf = StringIO()
-        v2.render_summary(report_buf, csv_path, n_frames, feat, pred_info)
-        report_text = report_buf.getvalue()
-        txt_name = f"{subject}_anxiety_v2_report.txt"
+            _step(0.80, f"🧠 Model yükleme ve tahmin (tag={tag})")
+            bundle, model = v2.load_model(tag)
+            pred_info = v2.predict(feat, bundle, model)
 
-        fig_path = out_dir / f"{subject}_anxiety_v2_overview.png"
-        v2.plot_overview(csv_path, body_x, body_y, spatial, pred_info, fig_path)
-        fig_images["anxiety_overview"] = fig_path.read_bytes()
+            _step(0.90, "📊 Rapor ve görseller üretiliyor")
 
-        json_payload = {
-            "subject":         subject,
-            "csv_path":        uploaded.name,
-            "n_frames":        n_frames,
-            "session_s":       oft["session_s"],
-            "model_tag":       tag,
-            "pred":            pred_info["pred"],
-            "label":           v2.label_str(pred_info["pred"]),
-            "proba_control":   round(pred_info["proba_control"], 4),
-            "proba_treated":   round(pred_info["proba_treated"], 4),
-            "top_contributors": pred_info["top_contributors"],
-            "features":        {k: (None if isinstance(val, float) and np.isnan(val) else val)
-                                 for k, val in feat.items()},
-            "feature_cols_used": pred_info["feature_cols"],
-            "n_rearing_bouts":  int((bouts_df["behaviour"] == "rearing").sum()),
-            "n_grooming_bouts": int((bouts_df["behaviour"] == "grooming").sum()),
-            "spatial_rearing": {
-                "rear_count_center":   spatial["rear_count_center"],
-                "rear_count_wall":     spatial["rear_count_wall"],
-                "rear_count_unknown":  spatial["rear_count_unknown"],
-                "rear_center_frac":    (None if spatial["rear_center_frac"] != spatial["rear_center_frac"]
-                                        else round(spatial["rear_center_frac"], 4)),
-            },
-            "generated_at":    datetime.now().isoformat(timespec="seconds"),
-        }
-        json_bytes = json.dumps(json_payload, indent=2, ensure_ascii=False).encode("utf-8")
-        json_name = f"{subject}_anxiety_v2_report.json"
+            subject = csv_path.stem
+            out_dir = tmp_path / "out"
+            out_dir.mkdir()
 
-        if save_to_reports:
-            target = v2.DEFAULT_OUT
-            target.mkdir(parents=True, exist_ok=True)
-            (target / json_name).write_bytes(json_bytes)
-            (target / txt_name).write_text(report_text, encoding="utf-8")
-            (target / f"{subject}_anxiety_v2_overview.png").write_bytes(fig_images["anxiety_overview"])
-            for key, img_bytes in analysis_images.items():
-                (target / f"{subject}_{key}.png").write_bytes(img_bytes)
+            report_buf = StringIO()
+            v2.render_summary(report_buf, csv_path, n_frames, feat, pred_info)
+            report_text = report_buf.getvalue()
+            txt_name = f"{subject}_anxiety_v2_report.txt"
 
-        _step(1.0, "✓  Tamamlandı")
-        prog.empty()
-        status_ph.empty()
+            fig_path = out_dir / f"{subject}_anxiety_v2_overview.png"
+            v2.plot_overview(csv_path, body_x, body_y, spatial, pred_info, fig_path)
+            fig_images["anxiety_overview"] = fig_path.read_bytes()
 
-    except FileNotFoundError as e:
-        st.error("Model dosyaları bulunamadı.")
-        st.code(str(e))
-        st.stop()
-    except Exception as e:
-        st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
-        st.exception(e)
-        st.stop()
+            json_payload = {
+                "subject":         subject,
+                "csv_path":        uploaded.name,
+                "n_frames":        n_frames,
+                "session_s":       oft["session_s"],
+                "model_tag":       tag,
+                "pred":            pred_info["pred"],
+                "label":           v2.label_str(pred_info["pred"]),
+                "proba_control":   round(pred_info["proba_control"], 4),
+                "proba_treated":   round(pred_info["proba_treated"], 4),
+                "top_contributors": pred_info["top_contributors"],
+                "features":        {k: (None if isinstance(val, float) and np.isnan(val) else val)
+                                     for k, val in feat.items()},
+                "feature_cols_used": pred_info["feature_cols"],
+                "n_rearing_bouts":  int((bouts_df["behaviour"] == "rearing").sum()),
+                "n_grooming_bouts": int((bouts_df["behaviour"] == "grooming").sum()),
+                "spatial_rearing": {
+                    "rear_count_center":   spatial["rear_count_center"],
+                    "rear_count_wall":     spatial["rear_count_wall"],
+                    "rear_count_unknown":  spatial["rear_count_unknown"],
+                    "rear_center_frac":    (None if spatial["rear_center_frac"] != spatial["rear_center_frac"]
+                                            else round(spatial["rear_center_frac"], 4)),
+                },
+                "generated_at":    datetime.now().isoformat(timespec="seconds"),
+            }
+            json_bytes = json.dumps(json_payload, indent=2, ensure_ascii=False).encode("utf-8")
+            json_name = f"{subject}_anxiety_v2_report.json"
+
+            if save_to_reports:
+                target = v2.DEFAULT_OUT
+                target.mkdir(parents=True, exist_ok=True)
+                (target / json_name).write_bytes(json_bytes)
+                (target / txt_name).write_text(report_text, encoding="utf-8")
+                (target / f"{subject}_anxiety_v2_overview.png").write_bytes(fig_images["anxiety_overview"])
+                for key, img_bytes in analysis_images.items():
+                    (target / f"{subject}_{key}.png").write_bytes(img_bytes)
+
+            _step(1.0, "✓  Tamamlandı")
+            prog.empty()
+            status_ph.empty()
+
+        except FileNotFoundError as e:
+            st.error("Model dosyaları bulunamadı.")
+            st.code(str(e))
+            st.stop()
+        except Exception as e:
+            st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
+            st.exception(e)
+            st.stop()
+
+    # Pipeline başarıyla bitti — sonuçları cache'le ki sonraki rerun (download
+    # butonu vs.) pipeline'ı tekrar çalıştırmasın.
+    st.session_state["v3_results"] = {
+        "pred_info":         pred_info,
+        "feat":              feat,
+        "report_text":       report_text,
+        "json_bytes":        json_bytes,
+        "txt_name":          txt_name,
+        "json_name":         json_name,
+        "fig_images":        fig_images,
+        "analysis_images":   analysis_images,
+        "available_outputs": available_outputs,
+        "analysis_results":  analysis_results,
+    }
+    st.session_state["v3_results_key"] = current_key
 
 
 # ─────────────────────────────────────────────────────────────────────────────
