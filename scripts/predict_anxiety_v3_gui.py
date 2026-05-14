@@ -37,7 +37,7 @@ import predict_anxiety_v2 as v2  # noqa: E402
 
 # ── Sayfa konfigürasyonu ──────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="OFT Anksiyete & Davranış",
+    page_title="Open Field — Tahmin Paneli",
     page_icon="🐀",
     layout="wide",
     initial_sidebar_state="expanded",
