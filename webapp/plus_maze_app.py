@@ -825,7 +825,10 @@ if uploaded is None:
     """, unsafe_allow_html=True)
     st.stop()
 
-if not run_clicked:
+file_key = f"{uploaded.name}:{uploaded.size}"
+has_cache = st.session_state.get("plus_maze_cache_key") == file_key
+
+if not run_clicked and not has_cache:
     st.markdown(
         f'<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);'
         f'border-radius:10px;padding:0.9rem 1.2rem;margin-top:0.5rem;'
@@ -856,52 +859,67 @@ if bundle is None:
 # PIPELINE
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tempfile.TemporaryDirectory() as tmp:
-    tmp_path = Path(tmp)
-    csv_path = tmp_path / uploaded.name
-    csv_path.write_bytes(uploaded.getvalue())
+if has_cache and not run_clicked:
+    cached = st.session_state["plus_maze_results"]
+    row            = cached["row"]
+    pred_info      = cached["pred_info"]
+    images         = cached["images"]
+    overview_bytes = cached["overview_bytes"]
+else:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        csv_path = tmp_path / uploaded.name
+        csv_path.write_bytes(uploaded.getvalue())
 
-    prog = st.progress(0.0)
-    status_ph = st.empty()
+        prog = st.progress(0.0)
+        status_ph = st.empty()
 
-    def _step(pct: float, msg: str):
-        prog.progress(pct)
-        status_ph.markdown(
-            f'<div style="font-size:0.8rem;color:rgba(255,255,255,0.4);'
-            f'margin:4px 0 8px 2px;">{msg}</div>',
-            unsafe_allow_html=True,
-        )
+        def _step(pct: float, msg: str):
+            prog.progress(pct)
+            status_ph.markdown(
+                f'<div style="font-size:0.8rem;color:rgba(255,255,255,0.4);'
+                f'margin:4px 0 8px 2px;">{msg}</div>',
+                unsafe_allow_html=True,
+            )
 
-    try:
-        _step(0.12, "⚙  EPM metrikleri hesaplanıyor…")
-        row = add_derived(compute_metrics(str(csv_path), DEFAULT_ARMS, fps=FPS))
+        try:
+            _step(0.12, "⚙  EPM metrikleri hesaplanıyor…")
+            row = add_derived(compute_metrics(str(csv_path), DEFAULT_ARMS, fps=FPS))
 
-        _step(0.35, "📍 Trajectory okunuyor…")
-        body_x, body_y = load_body_center(
-            str(csv_path), likelihood_thresh=0.6, jump_thresh=60.0, smooth=5
-        )
+            _step(0.35, "📍 Trajectory okunuyor…")
+            body_x, body_y = load_body_center(
+                str(csv_path), likelihood_thresh=0.6, jump_thresh=60.0, smooth=5
+            )
 
-        _step(0.55, "🤖 Model tahmini yapılıyor…")
-        pred_info = predict(row, bundle, clf)
+            _step(0.55, "🤖 Model tahmini yapılıyor…")
+            pred_info = predict(row, bundle, clf)
 
-        _step(0.72, "🎨 Görselleştirmeler üretiliyor…")
-        images = run_visuals(csv_path, DEFAULT_ARMS, tmp_path)
+            _step(0.72, "🎨 Görselleştirmeler üretiliyor…")
+            images = run_visuals(csv_path, DEFAULT_ARMS, tmp_path)
 
-        fig_ov = fig_overview(body_x, body_y, DEFAULT_ARMS, pred_info)
-        buf = io.BytesIO()
-        fig_ov.savefig(buf, format="png", dpi=150, bbox_inches="tight",
-                       facecolor=_DARK_BG)
-        plt.close(fig_ov)
-        overview_bytes = buf.getvalue()
+            fig_ov = fig_overview(body_x, body_y, DEFAULT_ARMS, pred_info)
+            buf = io.BytesIO()
+            fig_ov.savefig(buf, format="png", dpi=150, bbox_inches="tight",
+                           facecolor=_DARK_BG)
+            plt.close(fig_ov)
+            overview_bytes = buf.getvalue()
 
-        _step(1.0, "✓  Tamamlandı")
-        prog.empty()
-        status_ph.empty()
+            _step(1.0, "✓  Tamamlandı")
+            prog.empty()
+            status_ph.empty()
 
-    except Exception as e:
-        st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
-        st.exception(e)
-        st.stop()
+        except Exception as e:
+            st.error(f"Pipeline hatası: {type(e).__name__}: {e}")
+            st.exception(e)
+            st.stop()
+
+    st.session_state["plus_maze_cache_key"] = file_key
+    st.session_state["plus_maze_results"]   = {
+        "row":            row,
+        "pred_info":      pred_info,
+        "images":         images,
+        "overview_bytes": overview_bytes,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
