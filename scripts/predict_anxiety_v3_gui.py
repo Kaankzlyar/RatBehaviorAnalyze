@@ -1128,6 +1128,7 @@ def _render_tab_section():
                     f"Bu denek için ölçülen değer "
                     f"<strong style='color:#f1f5f9;'>{value_str}</strong> "
                     f"(z-skoru {c['z']:+.2f}). Modelin lojistik regresyon katsayısı "
+                    f"(<strong style='color:{arrow_color};'>{c['coef']:+.3f}</strong>) "
                     f"ile çarpılınca <strong style='color:{arrow_color};'>{push:+.3f}</strong> "
                     f"büyüklüğünde, <strong style='color:{arrow_color};'>{toward}</strong> "
                     f"yönünde bir karar katkısı üretir."

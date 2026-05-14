@@ -1,53 +1,53 @@
 {
   "subject": "OpenFieldMA5_1",
-  "csv_path": "D:\\ProjectsD\\ThesisWork\\data\\DLCfiltered\\Greyfurt\\OpenFieldMA5_1\\OpenFieldMA5_1.csv",
+  "csv_path": "OpenFieldMA5_1.csv",
   "n_frames": 5380,
   "session_s": 179.33333333333334,
   "model_tag": "rearonly",
-  "pred": 0,
-  "label": "Control-benzeri",
-  "proba_control": 0.7182,
-  "proba_treated": 0.2818,
+  "pred": 1,
+  "label": "Treated-benzeri",
+  "proba_control": 0.2768,
+  "proba_treated": 0.7232,
   "top_contributors": [
-    {
-      "feature": "rear_center_frac",
-      "value": 0.0,
-      "z": -9.9,
-      "coef": 0.359,
-      "push": -3.549,
-      "toward": "Control"
-    },
     {
       "feature": "rear_early_frac",
       "value": 0.8306911857958147,
       "z": 1.73,
-      "coef": -1.493,
-      "push": -2.581,
+      "coef": -1.501,
+      "push": -2.595,
       "toward": "Control"
-    },
-    {
-      "feature": "comfort_ratio",
-      "value": 28.10384615384615,
-      "z": 3.17,
-      "coef": 0.481,
-      "push": 1.523,
-      "toward": "Treated"
     },
     {
       "feature": "pct_freeze",
       "value": 23.98,
       "z": 2.72,
-      "coef": 0.481,
-      "push": 1.311,
+      "coef": 0.483,
+      "push": 1.316,
+      "toward": "Treated"
+    },
+    {
+      "feature": "comfort_ratio",
+      "value": 28.10384615384615,
+      "z": 3.17,
+      "coef": 0.414,
+      "push": 1.31,
       "toward": "Treated"
     },
     {
       "feature": "pct_periphery",
       "value": 97.4,
       "z": 1.05,
-      "coef": 1.082,
-      "push": 1.137,
+      "coef": 1.088,
+      "push": 1.143,
       "toward": "Treated"
+    },
+    {
+      "feature": "spatial_entropy",
+      "value": 0.5445,
+      "z": -1.05,
+      "coef": 0.79,
+      "push": -0.828,
+      "toward": "Control"
     }
   ],
   "features": {
@@ -93,13 +93,7 @@
     "rear_early_frac",
     "rear_groom_ratio",
     "rear_per_100px",
-    "comfort_ratio",
-    "rear_count_center",
-    "rear_count_wall",
-    "rear_center_frac",
-    "rear_total_s_center",
-    "rear_total_s_wall",
-    "rear_center_minus_wall"
+    "comfort_ratio"
   ],
   "n_rearing_bouts": 12,
   "n_grooming_bouts": 16,
@@ -109,5 +103,5 @@
     "rear_count_unknown": 0,
     "rear_center_frac": 0.0
   },
-  "generated_at": "2026-05-10T19:52:00"
+  "generated_at": "2026-05-15T00:06:50"
 }
