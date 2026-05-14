@@ -1200,11 +1200,11 @@ with tab_viz:
 # TAB 4 — İNDİR
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _stick_to_dl_tab() -> None:
-    st.session_state["_return_to_dl_tab"] = True
-
-
-with tab_dl:
+@st.fragment
+def render_download_tab(
+    *, row, pred_info, subject, uploaded_name, pred_label,
+    overview_bytes, images,
+) -> None:
     safe_row = {
         k: (None if isinstance(v, float) and np.isnan(v) else v)
         for k, v in row.items() if not k.startswith("_")
@@ -1219,7 +1219,7 @@ with tab_dl:
     json_bytes = json.dumps(
         {
             "subject":          subject,
-            "csv_file":         uploaded.name,
+            "csv_file":         uploaded_name,
             "pred_label":       pred_label,
             "proba_control":    round(pred_info["proba_control"], 4),
             "proba_treated":    round(pred_info["proba_treated"], 4),
@@ -1239,7 +1239,6 @@ with tab_dl:
             file_name=f"{subject}_epm_metrics.csv", mime="text/csv",
             use_container_width=True,
             key="dl_csv",
-            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             preview_df = pd.DataFrame([safe_row]).T.reset_index()
@@ -1255,7 +1254,6 @@ with tab_dl:
             file_name=f"{subject}_epm_report.json", mime="application/json",
             use_container_width=True,
             key="dl_json",
-            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             st.json(json.loads(json_bytes.decode("utf-8")), expanded=False)
@@ -1266,7 +1264,6 @@ with tab_dl:
             file_name=f"{subject}_epm_overview.png", mime="image/png",
             use_container_width=True,
             key="dl_overview",
-            on_click=_stick_to_dl_tab,
         )
         with st.expander("Önizleme"):
             st.image(overview_bytes, use_container_width=True)
@@ -1288,41 +1285,18 @@ with tab_dl:
                         mime="image/png",
                         use_container_width=True,
                         key=f"dl_{key}",
-                        on_click=_stick_to_dl_tab,
                     )
                     with st.expander("Önizleme"):
                         st.image(images[key], use_container_width=True)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RERUN sonrası İndir sekmesine geri dön (download_button rerun tetikler)
-# ─────────────────────────────────────────────────────────────────────────────
-
-if st.session_state.pop("_return_to_dl_tab", False):
-    st.components.v1.html(
-        """
-        <script>
-        (function () {
-          const doc = window.parent.document;
-          const targetLabel = 'İndir';
-          const click = () => {
-            const tabs = doc.querySelectorAll('button[role="tab"]');
-            for (const t of tabs) {
-              if ((t.innerText || '').includes(targetLabel)) {
-                if (t.getAttribute('aria-selected') !== 'true') t.click();
-                return true;
-              }
-            }
-            return false;
-          };
-          if (!click()) {
-            let tries = 0;
-            const iv = setInterval(() => {
-              if (click() || ++tries > 20) clearInterval(iv);
-            }, 50);
-          }
-        })();
-        </script>
-        """,
-        height=0,
+with tab_dl:
+    render_download_tab(
+        row=row,
+        pred_info=pred_info,
+        subject=subject,
+        uploaded_name=uploaded.name,
+        pred_label=pred_label,
+        overview_bytes=overview_bytes,
+        images=images,
     )
