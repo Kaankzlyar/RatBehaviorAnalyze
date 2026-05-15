@@ -737,8 +737,9 @@ with st.sidebar:
         html_stat_row("Algoritma",    "Lojistik Regresyon") +
         html_stat_row("Eğitim seti",  "37 sıçan (LOOCV)") +
         html_stat_row("AUC",          "0.733") +
-        html_stat_row("F1 (Tedavi)",  "0.821") +
-        html_stat_row("Duyarlılık",   "76.7%"),
+        html_stat_row("F1 (Makro)",   "0.633") +
+        html_stat_row("F1 (Ağırlıklı)", "0.750") +
+        html_stat_row("Doğruluk",     "73.0%"),
         unsafe_allow_html=True,
     )
 
@@ -789,7 +790,7 @@ st.markdown("""
           color:#fbbf24;letter-spacing:0.04em;">AUC 0.733</span>
     <span style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.30);
           border-radius:100px;padding:3px 12px;font-size:0.72rem;font-weight:500;
-          color:#c084fc;letter-spacing:0.04em;">F1 0.821</span>
+          color:#c084fc;letter-spacing:0.04em;">F1 0.633</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
