@@ -736,6 +736,7 @@ with st.sidebar:
     st.markdown(
         html_stat_row("Algoritma",    "Lojistik Regresyon") +
         html_stat_row("Eğitim seti",  "37 sıçan (LOOCV)") +
+        html_stat_row("Özellik sayısı", str(len(FEATURE_COLS))) +
         html_stat_row("AUC",          "0.733") +
         html_stat_row("F1 (Makro)",   "0.633") +
         html_stat_row("F1 (Ağırlıklı)", "0.750") +
