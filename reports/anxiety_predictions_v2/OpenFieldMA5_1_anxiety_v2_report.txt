@@ -4,7 +4,7 @@
 ✓ Pose verisi okundu        (5,380 frame)
 ✓ Davranış bout'ları çıkarıldı  (rearing=12, grooming=16)
 ✓ OFT metrikleri ve mekansal rearing hesaplandı
-✓ Rear-only model yüklendi  (LogReg, AUC=0.73 LOOCV)
+✓ Rear-only model yüklendi  (LogReg, AUC=0.68 LOOCV)
 ────────────────────────────────────────────────────────────
 
   Anahtar metrikler:
@@ -27,6 +27,4 @@
     comfort_ratio               z=+3.17  push=+1.31 → Treated
     pct_periphery               z=+1.05  push=+1.14 → Treated
     spatial_entropy             z=-1.05  push=−0.83 → Control
-
-  Not: model 'Treated vs Control' ayırıyor — doğrudan 'anksiyeteli' değil.
 

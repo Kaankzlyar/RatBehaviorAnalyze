@@ -269,7 +269,7 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
     print(f"✓ Davranış bout'ları çıkarıldı  "
           f"(rearing={int(feat['rear_count'])}, grooming={int(feat['groom_count'])})", file=buf)
     print(f"✓ OFT metrikleri ve mekansal rearing hesaplandı", file=buf)
-    print(f"✓ Rear-only model yüklendi  (LogReg, AUC=0.73 LOOCV)", file=buf)
+    print(f"✓ Rear-only model yüklendi  (LogReg, AUC=0.68 LOOCV)", file=buf)
     print(LINE, file=buf)
     print(f"\n  Anahtar metrikler:", file=buf)
     print(f"    Merkezde süre        : %{feat['pct_center']:5.1f}", file=buf)
@@ -298,7 +298,6 @@ def render_summary(buf, csv_path: Path, n_frames: int, feat: dict,
         sign = "+" if c["push"] >= 0 else "−"
         print(f"    {c['feature']:<26s}  z={c['z']:>+5.2f}  "
               f"push={sign}{abs(c['push']):.2f} → {c['toward']}", file=buf)
-    print("\n  Not: model 'Treated vs Control' ayırıyor — doğrudan 'anksiyeteli' değil.", file=buf)
     print(file=buf)
 
 
